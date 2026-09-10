@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Entorno y editores
+.env
+.vscode/
+.idea/
+
+# Archivos que Windows y Google Drive crean en cada carpeta
+desktop.ini
+Thumbs.db
