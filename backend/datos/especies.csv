@@ -1,0 +1,6 @@
+especie,humedad_min,humedad_max,luz_min,luz_max,temperatura_min,temperatura_max
+sansevieria,20,45,270,2150,21,32
+potos,40,70,270,2150,16,29
+suculenta,10,30,10760,107640,10,24
+helecho,60,85,1080,5380,10,22
+lavanda,25,50,10760,107640,13,27
