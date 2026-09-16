@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Matera inteligente · Diagnóstico</title>
+  <link rel="stylesheet" href="css/estilos.css">
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <header class="encabezado">
+    <p class="marca">Matera inteligente</p>
+    <h1>Diagnóstico de la planta</h1>
+    <p class="bajada">Elija la especie, escriba lo que marcan los sensores y consulte el estado.</p>
+  </header>
+
+  <main class="contenido">
+    <form id="formulario" class="tarjeta formulario" novalidate>
+      <div class="campo">
+        <label for="especie">Especie</label>
+        <select id="especie" name="especie" disabled>
+          <option>Cargando especies…</option>
+        </select>
+      </div>
+
+      <dl id="rangos" class="rangos" aria-label="Rangos óptimos de la especie elegida"></dl>
+
+      <div class="campo">
+        <label for="humedad">Humedad del sustrato <span class="unidad">%</span></label>
+        <input id="humedad" name="humedad" data-parametro inputmode="decimal" autocomplete="off" placeholder="p. ej. 32,5">
+      </div>
+      <div class="campo">
+        <label for="luz">Luz <span class="unidad">lux</span></label>
+        <input id="luz" name="luz" data-parametro inputmode="decimal" autocomplete="off" placeholder="p. ej. 850">
+      </div>
+      <div class="campo">
+        <label for="temperatura">Temperatura <span class="unidad">°C</span></label>
+        <input id="temperatura" name="temperatura" data-parametro inputmode="decimal" autocomplete="off" placeholder="p. ej. 21">
+      </div>
+
+      <button id="diagnosticar" type="submit" disabled>Diagnosticar</button>
+    </form>
+
+    <section id="resultado" class="tarjeta" aria-live="polite" hidden>
+      <div class="resultado__cabecera">
+        <h2 id="resultado-especie"></h2>
+        <span id="resultado-estado" class="estado"></span>
+      </div>
+      <div class="tabla-contenedor">
+        <table class="tabla">
+          <thead>
+            <tr><th>Parámetro</th><th>Valor</th><th>Rango óptimo</th><th>Estado</th></tr>
+          </thead>
+          <tbody id="resultado-parametros"></tbody>
+        </table>
+      </div>
+      <h3>Recomendaciones</h3>
+      <ul id="resultado-recomendaciones" class="recomendaciones"></ul>
+    </section>
+
+    <section id="error" class="tarjeta error" role="alert" hidden>
+      <p id="error-codigo" class="error__codigo"></p>
+      <p id="error-mensaje" class="error__mensaje"></p>
+    </section>
+
+    <details class="tarjeta pruebas">
+      <summary>Probar errores de la API</summary>
+      <p>Cada botón envía a propósito una petición inválida para ver cómo responde el backend.</p>
+      <div class="pruebas__botones">
+        <button type="button" data-prueba="especie-inexistente">Especie inexistente</button>
+        <button type="button" data-prueba="parametro-ausente">Humedad vacía</button>
+        <button type="button" data-prueba="no-numerico">Luz no numérica</button>
+        <button type="button" data-prueba="fisicamente-imposible">Humedad de 150 %</button>
+      </div>
+    </details>
+  </main>
+</body>
+</html>
