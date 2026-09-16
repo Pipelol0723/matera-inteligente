@@ -6,7 +6,27 @@ siguen pasando aunque se borre la carpeta infraestructura (RA4).
 from dominio.especie import Especie
 from dominio.medicion import Lectura, Medicion
 from dominio.parametros import HUMEDAD, LUZ, TEMPERATURA
+from dominio.puertos import CatalogoEspecies, ConsultaRangos
 from dominio.rango import Rango
+
+
+class RepositorioEspeciesEnMemoria(ConsultaRangos, CatalogoEspecies):
+    """Doble de los dos puertos: guarda especies en un dict y anota cada consulta (espia).
+
+    A proposito no normaliza nombres: asi las pruebas comprueban que el
+    servicio los normaliza antes de preguntar.
+    """
+
+    def __init__(self, *especies: Especie):
+        self._especies = {especie.nombre: especie for especie in especies}
+        self.consultas: list[str] = []
+
+    def rangos_de(self, especie: str) -> Especie | None:
+        self.consultas.append(especie)
+        return self._especies.get(especie)
+
+    def listar(self) -> list[Especie]:
+        return list(self._especies.values())
 
 
 def sansevieria() -> Especie:

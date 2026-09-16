@@ -10,6 +10,14 @@ class ErrorDominio(Exception):
     """Base de los errores del dominio."""
 
 
+class EspecieNoSoportada(ErrorDominio):
+    """La especie pedida no esta en la tabla de referencia."""
+
+    def __init__(self, especie: str):
+        super().__init__(f"La especie '{especie}' no está en la tabla de referencia.")
+        self.especie = especie
+
+
 class ValorFisicamenteImposible(ErrorDominio):
     """Una lectura fuera de lo que el parametro puede valer en el mundo real."""
 
