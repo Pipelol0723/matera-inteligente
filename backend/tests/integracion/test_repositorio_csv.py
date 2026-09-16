@@ -22,6 +22,24 @@ def test_la_tabla_real_tiene_al_menos_cinco_especies_con_todos_los_parametros():
     assert len(especies) >= 5
     for especie in especies:
         assert set(especie.rangos) == set(PARAMETROS)
+        assert especie.nombre_cientifico
+
+
+def test_el_nombre_cientifico_es_opcional(tmp_path):
+    especie = RepositorioEspeciesCsv(_csv(tmp_path, ENCABEZADO + "potos,40,70,270,2150,16,29\n")).rangos_de("potos")
+
+    assert especie is not None and especie.nombre_cientifico == ""
+
+
+def test_lee_el_nombre_cientifico_si_la_columna_existe(tmp_path):
+    contenido = (
+        "especie,nombre_cientifico,humedad_min,humedad_max,luz_min,luz_max,temperatura_min,temperatura_max\n"
+        "potos, Epipremnum aureum ,40,70,270,2150,16,29\n"
+    )
+
+    especie = RepositorioEspeciesCsv(_csv(tmp_path, contenido)).rangos_de("potos")
+
+    assert especie.nombre_cientifico == "Epipremnum aureum"
 
 
 def test_busca_la_especie_sin_importar_mayusculas_ni_tildes(tmp_path):

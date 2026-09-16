@@ -19,10 +19,13 @@ def normalizar_nombre(nombre: str) -> str:
 class Especie:
     nombre: str
     rangos: Mapping[Parametro, Rango]
+    # Dato descriptivo para mostrar; ninguna regla depende de el.
+    nombre_cientifico: str = ""
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "nombre", normalizar_nombre(self.nombre))
         object.__setattr__(self, "rangos", MappingProxyType(dict(self.rangos)))
+        object.__setattr__(self, "nombre_cientifico", self.nombre_cientifico.strip())
 
     def rango_de(self, parametro: Parametro) -> Rango:
         try:

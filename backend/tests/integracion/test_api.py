@@ -10,9 +10,9 @@ from tests.dobles import RepositorioEspeciesEnMemoria
 
 ORIGEN_FRONT = "http://localhost:5500"
 TABLA = (
-    "especie,humedad_min,humedad_max,luz_min,luz_max,temperatura_min,temperatura_max\n"
-    "sansevieria,20,45,200,1500,15,29\n"
-    "potos,40,70,270,2150,16,29\n"
+    "especie,nombre_cientifico,humedad_min,humedad_max,luz_min,luz_max,temperatura_min,temperatura_max\n"
+    "sansevieria,Dracaena trifasciata,20,45,200,1500,15,29\n"
+    "potos,Epipremnum aureum,40,70,270,2150,16,29\n"
 )
 
 
@@ -44,6 +44,7 @@ def test_especies_devuelve_rangos_con_unidad_ordenadas_por_nombre(cliente):
     assert respuesta.status_code == 200
     especies = respuesta.get_json()
     assert [e["nombre"] for e in especies] == ["potos", "sansevieria"]
+    assert especies[1]["nombreCientifico"] == "Dracaena trifasciata"
     assert especies[1]["rangos"]["humedad"] == {"min": 20.0, "max": 45.0, "unidad": "%"}
 
 

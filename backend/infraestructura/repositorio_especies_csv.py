@@ -55,7 +55,8 @@ class RepositorioEspeciesCsv(ConsultaRangos, CatalogoEspecies):
                 }
             except (TypeError, ValueError, RangoInvalido) as error:
                 raise ErrorTablaReferencia(f"Fila {numero_fila} de {self._ruta}: {error}") from error
-            especie = Especie(fila["especie"], rangos)
+            # nombre_cientifico es opcional: si la columna no esta, queda vacio.
+            especie = Especie(fila["especie"], rangos, fila.get("nombre_cientifico") or "")
             if especie.nombre in especies:
                 raise ErrorTablaReferencia(f"Fila {numero_fila} de {self._ruta}: la especie '{especie.nombre}' está repetida")
             especies[especie.nombre] = especie

@@ -43,6 +43,7 @@ def diagnostico_a_json(diagnostico: Diagnostico) -> dict[str, Any]:
 def especie_a_json(especie: Especie) -> dict[str, Any]:
     return {
         "nombre": especie.nombre,
+        "nombreCientifico": especie.nombre_cientifico,
         "rangos": {
             parametro.nombre: {"min": rango.minimo, "max": rango.maximo, "unidad": parametro.unidad}
             for parametro, rango in especie.rangos.items()
