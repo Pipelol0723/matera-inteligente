@@ -3,10 +3,27 @@
 No saben nada de HTTP: la capa de presentacion decide con que codigo y con que
 mensaje se muestran.
 """
+from dominio.parametros import Parametro
 
 
 class ErrorDominio(Exception):
     """Base de los errores del dominio."""
+
+
+class ValorFisicamenteImposible(ErrorDominio):
+    """Una lectura fuera de lo que el parametro puede valer en el mundo real."""
+
+    def __init__(self, parametro: Parametro, valor: float):
+        super().__init__(
+            f"{parametro.nombre} = {valor} no es físicamente posible "
+            f"(debe estar entre {parametro.minimo_fisico:g} y {parametro.maximo_fisico:g} {parametro.unidad})."
+        )
+        self.parametro = parametro
+        self.valor = valor
+
+
+class MedicionInvalida(ErrorDominio):
+    """Una medicion vacia o que repite un parametro."""
 
 
 class RangoInvalido(ErrorDominio):
