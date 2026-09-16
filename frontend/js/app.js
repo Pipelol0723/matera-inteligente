@@ -1,148 +1,79 @@
-// Interfaz: muestra lo que responde la API. No conoce rangos, umbrales ni reglas:
-// los estados y las recomendaciones llegan ya decididos desde el backend.
-import { obtenerEspecies, pedirDiagnostico } from "./api.js";
+// Arranque del front: carga los catálogos de la API, navega entre pantallas y muestra
+// el estado de la conexión. Las reglas de negocio viven en el backend.
+import { obtenerEspecies, obtenerParametros } from "./api.js";
+import { crearPantallaDiagnostico } from "./diagnostico.js";
+import { crearPantallaEspecies } from "./especies.js";
+import { crearPrototipos } from "./prototipos.js";
 
-const $ = (id) => document.getElementById(id);
-const formulario = $("formulario");
-const selector = $("especie");
-const boton = $("diagnosticar");
+const PANTALLAS = ["diagnostico", "especies", "historial", "materas", "vincular"];
+const PANTALLA_INICIAL = "diagnostico";
+const REINTENTO_MS = 5000;
 
-const ETIQUETAS = { humedad: "Humedad", luz: "Luz", temperatura: "Temperatura" };
-const UNIDADES = { C: "°C" };
-const numero = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 });
-
-let especies = [];
-
-const capitalizar = (texto) => texto.charAt(0).toUpperCase() + texto.slice(1);
-const etiqueta = (nombre) => ETIQUETAS[nombre] ?? capitalizar(nombre);
-const unidad = (simbolo) => UNIDADES[simbolo] ?? simbolo;
-
-function elemento(tipo, texto, clase) {
-  const nodo = document.createElement(tipo);
-  if (texto !== undefined) nodo.textContent = texto;
-  if (clase) nodo.className = clase;
-  return nodo;
-}
-
-function chipEstado(estado) {
-  return elemento("span", estado.replace("_", " "), `estado estado--${estado.toLowerCase()}`);
-}
-
-async function cargarEspecies() {
-  try {
-    especies = await obtenerEspecies();
-    selector.replaceChildren(...especies.map((e) => new Option(capitalizar(e.nombre), e.nombre)));
-    selector.disabled = false;
-    boton.disabled = false;
-    mostrarRangos();
-  } catch (error) {
-    selector.replaceChildren(new Option("No se pudieron cargar las especies"));
-    mostrarError(error);
-  }
-}
-
-function mostrarRangos() {
-  const especie = especies.find((e) => e.nombre === selector.value);
-  const filas = Object.entries(especie?.rangos ?? {}).flatMap(([nombre, rango]) => [
-    elemento("dt", etiqueta(nombre)),
-    elemento("dd", `${numero.format(rango.min)} – ${numero.format(rango.max)} ${unidad(rango.unidad)}`),
-  ]);
-  $("rangos").replaceChildren(...filas);
-}
-
-function leerFormulario() {
-  const datos = { especie: selector.value };
-  for (const campo of formulario.querySelectorAll("[data-parametro]")) {
-    // Se envía lo que la persona escribió: el backend es el único que valida.
-    const texto = campo.value.trim();
-    datos[campo.name] = texto === "" ? null : texto;
-  }
-  return datos;
-}
-
-async function enviar(datos) {
-  limpiar();
-  boton.disabled = true;
-  boton.textContent = "Consultando…";
-  try {
-    mostrarDiagnostico(await pedirDiagnostico(datos));
-  } catch (error) {
-    mostrarError(error);
-  } finally {
-    boton.disabled = false;
-    boton.textContent = "Diagnosticar";
-  }
-}
-
-function mostrarDiagnostico(diagnostico) {
-  $("resultado-especie").textContent = capitalizar(diagnostico.especie);
-  const estadoGlobal = $("resultado-estado");
-  estadoGlobal.textContent = diagnostico.estado.replace("_", " ");
-  estadoGlobal.className = `estado estado--${diagnostico.estado.toLowerCase()}`;
-
-  const filas = diagnostico.parametros.map((p) => {
-    const fila = document.createElement("tr");
-    const celdaEstado = elemento("td");
-    celdaEstado.append(chipEstado(p.estado));
-    fila.append(
-      elemento("td", etiqueta(p.nombre)),
-      elemento("td", `${numero.format(p.valor)} ${unidad(p.unidad)}`, "numero"),
-      elemento("td", `${numero.format(p.rangoOptimo[0])} – ${numero.format(p.rangoOptimo[1])}`, "numero"),
-      celdaEstado,
-    );
-    return fila;
-  });
-  $("resultado-parametros").replaceChildren(...filas);
-
-  const recomendaciones = diagnostico.recomendaciones.length
-    ? diagnostico.recomendaciones.map((texto) => elemento("li", texto))
-    : [elemento("li", "Sin recomendaciones: todos los parámetros están en su rango óptimo.", "recomendaciones__vacio")];
-  $("resultado-recomendaciones").replaceChildren(...recomendaciones);
-
-  $("resultado").hidden = false;
-}
-
-function mostrarError(error) {
-  $("error-codigo").textContent = error.status ? `${error.status} · ${error.codigo}` : error.codigo;
-  $("error-mensaje").textContent = error.message;
-  $("error").hidden = false;
-
-  const nombreCampo = error.detalle?.campo;
-  const campo = nombreCampo ? formulario.elements.namedItem(nombreCampo) : null;
-  if (campo) {
-    campo.setAttribute("aria-invalid", "true");
-    campo.focus();
-  }
-}
-
-function limpiar() {
-  $("resultado").hidden = true;
-  $("error").hidden = true;
-  for (const campo of formulario.querySelectorAll("[aria-invalid]")) {
-    campo.removeAttribute("aria-invalid");
-  }
-}
-
-// Peticiones inválidas de ejemplo para mostrar el manejo de errores de RF6.
-const PRUEBAS_DE_ERROR = {
-  "especie-inexistente": (base) => ({ ...base, especie: "planta-que-no-existe" }),
-  "parametro-ausente": (base) => ({ ...base, humedad: null }),
-  "no-numerico": (base) => ({ ...base, luz: "mucha" }),
-  "fisicamente-imposible": (base) => ({ ...base, humedad: 150 }),
+const contexto = {
+  especies: [],
+  parametros: [],
+  navegar: (pantalla) => {
+    location.hash = pantalla;
+  },
+  marcarConexion,
+  diagnosticarEspecie: (nombre) => {
+    diagnostico.seleccionarEspecie(nombre);
+    contexto.navegar("diagnostico");
+  },
 };
 
-function probarError(evento) {
-  const prueba = PRUEBAS_DE_ERROR[evento.target.closest("[data-prueba]")?.dataset.prueba];
-  if (!prueba) return;
-  const base = { especie: selector.value || "sansevieria", humedad: 30, luz: 800, temperatura: 22 };
-  enviar(prueba(base));
+const diagnostico = crearPantallaDiagnostico(contexto);
+const especies = crearPantallaEspecies(contexto);
+const prototipos = crearPrototipos(contexto);
+
+function pantallaActual() {
+  const pedida = location.hash.slice(1);
+  return PANTALLAS.includes(pedida) ? pedida : PANTALLA_INICIAL;
 }
 
-selector.addEventListener("change", mostrarRangos);
-formulario.addEventListener("submit", (evento) => {
-  evento.preventDefault();
-  enviar(leerFormulario());
-});
-document.querySelector(".pruebas__botones").addEventListener("click", probarError);
+function mostrarPantalla() {
+  const actual = pantallaActual();
+  for (const nombre of PANTALLAS) {
+    document.getElementById(`pantalla-${nombre}`).hidden = nombre !== actual;
+  }
+  for (const pestana of document.querySelectorAll("[data-pantalla]")) {
+    const activa = pestana.dataset.pantalla === actual;
+    pestana.classList.toggle("pestana--activa", activa);
+    if (activa) pestana.setAttribute("aria-current", "page");
+    else pestana.removeAttribute("aria-current");
+  }
+  window.scrollTo(0, 0);
+}
 
-cargarEspecies();
+function marcarConexion(conectada) {
+  const indicador = document.getElementById("conexion");
+  indicador.classList.remove("conexion--pendiente");
+  indicador.classList.toggle("conexion--caida", !conectada);
+  document.getElementById("conexion-texto").textContent = conectada
+    ? `API conectada · ${contexto.especies.length} especies`
+    : "Sin conexión con la API";
+}
+
+async function cargarCatalogos() {
+  try {
+    [contexto.parametros, contexto.especies] = await Promise.all([obtenerParametros(), obtenerEspecies()]);
+  } catch (error) {
+    marcarConexion(false);
+    diagnostico.mostrarErrorDeCarga(error);
+    setTimeout(cargarCatalogos, REINTENTO_MS);
+    return;
+  }
+  marcarConexion(true);
+  diagnostico.alCargarCatalogos();
+  especies.pintar();
+  prototipos.alCargarCatalogos();
+}
+
+document.querySelector(".pestanas").addEventListener("click", (evento) => {
+  const pestana = evento.target.closest("[data-pantalla]");
+  if (pestana) contexto.navegar(pestana.dataset.pantalla);
+});
+window.addEventListener("hashchange", mostrarPantalla);
+
+mostrarPantalla();
+cargarCatalogos();

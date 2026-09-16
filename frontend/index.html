@@ -3,76 +3,163 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Matera inteligente · Diagnóstico</title>
+  <title>Matera · Diagnóstico</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..600&display=swap">
   <link rel="stylesheet" href="css/estilos.css">
   <script type="module" src="js/app.js"></script>
 </head>
 <body>
-  <header class="encabezado">
-    <p class="marca">Matera inteligente</p>
-    <h1>Diagnóstico de la planta</h1>
-    <p class="bajada">Elija la especie, escriba lo que marcan los sensores y consulte el estado.</p>
-  </header>
+  <nav class="navegacion" aria-label="Pantallas">
+    <div class="navegacion__contenido">
+      <div class="marca">
+        <span class="marca__logo" aria-hidden="true"></span>
+        <span class="marca__nombre">Matera</span>
+        <span class="marca__version">v1</span>
+      </div>
+      <div class="pestanas">
+        <button type="button" class="pestana" data-pantalla="diagnostico">Diagnóstico</button>
+        <button type="button" class="pestana" data-pantalla="especies">Especies</button>
+        <button type="button" class="pestana" data-pantalla="historial">Historial</button>
+        <button type="button" class="pestana" data-pantalla="materas">Materas</button>
+        <button type="button" class="pestana" data-pantalla="vincular">Vincular sensor</button>
+      </div>
+      <div id="conexion" class="conexion conexion--pendiente" role="status">
+        <span class="conexion__punto" aria-hidden="true"></span>
+        <span id="conexion-texto" class="conexion__texto">Conectando con la API…</span>
+      </div>
+    </div>
+  </nav>
 
-  <main class="contenido">
-    <form id="formulario" class="tarjeta formulario" novalidate>
-      <div class="campo">
-        <label for="especie">Especie</label>
-        <select id="especie" name="especie" disabled>
+  <main id="pantalla-diagnostico" class="pantalla diagnostico">
+    <section class="columna">
+      <div class="tarjeta">
+        <label class="rotulo" for="especie">Especie</label>
+        <select id="especie" class="selector" disabled>
           <option>Cargando especies…</option>
         </select>
+        <p id="cientifico" class="cientifico"></p>
       </div>
 
-      <dl id="rangos" class="rangos" aria-label="Rangos óptimos de la especie elegida"></dl>
-
-      <div class="campo">
-        <label for="humedad">Humedad del sustrato <span class="unidad">%</span></label>
-        <input id="humedad" name="humedad" data-parametro inputmode="decimal" autocomplete="off" placeholder="p. ej. 32,5">
+      <div class="tarjeta mediciones">
+        <div class="mediciones__cabecera">
+          <p class="rotulo">Mediciones</p>
+          <span class="nota">entrada manual</span>
+        </div>
+        <div id="campos" class="campos"></div>
+        <div id="escenarios" class="escenarios" aria-label="Valores de ejemplo"></div>
       </div>
-      <div class="campo">
-        <label for="luz">Luz <span class="unidad">lux</span></label>
-        <input id="luz" name="luz" data-parametro inputmode="decimal" autocomplete="off" placeholder="p. ej. 850">
-      </div>
-      <div class="campo">
-        <label for="temperatura">Temperatura <span class="unidad">°C</span></label>
-        <input id="temperatura" name="temperatura" data-parametro inputmode="decimal" autocomplete="off" placeholder="p. ej. 21">
-      </div>
-
-      <button id="diagnosticar" type="submit" disabled>Diagnosticar</button>
-    </form>
-
-    <section id="resultado" class="tarjeta" aria-live="polite" hidden>
-      <div class="resultado__cabecera">
-        <h2 id="resultado-especie"></h2>
-        <span id="resultado-estado" class="estado"></span>
-      </div>
-      <div class="tabla-contenedor">
-        <table class="tabla">
-          <thead>
-            <tr><th>Parámetro</th><th>Valor</th><th>Rango óptimo</th><th>Estado</th></tr>
-          </thead>
-          <tbody id="resultado-parametros"></tbody>
-        </table>
-      </div>
-      <h3>Recomendaciones</h3>
-      <ul id="resultado-recomendaciones" class="recomendaciones"></ul>
     </section>
 
-    <section id="error" class="tarjeta error" role="alert" hidden>
-      <p id="error-codigo" class="error__codigo"></p>
-      <p id="error-mensaje" class="error__mensaje"></p>
+    <section class="columna">
+      <div class="tarjeta terrario">
+        <div class="terrario__dial">
+          <svg id="anillos" class="terrario__anillos" viewBox="0 0 340 340" aria-hidden="true"></svg>
+          <div id="pulso" class="terrario__pulso"></div>
+          <div class="terrario__centro" aria-live="polite">
+            <p id="estado-global" class="terrario__estado">Sin datos</p>
+            <p id="estado-especie" class="terrario__especie"></p>
+          </div>
+        </div>
+        <div id="lecturas" class="lecturas"></div>
+      </div>
     </section>
 
-    <details class="tarjeta pruebas">
-      <summary>Probar errores de la API</summary>
-      <p>Cada botón envía a propósito una petición inválida para ver cómo responde el backend.</p>
-      <div class="pruebas__botones">
-        <button type="button" data-prueba="especie-inexistente">Especie inexistente</button>
-        <button type="button" data-prueba="parametro-ausente">Humedad vacía</button>
-        <button type="button" data-prueba="no-numerico">Luz no numérica</button>
-        <button type="button" data-prueba="fisicamente-imposible">Humedad de 150 %</button>
+    <section class="columna">
+      <div id="error" class="tarjeta-error" role="alert" hidden>
+        <p id="error-codigo" class="tarjeta-error__codigo"></p>
+        <p id="error-mensaje" class="tarjeta-error__mensaje"></p>
+        <p id="error-detalle" class="tarjeta-error__detalle"></p>
       </div>
-    </details>
+
+      <div class="tarjeta">
+        <p class="rotulo">Qué hacer ahora</p>
+        <div id="recomendaciones" class="recomendaciones"></div>
+      </div>
+
+      <div class="tarjeta tarjeta--punteada">
+        <p class="rotulo">Errores de la API</p>
+        <p class="pruebas__texto">Cada botón envía a propósito una petición inválida.</p>
+        <div id="pruebas" class="pruebas">
+          <button type="button" class="prueba" data-prueba="especie-inexistente">Especie inexistente</button>
+          <button type="button" class="prueba" data-prueba="humedad-vacia">Humedad vacía</button>
+          <button type="button" class="prueba" data-prueba="luz-no-numerica">Luz no numérica</button>
+          <button type="button" class="prueba" data-prueba="humedad-imposible">Humedad de 150 %</button>
+          <button type="button" class="prueba" data-prueba="sin-conexion">Sin conexión con la API</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <main id="pantalla-especies" class="pantalla" hidden>
+    <h1 class="titulo">Catálogo de especies</h1>
+    <p id="especies-bajada" class="bajada bajada--angosta">Cargando especies…</p>
+    <div id="catalogo" class="catalogo"></div>
+  </main>
+
+  <main id="pantalla-historial" class="pantalla historial" hidden>
+    <section>
+      <p class="aviso-prototipo">Prototipo · fuera del alcance de este corte · datos de ejemplo</p>
+      <h1 class="titulo">Historial de mediciones</h1>
+      <p class="bajada bajada--historial">Sansevieria del estudio · últimos 14 días</p>
+      <div class="tarjeta grafica">
+        <div id="leyenda" class="leyenda"></div>
+        <svg id="grafica" class="grafica__svg" viewBox="0 0 640 200" preserveAspectRatio="none" aria-hidden="true"></svg>
+      </div>
+      <div id="registros" class="registros"></div>
+    </section>
+    <aside class="tarjeta resumen">
+      <p class="rotulo">Resumen del periodo</p>
+      <div class="resumen__filas">
+        <div class="resumen__fila"><span class="resumen__nombre">Diagnósticos</span><span class="resumen__valor">14</span></div>
+        <div class="resumen__fila"><span class="resumen__nombre">Días saludables</span><span class="resumen__valor">9</span></div>
+        <div class="resumen__fila"><span class="resumen__nombre">Humedad promedio</span><span class="resumen__valor">26 %</span></div>
+        <div class="resumen__fila"><span class="resumen__nombre">Riegos sugeridos</span><span class="resumen__valor">4</span></div>
+      </div>
+      <p class="resumen__nota">La humedad cae por debajo de 20 % cada cuatro días: considere riegos más frecuentes y menos abundantes.</p>
+    </aside>
+  </main>
+
+  <main id="pantalla-materas" class="pantalla" hidden>
+    <p class="aviso-prototipo">Prototipo · fuera del alcance de este corte · datos de ejemplo</p>
+    <div class="materas__cabecera">
+      <div>
+        <h1 class="titulo">Mis materas</h1>
+        <p id="materas-bajada" class="bajada bajada--sin-margen">Cuatro materas de ejemplo</p>
+      </div>
+      <button id="vincular-matera" type="button" class="boton-primario">Vincular matera</button>
+    </div>
+    <div id="materas" class="materas"></div>
+  </main>
+
+  <main id="pantalla-vincular" class="pantalla vincular" hidden>
+    <p class="aviso-prototipo">Prototipo · fuera del alcance de este corte · datos de ejemplo</p>
+    <p class="ceja">Paso 2 de 3</p>
+    <h1 class="titulo titulo--grande">Vincule el sensor a la matera</h1>
+    <p class="bajada bajada--vincular">Clave el sensor en el sustrato, a media profundidad y lejos del borde. Cuando la luz del sensor quede fija, escriba el código impreso en la base.</p>
+    <div class="pasos" aria-hidden="true">
+      <div class="paso paso--hecho"></div>
+      <div class="paso paso--hecho"></div>
+      <div class="paso"></div>
+    </div>
+    <div class="vincular__cuerpo">
+      <div class="tarjeta vincular__formulario">
+        <label class="vincular__etiqueta" for="codigo-sensor">Código del sensor</label>
+        <input id="codigo-sensor" class="codigo-sensor" value="MT-4821-KQ" autocomplete="off">
+        <p class="vincular__ayuda">Ocho caracteres, impresos en la base junto al código QR.</p>
+        <p class="vincular__etiqueta">¿Qué planta hay en esta matera?</p>
+        <div id="chips" class="chips"></div>
+        <div class="acciones">
+          <button id="vincular-buscar" type="button" class="boton-primario boton-primario--grande">Buscar sensor</button>
+          <button id="vincular-despues" type="button" class="boton-secundario">Lo hago después</button>
+        </div>
+      </div>
+      <div class="foto">
+        <div class="foto__marco">Foto del sensor en el sustrato</div>
+        <p class="foto__texto">Placeholder: reemplazar por la foto real del montaje.</p>
+      </div>
+    </div>
   </main>
 </body>
 </html>
