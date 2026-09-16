@@ -1,0 +1,62 @@
+%% Recorrido completo de una peticion de diagnostico, desde el fetch del front hasta la respuesta.
+%% Los participantes son los modulos y clases reales del repositorio.
+sequenceDiagram
+    autonumber
+    actor Persona
+    participant UI as diagnostico.js<br/>(front)
+    participant API as api.js<br/>(front)
+    participant R as rutas.py<br/>(presentación)
+    participant E as esquemas.py<br/>(presentación)
+    participant EH as errores_http.py<br/>(presentación)
+    participant CU as DiagnosticarPlanta<br/>(aplicación)
+    participant S as ServicioDiagnostico<br/>(dominio)
+    participant P as RepositorioEspeciesCsv<br/>(infraestructura)
+    participant EV as EvaluadorPlanta<br/>(dominio)
+    participant RG as ReglaHibrida<br/>(dominio)
+    participant RC as GeneradorRecomendaciones<br/>(dominio)
+
+    Note over R,RC: Al arrancar, main.py ya creó RepositorioEspeciesCsv (leyó especies.csv una vez),<br/>EvaluadorPlanta con ReglaHibrida(0.5) y GeneradorRecomendaciones, ServicioDiagnostico y el blueprint.
+
+    Persona ->> UI: escribe un valor
+    UI ->> UI: programarDiagnostico()<br/>espera 400 ms
+    UI ->> API: pedirDiagnostico(datos)
+    API ->> R: fetch POST<br/>/api/v1/diagnosticos
+    R ->> E: solicitud_desde_json()
+    E ->> E: _texto(), _numero() y<br/>Lectura() por parámetro
+
+    alt falta un campo, no es número<br/>o es físicamente imposible
+        E --x EH: EntradaInvalida o<br/>ValorFisicamenteImposible
+        EH -->> API: 400 PARAMETRO_INVALIDO
+    else entrada válida
+        E -->> R: SolicitudDiagnostico
+        R ->> CU: ejecutar(solicitud)
+        CU ->> S: diagnosticar(especie, medicion)
+        S ->> P: rangos_de(nombre normalizado)<br/>por el puerto ConsultaRangos
+        P -->> S: Especie o None
+
+        alt especie inexistente
+            S --x EH: EspecieNoSoportada
+            EH -->> API: 404 ESPECIE_NO_SOPORTADA
+        else especie encontrada
+            S ->> EV: evaluar(especie, medicion)
+            loop cada Lectura
+                EV ->> EV: rango_de(), clasificar(), desviacion()
+            end
+            EV ->> RG: agregar(resultados)
+            RG -->> EV: EstadoGlobal
+            loop cada ResultadoParametro
+                EV ->> RC: para(resultado)
+                RC -->> EV: texto o None
+            end
+            EV -->> S: Diagnostico
+            S -->> CU: Diagnostico
+            CU -->> R: Diagnostico
+            R ->> E: diagnostico_a_json()
+            E -->> R: dict
+            R -->> API: 200 JSON
+        end
+    end
+
+    Note over API,EH: flask-cors (servidor_web.py) agrega la cabecera CORS<br/>a toda respuesta, también a los errores.
+    API -->> UI: diagnóstico o ErrorApi
+    UI ->> UI: pintarResultado()
