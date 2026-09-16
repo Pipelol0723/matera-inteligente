@@ -7,7 +7,9 @@ from flask import Flask
 
 from aplicacion.diagnosticar_planta import DiagnosticarPlanta
 from aplicacion.listar_especies import ListarEspecies
+from aplicacion.listar_parametros import ListarParametros
 from dominio.evaluador import EvaluadorPlanta
+from dominio.parametros import PARAMETROS
 from dominio.recomendaciones import GeneradorRecomendaciones
 from dominio.reglas import ReglaHibrida
 from dominio.servicio_diagnostico import ServicioDiagnostico
@@ -28,6 +30,7 @@ def construir_app(config: Configuracion) -> Flask:
     api = crear_blueprint(
         diagnosticar=DiagnosticarPlanta(servicio),
         listar=ListarEspecies(especies),
+        listar_parametros=ListarParametros(PARAMETROS),
     )
     return crear_app(api, config)
 

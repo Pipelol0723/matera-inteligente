@@ -1,9 +1,10 @@
 from aplicacion.diagnosticar_planta import DiagnosticarPlanta, SolicitudDiagnostico
 from aplicacion.listar_especies import ListarEspecies
+from aplicacion.listar_parametros import ListarParametros
 from dominio.especie import Especie
 from dominio.estados import EstadoGlobal
 from dominio.evaluador import EvaluadorPlanta
-from dominio.parametros import HUMEDAD
+from dominio.parametros import HUMEDAD, Parametro
 from dominio.rango import Rango
 from dominio.recomendaciones import GeneradorRecomendaciones
 from dominio.reglas import ReglaHibrida
@@ -20,6 +21,12 @@ def test_diagnosticar_planta_devuelve_el_diagnostico_del_dominio():
 
     assert diagnostico.estado is EstadoGlobal.EN_RIESGO
     assert repositorio.consultas == ["sansevieria"]
+
+
+def test_listar_parametros_devuelve_el_catalogo_que_recibe_en_orden():
+    ph = Parametro("ph", "", 0, 14)
+
+    assert ListarParametros((HUMEDAD, ph)).ejecutar() == (HUMEDAD, ph)
 
 
 def test_listar_especies_las_ordena_por_nombre():

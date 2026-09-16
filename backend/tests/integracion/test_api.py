@@ -2,6 +2,8 @@
 import pytest
 
 from aplicacion.listar_especies import ListarEspecies
+from aplicacion.listar_parametros import ListarParametros
+from dominio.parametros import PARAMETROS
 from infraestructura.configuracion import Configuracion
 from infraestructura.servidor_web import crear_app
 from main import construir_app
@@ -46,6 +48,17 @@ def test_especies_devuelve_rangos_con_unidad_ordenadas_por_nombre(cliente):
     assert [e["nombre"] for e in especies] == ["potos", "sansevieria"]
     assert especies[1]["nombreCientifico"] == "Dracaena trifasciata"
     assert especies[1]["rangos"]["humedad"] == {"min": 20.0, "max": 45.0, "unidad": "%"}
+
+
+def test_parametros_devuelve_unidad_y_limites_fisicos_en_orden(cliente):
+    respuesta = cliente.get("/api/v1/parametros")
+
+    assert respuesta.status_code == 200
+    assert respuesta.get_json() == [
+        {"nombre": "humedad", "unidad": "%", "minimoFisico": 0.0, "maximoFisico": 100.0},
+        {"nombre": "luz", "unidad": "lux", "minimoFisico": 0.0, "maximoFisico": 150000.0},
+        {"nombre": "temperatura", "unidad": "C", "minimoFisico": -50.0, "maximoFisico": 60.0},
+    ]
 
 
 def test_diagnostico_cumple_el_contrato(cliente):
@@ -132,7 +145,9 @@ def test_un_error_inesperado_responde_json_sin_la_traza(tmp_path):
         def ejecutar(self, solicitud):
             raise RuntimeError("detalle interno que no debe salir")
 
-    api = crear_blueprint(CasoDeUsoQueFalla(), ListarEspecies(RepositorioEspeciesEnMemoria()))
+    api = crear_blueprint(
+        CasoDeUsoQueFalla(), ListarEspecies(RepositorioEspeciesEnMemoria()), ListarParametros(PARAMETROS)
+    )
     cliente = crear_app(api, _config(tmp_path)).test_client()
 
     respuesta = _pedir(cliente)

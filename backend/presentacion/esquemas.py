@@ -9,7 +9,7 @@ from aplicacion.diagnosticar_planta import SolicitudDiagnostico
 from dominio.diagnostico import Diagnostico, ResultadoParametro
 from dominio.especie import Especie
 from dominio.medicion import Lectura, Medicion
-from dominio.parametros import PARAMETROS
+from dominio.parametros import PARAMETROS, Parametro
 
 
 class EntradaInvalida(Exception):
@@ -48,6 +48,15 @@ def especie_a_json(especie: Especie) -> dict[str, Any]:
             parametro.nombre: {"min": rango.minimo, "max": rango.maximo, "unidad": parametro.unidad}
             for parametro, rango in especie.rangos.items()
         },
+    }
+
+
+def parametro_a_json(parametro: Parametro) -> dict[str, Any]:
+    return {
+        "nombre": parametro.nombre,
+        "unidad": parametro.unidad,
+        "minimoFisico": parametro.minimo_fisico,
+        "maximoFisico": parametro.maximo_fisico,
     }
 
 
