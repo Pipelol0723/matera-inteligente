@@ -19,6 +19,13 @@ backend/
     aplicacion/      casos de uso con dobles de prueba
     integracion/     API y lectura del CSV
 frontend/            HTML, CSS y JavaScript estáticos, servidos aparte
+  js/api.js          peticiones a la API
+  js/app.js          arranque, navegación entre pantallas y estado de la conexión
+  js/diagnostico.js  pantalla de diagnóstico
+  js/especies.js     catálogo de especies
+  js/prototipos.js   maquetas de historial, materas y vincular sensor
+  js/escala.js       geometría de escalas y anillos
+  js/formato.js      textos, colores y ayudas para crear nodos
 ```
 
 Las dependencias apuntan hacia el dominio: `presentacion → aplicacion → dominio ← infraestructura`. Los puertos `ConsultaRangos` y `CatalogoEspecies` están declarados en `dominio/puertos.py` y los implementa `infraestructura/repositorio_especies_csv.py`.
@@ -57,6 +64,14 @@ python -m http.server 5500 --directory frontend
 
 Abra `http://localhost:5500`. El front se tiene que servir por HTTP; abrir `index.html` con doble clic no funciona porque usa módulos de JavaScript. Si cambia el puerto del backend, ajuste `frontend/js/config.js`.
 
+El front no tiene rangos, umbrales ni reglas. Los parámetros, las especies, los estados y las recomendaciones salen de la API.
+
+| Pantalla | Qué hace |
+|---|---|
+| Diagnóstico | Consulta `POST /diagnosticos` mientras se escribe (espera 400 ms después de la última tecla) y muestra el estado en los anillos. Los botones Saludable, En riesgo y Crítico llenan valores de ejemplo a partir de los rangos, y la API decide el estado. El panel "Errores de la API" envía peticiones inválidas a propósito. |
+| Especies | Muestra el catálogo de `GET /especies` con bandas escaladas según los límites físicos de `GET /parametros`. |
+| Historial, Materas, Vincular sensor | **Prototipos fuera del alcance de este corte**, marcados en pantalla. Usan lecturas de ejemplo, pero sus estados los calcula la API. |
+
 ## Pruebas
 
 Desde la carpeta `backend/`:
@@ -82,12 +97,25 @@ Estas pruebas no levantan el servidor ni leen el CSV, y siguen pasando aunque se
 [
   {
     "nombre": "sansevieria",
+    "nombreCientifico": "Dracaena trifasciata",
     "rangos": {
       "humedad": { "min": 20.0, "max": 45.0, "unidad": "%" },
       "luz": { "min": 270.0, "max": 2150.0, "unidad": "lux" },
       "temperatura": { "min": 21.0, "max": 32.0, "unidad": "C" }
     }
   }
+]
+```
+
+### `GET /api/v1/parametros`
+
+Los parámetros que se miden, en orden, con su unidad y sus límites físicos:
+
+```json
+[
+  { "nombre": "humedad", "unidad": "%", "minimoFisico": 0.0, "maximoFisico": 100.0 },
+  { "nombre": "luz", "unidad": "lux", "minimoFisico": 0.0, "maximoFisico": 150000.0 },
+  { "nombre": "temperatura", "unidad": "C", "minimoFisico": -50.0, "maximoFisico": 60.0 }
 ]
 ```
 
@@ -144,7 +172,7 @@ La regla está en `dominio/reglas.py` (`ReglaHibrida`) y se elige en `main.py`.
 
 ## Tabla de referencia y fuentes
 
-`backend/datos/especies.csv` tiene una fila por especie con las columnas `especie`, `humedad_min`, `humedad_max`, `luz_min`, `luz_max`, `temperatura_min` y `temperatura_max`.
+`backend/datos/especies.csv` tiene una fila por especie con las columnas `especie`, `nombre_cientifico` (opcional), `humedad_min`, `humedad_max`, `luz_min`, `luz_max`, `temperatura_min` y `temperatura_max`.
 
 | Especie | Nombre científico de referencia | Humedad % | Luz lux | Temperatura °C |
 |---|---|---|---|---|
