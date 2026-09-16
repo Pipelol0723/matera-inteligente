@@ -26,6 +26,15 @@ class MedicionInvalida(ErrorDominio):
     """Una medicion vacia o que repite un parametro."""
 
 
+class ParametroSinRango(ErrorDominio):
+    """Llego una lectura de un parametro para el que la especie no tiene rango."""
+
+    def __init__(self, especie: str, parametro: Parametro):
+        super().__init__(f"La especie '{especie}' no tiene rango óptimo para {parametro.nombre}.")
+        self.especie = especie
+        self.parametro = parametro
+
+
 class RangoInvalido(ErrorDominio):
     """Un rango optimo cuyo minimo no es menor que su maximo."""
 
