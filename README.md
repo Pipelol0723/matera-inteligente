@@ -26,6 +26,9 @@ frontend/            HTML, CSS y JavaScript estáticos, servidos aparte
   js/prototipos.js   maquetas de historial, materas y vincular sensor
   js/escala.js       geometría de escalas y anillos
   js/formato.js      textos, colores y ayudas para crear nodos
+docs/
+  diagramas/         diagrama de paquetes y de secuencia (fuente .mmd, SVG y PNG)
+  entrega/           documento de arquitectura y bitácora de uso de IA (PDF)
 ```
 
 Las dependencias apuntan hacia el dominio: `presentacion → aplicacion → dominio ← infraestructura`. Los puertos `ConsultaRangos` y `CatalogoEspecies` están declarados en `dominio/puertos.py` y los implementa `infraestructura/repositorio_especies_csv.py`.
