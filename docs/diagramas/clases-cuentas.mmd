@@ -1,0 +1,100 @@
+%% solo-despues
+%% Presentación y aplicación de las cuentas y la administración. Todo se agrega en el corte 2.
+%% Morado: presentación. Amarillo: aplicación. Verde: clase del dominio. Borde punteado: todavía no tiene código.
+%% La regla "solo un admin puede" vive en Usuario.exigir_admin() (dominio) y la invoca cada caso de uso.
+classDiagram
+    direction LR
+
+    namespace presentacion {
+        class autenticacion {
+            <<módulo>>
+            +usuario_actual() Usuario
+        }
+        class rutas_usuarios {
+            <<módulo>>
+            registro, sesiones y Mi cuenta
+        }
+        class rutas_admin {
+            <<módulo>>
+            solo para ADMIN
+        }
+    }
+
+    namespace aplicacion {
+        class RegistrarUsuario {
+            +ejecutar(nombre, correo, contrasena) Usuario
+        }
+        class IniciarSesion {
+            +ejecutar(correo, contrasena) SesionIniciada
+        }
+        class CerrarSesion {
+            +ejecutar(token)
+        }
+        class IdentificarUsuario {
+            +ejecutar(token) Usuario
+        }
+        class ListarUsuarios {
+            +ejecutar(actor) list~ResumenUsuario~
+        }
+        class CambiarEstadoUsuario {
+            +ejecutar(actor, usuario_id, activo)
+        }
+        class CambiarRol {
+            +ejecutar(actor, usuario_id, rol)
+        }
+        class EliminarUsuario {
+            +ejecutar(actor, usuario_id)
+        }
+        class AgregarEspecie {
+            +ejecutar(actor, especie) Especie
+        }
+        class ConvertirEnAdministrador {
+            +ejecutar(correo)
+        }
+    }
+
+    class Usuario {
+        <<dominio>>
+        +es_admin() bool
+        +exigir_admin()
+    }
+    class crear_admin {
+        <<script de consola>>
+        python crear_admin.py correo
+    }
+
+    rutas_usuarios ..> RegistrarUsuario
+    rutas_usuarios ..> IniciarSesion
+    rutas_usuarios ..> CerrarSesion
+    rutas_usuarios ..> autenticacion
+    rutas_admin ..> autenticacion
+    rutas_admin ..> ListarUsuarios
+    rutas_admin ..> CambiarEstadoUsuario
+    rutas_admin ..> CambiarRol
+    rutas_admin ..> EliminarUsuario
+    rutas_admin ..> AgregarEspecie
+    autenticacion ..> IdentificarUsuario
+    crear_admin ..> ConvertirEnAdministrador
+    ListarUsuarios ..> Usuario : actor.exigir_admin()
+    CambiarEstadoUsuario ..> Usuario : actor.exigir_admin()
+    CambiarRol ..> Usuario : actor.exigir_admin()
+    EliminarUsuario ..> Usuario : actor.exigir_admin()
+    AgregarEspecie ..> Usuario : actor.exigir_admin()
+
+    note "Un admin no puede desactivarse, quitarse el rol ni eliminarse<br>a sí mismo (AccionSobreSiMismo). Así siempre queda al menos<br>un admin activo. crear_admin.py no pasa por la API: se corre<br>en el servidor y convierte en admin a un usuario ya registrado."
+
+    style autenticacion fill:#E1D5E7,stroke:#6a3d80,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style rutas_usuarios fill:#E1D5E7,stroke:#6a3d80,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style rutas_admin fill:#E1D5E7,stroke:#6a3d80,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style RegistrarUsuario fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style IniciarSesion fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style CerrarSesion fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style IdentificarUsuario fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style ListarUsuarios fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style CambiarEstadoUsuario fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style CambiarRol fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style EliminarUsuario fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style AgregarEspecie fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style ConvertirEnAdministrador fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style Usuario fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style crear_admin fill:#ffffff,stroke:#56665b,stroke-width:2px,stroke-dasharray:6 4,color:#16231b

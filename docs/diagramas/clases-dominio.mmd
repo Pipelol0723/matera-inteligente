@@ -1,0 +1,211 @@
+%% Clases del dominio de matera-inteligente (backend/dominio/).
+%% Une el diagrama de clases de Roger (commit 3987f72) con el diseño del corte 2.
+%% Relleno verde: capa de dominio. Borde punteado: se agrega en el corte 2 y todavía no tiene código.
+%% Los nombres son los del código. Los puertos y quién los implementa están en clases-puertos.mmd.
+classDiagram
+    direction LR
+
+    class Parametro {
+        +nombre: str
+        +unidad: str
+        +minimo_fisico: float
+        +maximo_fisico: float
+    }
+    class Lectura {
+        +parametro: Parametro
+        +valor: float
+    }
+    class Medicion {
+        +lecturas: tuple~Lectura~
+    }
+    class Rango {
+        +minimo: float
+        +maximo: float
+        +ancho: float
+        +clasificar(valor: float) EstadoParametro
+        +desviacion(valor: float) float
+    }
+    class Especie {
+        +nombre: str
+        +nombre_cientifico: str
+        +rangos: Parametro → Rango
+        +rango_de(parametro: Parametro) Rango
+    }
+    class EstadoParametro {
+        <<enumeration>>
+        BAJO
+        OPTIMO
+        ALTO
+    }
+    class EstadoGlobal {
+        <<enumeration>>
+        SALUDABLE
+        EN_RIESGO
+        CRITICO
+    }
+    class ResultadoParametro {
+        +parametro: Parametro
+        +valor: float
+        +rango: Rango
+        +estado: EstadoParametro
+        +desviacion: float
+        +fuera_de_rango: bool
+    }
+    class Diagnostico {
+        +especie: str
+        +estado: EstadoGlobal
+        +resultados: tuple~ResultadoParametro~
+        +recomendaciones: tuple~str~
+    }
+    class ReglaAgregacion {
+        <<interface>>
+        +agregar(resultados) EstadoGlobal
+    }
+    class ReglaHibrida {
+        -umbral: float = 0.5
+        +agregar(resultados) EstadoGlobal
+    }
+    class ReglaConteo {
+        +agregar(resultados) EstadoGlobal
+    }
+    class GeneradorRecomendaciones {
+        +para(resultado: ResultadoParametro) str o None
+    }
+    class EvaluadorPlanta {
+        -regla: ReglaAgregacion
+        -recomendaciones: GeneradorRecomendaciones
+        +evaluar(especie: Especie, medicion: Medicion) Diagnostico
+    }
+    class ServicioDiagnostico {
+        -consulta: ConsultaRangos
+        -evaluador: EvaluadorPlanta
+        +diagnosticar(especie: str, medicion: Medicion) Diagnostico
+    }
+
+    Medicion "1" *-- "1..*" Lectura : una por parámetro
+    Lectura --> Parametro : parametro
+    Especie "1" *-- "1..*" Rango : uno por parámetro
+    Rango ..> EstadoParametro : clasifica
+    Diagnostico "1" *-- "1..*" ResultadoParametro
+    Diagnostico --> EstadoGlobal : estado
+    ResultadoParametro --> Parametro : parametro
+    ResultadoParametro --> Rango : rango
+    ResultadoParametro --> EstadoParametro : estado
+    ReglaHibrida ..|> ReglaAgregacion
+    ReglaConteo ..|> ReglaAgregacion
+    EvaluadorPlanta --> ReglaAgregacion : regla
+    EvaluadorPlanta --> GeneradorRecomendaciones : recomendaciones
+    EvaluadorPlanta ..> Diagnostico : crea
+    ServicioDiagnostico --> EvaluadorPlanta : evaluador
+    ServicioDiagnostico ..> Especie : la pide al puerto ConsultaRangos
+
+    note "Errores del corte 1, heredan de ErrorDominio:<br>EspecieNoSoportada, ValorFisicamenteImposible,<br>MedicionInvalida, ParametroSinRango, RangoInvalido"
+
+    class Rol {
+        <<enumeration>>
+        USUARIO
+        ADMIN
+    }
+    class Correo {
+        +valor: str
+    }
+    class PoliticaContrasena {
+        +MINIMO: int = 8
+        +validar(texto: str)$
+    }
+    class Usuario {
+        +id: int
+        +correo: Correo
+        +nombre: str
+        +hash_contrasena: str
+        +rol: Rol
+        +activo: bool
+        +es_admin() bool
+        +exigir_admin()
+    }
+    class ResumenUsuario {
+        +id: int
+        +correo: str
+        +nombre: str
+        +rol: Rol
+        +activo: bool
+        +cantidad_plantas: int
+    }
+    class Sesion {
+        +hash_token: str
+        +usuario_id: int
+        +vence_en: datetime
+        +vigente(ahora: datetime) bool
+    }
+    class Planta {
+        +id: int
+        +usuario_id: int
+        +apodo: str
+        +especie: str
+        +es_de(usuario_id: int) bool
+    }
+    class CodigoSensor {
+        +valor: str
+    }
+    class Sensor {
+        +codigo: CodigoSensor
+        +planta_id: int
+        +hash_clave: str
+    }
+    class RegistroMedicion {
+        +planta_id: int
+        +momento: datetime
+        +estado: EstadoGlobal
+        +lecturas: tuple~LecturaRegistrada~
+        +desde(diagnostico, planta_id, momento)$ RegistroMedicion
+    }
+    class LecturaRegistrada {
+        +parametro: Parametro
+        +valor: float
+        +estado: EstadoParametro
+    }
+
+    Usuario *-- Correo : correo
+    Usuario --> Rol : rol
+    ResumenUsuario --> Rol : rol
+    PoliticaContrasena ..> Usuario : valida la contraseña al registrar
+    Usuario "1" --> "0..*" Sesion : abre
+    Usuario "1" --> "0..*" Planta : es dueño de
+    Planta ..> Especie : especie
+    Planta "1" --> "0..1" Sensor : tiene
+    Sensor *-- CodigoSensor : codigo
+    Planta "1" --> "0..*" RegistroMedicion : acumula
+    RegistroMedicion "1" *-- "1..*" LecturaRegistrada
+    RegistroMedicion --> EstadoGlobal : estado
+    LecturaRegistrada --> Parametro : parametro
+    LecturaRegistrada --> EstadoParametro : estado
+    RegistroMedicion ..> Diagnostico : se construye desde
+
+    note "Errores del corte 2, heredan de ErrorDominio:<br>CorreoInvalido, ContrasenaDebil, CorreoYaRegistrado,<br>CredencialesInvalidas, CuentaDesactivada, SesionInvalida,<br>PermisoDenegado, AccionSobreSiMismo, UsuarioNoEncontrado,<br>EspecieYaExiste, PlantaNoEncontrada, ApodoRepetido,<br>CodigoSensorInvalido, SensorYaVinculado, PlantaConSensor,<br>ClaveSensorInvalida"
+
+    style Parametro fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
+    style Lectura fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
+    style Medicion fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
+    style Rango fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
+    style Especie fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
+    style EstadoParametro fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
+    style EstadoGlobal fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
+    style ResultadoParametro fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
+    style Diagnostico fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
+    style ReglaAgregacion fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
+    style ReglaHibrida fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
+    style ReglaConteo fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
+    style GeneradorRecomendaciones fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
+    style EvaluadorPlanta fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
+    style ServicioDiagnostico fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
+    style Rol fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style Correo fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style PoliticaContrasena fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style Usuario fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style ResumenUsuario fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style Sesion fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style Planta fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style CodigoSensor fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style Sensor fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style RegistroMedicion fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style LecturaRegistrada fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b

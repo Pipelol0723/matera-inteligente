@@ -1,0 +1,80 @@
+%% clases-aplicacion tal como está en el código del corte 1 (commit 8c37f83).
+%% Es la vista «antes» de clases-aplicacion.mmd: se genera desde la misma fuente, sin lo que agrega el corte 2.
+classDiagram
+    direction LR
+
+    namespace presentacion {
+        class rutas {
+            <<módulo>>
+            +crear_blueprint(diagnosticar, listar, listar_parametros) Blueprint
+        }
+        class esquemas {
+            <<módulo>>
+            +solicitud_desde_json(cuerpo) SolicitudDiagnostico
+            +diagnostico_a_json(diagnostico) dict
+            +especie_a_json(especie) dict
+            +parametro_a_json(parametro) dict
+        }
+        class errores_http {
+            <<módulo>>
+            +registrar_manejadores(bp)
+            +respuesta_error(estado_http, error, mensaje, detalle)
+        }
+        class EntradaInvalida {
+            +error: str
+            +mensaje: str
+            +detalle: dict
+        }
+    }
+
+    namespace aplicacion {
+        class SolicitudDiagnostico {
+            +especie: str
+            +medicion: Medicion
+        }
+        class DiagnosticarPlanta {
+            -servicio: ServicioDiagnostico
+            +ejecutar(solicitud: SolicitudDiagnostico) Diagnostico
+        }
+        class ListarEspecies {
+            -catalogo: CatalogoEspecies
+            +ejecutar() list~Especie~
+        }
+        class ListarParametros {
+            -parametros: tuple~Parametro~
+            +ejecutar() tuple~Parametro~
+        }
+    }
+
+    class ServicioDiagnostico {
+        <<dominio>>
+        +diagnosticar(especie, medicion) Diagnostico
+    }
+    class Medicion {
+        <<dominio>>
+        +lecturas: tuple~Lectura~
+    }
+
+    rutas ..> DiagnosticarPlanta
+    rutas ..> ListarEspecies
+    rutas ..> ListarParametros
+    rutas ..> esquemas
+    rutas ..> errores_http
+    esquemas ..> SolicitudDiagnostico : crea
+    esquemas ..> Medicion : crea, desde aquí el dato ya no sabe de HTTP
+    esquemas ..> EntradaInvalida : lanza
+    errores_http ..> EntradaInvalida : atrapa
+    DiagnosticarPlanta --> ServicioDiagnostico : servicio
+    DiagnosticarPlanta ..> SolicitudDiagnostico
+
+
+    style rutas fill:#E1D5E7,stroke:#8a6d99,color:#16231b
+    style esquemas fill:#E1D5E7,stroke:#8a6d99,color:#16231b
+    style errores_http fill:#E1D5E7,stroke:#8a6d99,color:#16231b
+    style EntradaInvalida fill:#E1D5E7,stroke:#8a6d99,color:#16231b
+    style SolicitudDiagnostico fill:#FFF2CC,stroke:#b59a45,color:#16231b
+    style DiagnosticarPlanta fill:#FFF2CC,stroke:#b59a45,color:#16231b
+    style ListarEspecies fill:#FFF2CC,stroke:#b59a45,color:#16231b
+    style ListarParametros fill:#FFF2CC,stroke:#b59a45,color:#16231b
+    style ServicioDiagnostico fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
+    style Medicion fill:#D5E8D4,stroke:#5a7d5f,color:#16231b

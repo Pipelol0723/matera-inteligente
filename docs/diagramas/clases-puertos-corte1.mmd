@@ -1,0 +1,31 @@
+%% clases-puertos tal como está en el código del corte 1 (commit 8c37f83).
+%% Es la vista «antes» de clases-puertos.mmd: se genera desde la misma fuente, sin lo que agrega el corte 2.
+classDiagram
+    direction LR
+
+    namespace dominio {
+        class ConsultaRangos {
+            <<interface>>
+            +rangos_de(especie: str) Especie o None
+        }
+        class CatalogoEspecies {
+            <<interface>>
+            +listar() list~Especie~
+        }
+    }
+
+    namespace infraestructura {
+        class RepositorioEspeciesCsv {
+            -ruta: Path
+            -especies: dict
+            +rangos_de(especie: str) Especie o None
+            +listar() list~Especie~
+        }
+    }
+
+    RepositorioEspeciesCsv ..|> ConsultaRangos
+    RepositorioEspeciesCsv ..|> CatalogoEspecies
+
+    style ConsultaRangos fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
+    style CatalogoEspecies fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
+    style RepositorioEspeciesCsv fill:#DAE8FC,stroke:#5b7aa6,color:#16231b

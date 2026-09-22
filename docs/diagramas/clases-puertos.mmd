@@ -1,0 +1,134 @@
+%% Puertos del dominio (backend/dominio/) y las clases de infraestructura que los implementan.
+%% Toda flecha va de infraestructura hacia el dominio (RA5, DIP).
+%% Verde: dominio. Azul: infraestructura. Borde punteado: se agrega en el corte 2 y todavía no tiene código.
+classDiagram
+    direction LR
+
+    namespace dominio {
+        class ConsultaRangos {
+            <<interface>>
+            +rangos_de(especie: str) Especie o None
+        }
+        class CatalogoEspecies {
+            <<interface>>
+            +listar() list~Especie~
+        }
+        class RegistroEspecies {
+            <<interface>>
+            +agregar(especie: Especie)
+        }
+        class RepositorioUsuarios {
+            <<interface>>
+            +por_correo(correo: Correo) Usuario o None
+            +por_id(usuario_id: int) Usuario o None
+            +guardar(usuario: Usuario) Usuario
+            +resumenes() list~ResumenUsuario~
+            +eliminar(usuario_id: int)
+        }
+        class RepositorioSesiones {
+            <<interface>>
+            +guardar(sesion: Sesion)
+            +por_huella(huella: str) Sesion o None
+            +eliminar(huella: str)
+            +eliminar_de_usuario(usuario_id: int)
+        }
+        class RepositorioPlantas {
+            <<interface>>
+            +guardar(planta: Planta) Planta
+            +de_usuario(usuario_id: int) list~Planta~
+            +por_id(usuario_id: int, planta_id: int) Planta o None
+            +vinculada_a(codigo: CodigoSensor) Planta o None
+            +eliminar(usuario_id: int, planta_id: int)
+        }
+        class RepositorioSensores {
+            <<interface>>
+            +por_codigo(codigo: CodigoSensor) Sensor o None
+            +de_planta(planta_id: int) Sensor o None
+            +guardar(sensor: Sensor)
+            +eliminar(codigo: CodigoSensor)
+        }
+        class HistorialMediciones {
+            <<interface>>
+            +agregar(registro: RegistroMedicion)
+            +de_planta(planta_id: int, limite: int) list~RegistroMedicion~
+            +ultimo_de(planta_id: int) RegistroMedicion o None
+        }
+        class Cifrador {
+            <<interface>>
+            +cifrar(texto: str) str
+            +verificar(texto: str, cifrado: str) bool
+        }
+        class GeneradorSecretos {
+            <<interface>>
+            +nuevo() str
+            +huella(secreto: str) str
+            +coincide(secreto: str, huella: str) bool
+        }
+        class Reloj {
+            <<interface>>
+            +ahora() datetime
+        }
+    }
+
+    namespace infraestructura {
+        class RepositorioEspeciesSqlite {
+            -conexion: Connection
+        }
+        class RepositorioUsuariosSqlite {
+            -conexion: Connection
+        }
+        class RepositorioSesionesSqlite {
+            -conexion: Connection
+        }
+        class RepositorioPlantasSqlite {
+            -conexion: Connection
+        }
+        class RepositorioSensoresSqlite {
+            -conexion: Connection
+        }
+        class HistorialMedicionesSqlite {
+            -conexion: Connection
+        }
+        class CifradorPbkdf2 {
+            -iteraciones: int = 600000
+        }
+        class GeneradorSecretosSeguro {
+            usa secrets, hashlib y hmac
+        }
+        class RelojSistema {
+            usa datetime.now
+        }
+    }
+
+    RepositorioEspeciesSqlite ..|> ConsultaRangos
+    RepositorioEspeciesSqlite ..|> CatalogoEspecies
+    RepositorioEspeciesSqlite ..|> RegistroEspecies
+    RepositorioUsuariosSqlite ..|> RepositorioUsuarios
+    RepositorioSesionesSqlite ..|> RepositorioSesiones
+    RepositorioPlantasSqlite ..|> RepositorioPlantas
+    RepositorioSensoresSqlite ..|> RepositorioSensores
+    HistorialMedicionesSqlite ..|> HistorialMediciones
+    CifradorPbkdf2 ..|> Cifrador
+    GeneradorSecretosSeguro ..|> GeneradorSecretos
+    RelojSistema ..|> Reloj
+
+    style ConsultaRangos fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
+    style CatalogoEspecies fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
+    style RegistroEspecies fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style RepositorioUsuarios fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style RepositorioSesiones fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style RepositorioPlantas fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style RepositorioSensores fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style HistorialMediciones fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style Cifrador fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style GeneradorSecretos fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style Reloj fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style RepositorioEspeciesSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style RepositorioUsuariosSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style RepositorioSesionesSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style RepositorioPlantasSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style RepositorioSensoresSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style HistorialMedicionesSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style CifradorPbkdf2 fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style GeneradorSecretosSeguro fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style RelojSistema fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
