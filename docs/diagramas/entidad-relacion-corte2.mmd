@@ -1,0 +1,69 @@
+%% Modelo entidad-relación del corte 2 (diseño, todavía sin código): una sola base SQLite.
+%% Las líneas punteadas llegan a PARAMETRO, que sigue en el código y no es una tabla.
+erDiagram
+    USUARIO ||--o{ SESION : "abre"
+    USUARIO ||--o{ PLANTA : "es dueño de"
+    ESPECIE ||--o{ PLANTA : "es la especie de"
+    ESPECIE ||--|{ RANGO_OPTIMO : "uno por parámetro"
+    PLANTA ||--o| SENSOR : "tiene"
+    PLANTA ||--o{ MEDICION : "acumula"
+    MEDICION ||--|{ LECTURA : "una por parámetro"
+    PARAMETRO ||..o{ RANGO_OPTIMO : "se mide con"
+    PARAMETRO ||..o{ LECTURA : "de"
+    USUARIO {
+        int id PK
+        string correo UK
+        string nombre
+        string hash_contrasena "pbkdf2_sha256"
+        string rol "USUARIO o ADMIN"
+        int activo "1 o 0"
+        string creado_en
+    }
+    ESPECIE {
+        string nombre PK "nombre normalizado"
+        string nombre_cientifico
+    }
+    RANGO_OPTIMO {
+        string especie PK, FK
+        string parametro PK
+        float minimo
+        float maximo
+    }
+    SESION {
+        string hash_token PK "SHA-256 del token"
+        int usuario_id FK
+        string creada_en
+        string vence_en
+    }
+    PLANTA {
+        int id PK
+        int usuario_id FK
+        string especie FK
+        string apodo "único por usuario"
+        string creada_en
+    }
+    SENSOR {
+        string codigo PK "MT-0000-XX"
+        int planta_id FK "único"
+        string hash_clave
+        string vinculado_en
+    }
+    MEDICION {
+        int id PK
+        int planta_id FK
+        string momento
+        string estado "SALUDABLE, EN_RIESGO o CRITICO"
+        string origen "código del sensor"
+    }
+    LECTURA {
+        int medicion_id PK, FK
+        string parametro PK
+        float valor
+        string estado "BAJO, OPTIMO o ALTO"
+    }
+    PARAMETRO {
+        string nombre PK "en parametros.py, no es tabla"
+        string unidad
+        float minimo_fisico
+        float maximo_fisico
+    }

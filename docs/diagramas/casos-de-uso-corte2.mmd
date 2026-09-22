@@ -1,0 +1,49 @@
+%% Casos de uso del corte 2 (diseño, todavía sin código): visitante, usuario registrado, administrador y sensor ESP32.
+%% Gris: casos del corte 1. Verde: casos nuevos. Oscuro: solo el administrador.
+flowchart LR
+    visitante["Visitante"]
+    usuario["Usuario registrado"]
+    admin["Administrador"]
+    sensor["Sensor ESP32"]
+    subgraph SIS["Matera inteligente · corte 2"]
+        uc1(["Consultar especies y sus rangos"])
+        uc2(["Diagnosticar una planta"])
+        uc3(["Recibir recomendaciones"])
+        uc4(["Crear cuenta"])
+        uc5(["Iniciar sesión"])
+        uc6(["Registrar y borrar plantas"])
+        uc7(["Ver mis materas"])
+        uc8(["Vincular y desvincular un sensor"])
+        uc9(["Ver el historial de una planta"])
+        uc10(["Ver mi cuenta y cerrar sesión"])
+        uc11(["Enviar una medición"])
+        uc12(["Guardar en el historial"])
+        uc13(["Administrar usuarios"])
+        uc14(["Agregar especies"])
+    end
+    visitante --- uc1
+    visitante --- uc2
+    visitante --- uc4
+    visitante --- uc5
+    usuario -->|también es| visitante
+    usuario --- uc6
+    usuario --- uc7
+    usuario --- uc8
+    usuario --- uc9
+    usuario --- uc10
+    admin -->|también es| usuario
+    admin --- uc13
+    admin --- uc14
+    sensor --- uc11
+    uc2 -.->|incluye| uc3
+    uc11 -.->|incluye| uc2
+    uc11 -.->|incluye| uc12
+
+    classDef actor fill:#ffffff,stroke:#56665b,stroke-width:1.5px,color:#16231b
+    classDef caso fill:#f5f8f4,stroke:#7b887f,color:#16231b
+    classDef nuevo fill:#dbeae0,stroke:#2e6a4e,stroke-width:1.5px,color:#16231b
+    classDef soloAdmin fill:#16231b,stroke:#16231b,color:#ffffff
+    class visitante,usuario,admin,sensor actor
+    class uc1,uc2,uc3 caso
+    class uc4,uc5,uc6,uc7,uc8,uc9,uc10,uc11,uc12 nuevo
+    class uc13,uc14 soloAdmin

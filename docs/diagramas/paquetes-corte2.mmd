@@ -1,0 +1,47 @@
+%% Diagrama de paquetes del corte 2 (diseño, todavía sin código). Misma forma que paquetes.mmd:
+%% cada caja es una carpeta y dice qué archivos se agregan y cuáles se eliminan. Punteado: nodos nuevos.
+flowchart TB
+    FRONT["frontend/ · cliente estático servido aparte (puerto 5500)<br/>index.html · css/estilos.css · js/config.js · js/app.js · js/api.js<br/>js/diagnostico.js · js/especies.js · js/escala.js · js/formato.js<br/>nuevos: js/sesion.js · js/acceso.js · js/cuenta.js · js/materas.js<br/>js/vincular.js · js/simulador.js · js/historial.js · js/admin.js<br/>se elimina js/prototipos.js"]
+    ESP["ESP32 o simulador<br/>manda mediciones con su clave"]
+
+    subgraph BACKEND["backend/ (Flask, puerto 5000)"]
+        MAIN["main.py · raíz de composición<br/>nuevo: crear_admin.py, para la consola"]
+        PRES["presentacion/<br/>rutas.py · esquemas.py · errores_http.py<br/>nuevos: autenticacion.py · rutas_usuarios.py · rutas_plantas.py<br/>rutas_sensores.py · rutas_admin.py<br/>esquemas_usuarios.py · errores_usuarios.py<br/>usa: flask, werkzeug"]
+        APP["aplicacion/<br/>diagnosticar_planta.py · listar_especies.py · listar_parametros.py<br/>nuevos: cuentas.py · plantas.py · sensores.py · historial.py<br/>diagnosticar_planta_de_usuario.py · administracion.py"]
+        DOM["dominio/<br/>los 12 módulos del corte 1, sin cambios<br/>nuevos: usuarios.py · plantas.py · sensores.py · historial.py<br/>puertos_usuarios.py · errores_usuarios.py<br/>usa: solo la biblioteca estándar de Python"]
+        INFRA["infraestructura/<br/>configuracion.py · servidor_web.py<br/>nuevos: sqlite/ · seguridad.py · reloj.py<br/>se elimina repositorio_especies_csv.py<br/>usa: sqlite3, hashlib, secrets, flask, flask-cors"]
+        SQL["datos/esquema.sql · datos/carga.sql<br/>reemplazan a especies.csv"]
+        TESTS["tests/<br/>dominio/ · aplicacion/ · integracion/ · dobles.py"]
+    end
+    BD[("matera.sqlite<br/>fuera de Google Drive")]
+
+    FRONT -->|"HTTP + JSON, token Bearer en lo privado"| PRES
+    ESP -->|"HTTP + JSON, cabecera X-Clave-Sensor"| PRES
+    PRES -->|"importa"| APP
+    PRES -->|"importa"| DOM
+    APP -->|"importa"| DOM
+    INFRA -->|"implementa los puertos"| DOM
+    INFRA -->|"crea las tablas y carga las especies con"| SQL
+    INFRA -->|"lee y escribe"| BD
+
+    MAIN -.-> PRES
+    MAIN -.-> APP
+    MAIN -.-> DOM
+    MAIN -.-> INFRA
+    TESTS -.->|"dominio/, aplicacion/ y dobles.py"| DOM
+    TESTS -.->|"integracion/"| MAIN
+
+    classDef presentacion fill:#f6ece2,stroke:#9a5b1e,stroke-width:1.5px,color:#16231b
+    classDef aplicacion fill:#e6edf6,stroke:#33598a,stroke-width:1.5px,color:#16231b
+    classDef dominio fill:#e3eee7,stroke:#2c6a4e,stroke-width:3px,color:#16231b
+    classDef infraestructura fill:#eceef0,stroke:#5e6670,stroke-width:1.5px,color:#16231b
+    classDef neutro fill:#ffffff,stroke:#8a9a8e,stroke-width:1.5px,color:#16231b
+    classDef nuevo fill:#dbeae0,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:5 3,color:#16231b
+
+    class PRES presentacion
+    class APP aplicacion
+    class DOM dominio
+    class INFRA infraestructura
+    class FRONT,MAIN,TESTS neutro
+    class ESP,SQL,BD nuevo
+    style BACKEND fill:#fbfcfa,stroke:#c3d3c4,stroke-dasharray:6 4,color:#56655b

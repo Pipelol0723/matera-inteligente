@@ -1,0 +1,17 @@
+%% Casos de uso del corte 1: una persona anónima consulta las especies y diagnostica una planta.
+%% Mermaid no tiene diagrama de casos de uso: los actores son cajas, los casos son óvalos y el sistema es el recuadro.
+flowchart LR
+    persona["Persona"]
+    subgraph SIS["Matera inteligente · corte 1"]
+        uc1(["Consultar especies y sus rangos"])
+        uc2(["Diagnosticar una planta"])
+        uc3(["Recibir recomendaciones"])
+    end
+    persona --- uc1
+    persona --- uc2
+    uc2 -.->|incluye| uc3
+
+    classDef actor fill:#ffffff,stroke:#56665b,stroke-width:1.5px,color:#16231b
+    classDef caso fill:#f5f8f4,stroke:#7b887f,color:#16231b
+    class persona actor
+    class uc1,uc2,uc3 caso

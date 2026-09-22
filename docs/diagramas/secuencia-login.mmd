@@ -1,0 +1,45 @@
+%% Secuencia del corte 2 (diseño): iniciar sesión y pedir la lista de plantas propias con el token.
+sequenceDiagram
+    autonumber
+    actor Persona
+    participant UI as acceso.js y materas.js<br/>(front)
+    participant RU as rutas_usuarios.py<br/>(presentación)
+    participant IS as IniciarSesion<br/>(aplicación)
+    participant RP as rutas_plantas.py<br/>(presentación)
+    participant AU as autenticacion.py<br/>(presentación)
+    participant IU as IdentificarUsuario<br/>(aplicación)
+    participant LP as ListarPlantas<br/>(aplicación)
+    participant PU as Cifrador, repositorios<br/>y GeneradorSecretos (puertos)
+
+    Persona ->> UI: correo y contraseña
+    UI ->> RU: POST /api/v1/sesiones
+    RU ->> IS: ejecutar(correo, contraseña)
+    IS ->> PU: por_correo(correo) y verificar(contraseña, hash)
+    alt el correo no existe o la contraseña no coincide
+        IS --x RU: CredencialesInvalidas
+        RU -->> UI: 401 CREDENCIALES_INVALIDAS (el mismo en los dos casos)
+    else la cuenta está desactivada
+        IS --x RU: CuentaDesactivada
+        RU -->> UI: 403 CUENTA_DESACTIVADA
+    else todo bien
+        IS ->> PU: nuevo token, guardar(Sesion con su huella y vencimiento)
+        IS -->> RU: token y Usuario con su rol
+        RU -->> UI: 201 con token, venceEn y usuario
+        UI ->> UI: guarda el token en sessionStorage
+        UI ->> RP: GET /api/v1/plantas<br/>Authorization: Bearer token
+        RP ->> AU: usuario_actual()
+        AU ->> IU: ejecutar(token)
+        IU ->> PU: por_huella(huella del token)
+        alt no existe, ya venció o la cuenta está desactivada
+            IU --x AU: SesionInvalida
+            AU -->> UI: 401 SESION_INVALIDA
+        else sesión vigente
+            IU -->> AU: Usuario
+            AU -->> RP: Usuario
+            RP ->> LP: ejecutar(usuario)
+            LP ->> PU: de_usuario(usuario.id)
+            PU -->> LP: solo las plantas de ese usuario
+            LP -->> RP: plantas con su sensor y su último diagnóstico
+            RP -->> UI: 200 JSON
+        end
+    end

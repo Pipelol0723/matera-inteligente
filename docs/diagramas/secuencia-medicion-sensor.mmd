@@ -1,0 +1,36 @@
+%% Secuencia del corte 2 (diseño): una medición que llega del ESP32 o del simulador, con la clave del sensor,
+%% hasta que se diagnostica con el ServicioDiagnostico del corte 1 y se guarda en el historial.
+sequenceDiagram
+    autonumber
+    participant ESP as ESP32 o simulador
+    participant RS as rutas_sensores.py<br/>(presentación)
+    participant E as esquemas.py<br/>(presentación)
+    participant RM as RecibirMedicionDeSensor<br/>(aplicación)
+    participant GS as GeneradorSecretos<br/>(puerto)
+    participant PS as RepositorioSensores y<br/>RepositorioPlantas (puertos)
+    participant DU as DiagnosticarPlantaDeUsuario<br/>(aplicación)
+    participant S as ServicioDiagnostico<br/>(dominio, corte 1)
+    participant H as HistorialMediciones<br/>(puerto)
+
+    ESP ->> RS: POST /api/v1/sensores/{código}/mediciones<br/>cabecera X-Clave-Sensor
+    RS ->> E: medicion_desde_json(cuerpo)
+    E -->> RS: Medicion (límites físicos validados en Lectura)
+    RS ->> RM: ejecutar(código, clave, medicion)
+    RM ->> PS: por_codigo(código)
+    PS -->> RM: Sensor con la huella de su clave, o None
+    RM ->> GS: coincide(clave, huella)
+    alt sensor inexistente o clave incorrecta
+        RM --x RS: ClaveSensorInvalida
+        RS -->> ESP: 401 CLAVE_SENSOR_INVALIDA
+    else clave correcta
+        RM ->> PS: vinculada_a(código)
+        PS -->> RM: Planta
+        RM ->> DU: ejecutar(planta, medicion)
+        DU ->> S: diagnosticar(planta.especie, medicion)
+        Note over S: el mismo recorrido del corte 1<br/>ConsultaRangos, EvaluadorPlanta, ReglaHibrida
+        S -->> DU: Diagnostico
+        DU ->> H: agregar(RegistroMedicion.desde(diagnostico))
+        DU -->> RM: Diagnostico
+        RM -->> RS: planta y Diagnostico
+        RS -->> ESP: 201 JSON con la planta y el diagnóstico
+    end

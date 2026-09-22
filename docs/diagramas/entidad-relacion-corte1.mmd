@@ -1,0 +1,21 @@
+%% Modelo entidad-relación conceptual del corte 1. Físicamente es un solo archivo, datos/especies.csv;
+%% PARAMETRO no es una tabla sino las constantes de dominio/parametros.py.
+erDiagram
+    ESPECIE ||--|{ RANGO_OPTIMO : "uno por parámetro"
+    PARAMETRO ||--o{ RANGO_OPTIMO : "se mide con"
+    ESPECIE {
+        string especie PK "nombre normalizado"
+        string nombre_cientifico "opcional"
+    }
+    RANGO_OPTIMO {
+        string especie FK
+        string parametro FK
+        float minimo
+        float maximo
+    }
+    PARAMETRO {
+        string nombre PK "humedad, luz, temperatura"
+        string unidad
+        float minimo_fisico
+        float maximo_fisico
+    }

@@ -1,0 +1,34 @@
+%% Secuencia del corte 2 (diseño): el administrador agrega una especie. Muestra dónde se revisa el permiso.
+sequenceDiagram
+    autonumber
+    actor Admin
+    participant UI as admin.js<br/>(front)
+    participant RA as rutas_admin.py<br/>(presentación)
+    participant AU as autenticacion.py<br/>(presentación)
+    participant EU as esquemas_usuarios.py<br/>(presentación)
+    participant AE as AgregarEspecie<br/>(aplicación)
+    participant U as Usuario<br/>(dominio)
+    participant P as ConsultaRangos y<br/>RegistroEspecies (puertos)
+
+    Admin ->> UI: nombre, nombre científico y un rango por parámetro
+    UI ->> RA: POST /api/v1/admin/especies<br/>Authorization: Bearer token
+    RA ->> AU: usuario_actual()
+    AU -->> RA: actor
+    RA ->> EU: especie_desde_json(cuerpo)
+    EU -->> RA: Especie, con sus Rango ya validados (si no, 400)
+    RA ->> AE: ejecutar(actor, especie)
+    AE ->> U: actor.exigir_admin()
+    alt el actor no es ADMIN
+        U --x RA: PermisoDenegado
+        RA -->> UI: 403 PERMISO_DENEGADO
+    else es ADMIN
+        AE ->> P: rangos_de(especie.nombre)
+        alt ya existe
+            AE --x RA: EspecieYaExiste
+            RA -->> UI: 409 ESPECIE_YA_EXISTE
+        else es nueva
+            AE ->> P: agregar(especie)
+            AE -->> RA: Especie
+            RA -->> UI: 201 JSON con la especie
+        end
+    end
