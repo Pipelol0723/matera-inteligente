@@ -1,0 +1,283 @@
+@startuml diagrama-clases
+
+title Matera inteligente — Diagrama de clases (backend)\n(incluye gestion de usuarios: evolucion futura, no implementada en este corte)
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam class {
+  BackgroundColor White
+  ArrowColor #333333
+  BorderColor #333333
+}
+skinparam interface {
+  BackgroundColor #1BA1E2
+  FontColor White
+  BorderColor #333333
+}
+skinparam enum {
+  BackgroundColor #1BA1E2
+  FontColor White
+  BorderColor #333333
+}
+
+package "presentacion" #E1D5E7 {
+  class "rutas" as RutasApiV1 <<modulo>> {
+    + crear_blueprint(diagnosticar, listar, listarParametros): Blueprint
+  }
+
+  class "esquemas" as EsquemasJson <<modulo>> {
+    + solicitud_desde_json(cuerpo): SolicitudDiagnostico
+    + diagnostico_a_json(diagnostico): dict
+    + especie_a_json(especie): dict
+    + parametro_a_json(parametro): dict
+  }
+
+  class EntradaInvalida {
+    + error: string
+    + mensaje: string
+    + detalle: dict
+  }
+
+  class "errores_http" as ErroresHttp <<modulo>> {
+    + registrar_manejadores(bp): void
+  }
+}
+
+package "aplicacion" #FFF2CC {
+  class SolicitudDiagnostico {
+    + especie: string
+    + medicion: Medicion
+  }
+
+  class DiagnosticarPlanta {
+    - servicio: ServicioDiagnostico
+    + ejecutar(solicitud: SolicitudDiagnostico): Diagnostico
+  }
+
+  class ListarEspecies {
+    - catalogo: CatalogoEspecies
+    + ejecutar(): Especie[]
+  }
+
+  class ListarParametros {
+    - parametros: Parametro[]
+    + ejecutar(): Parametro[]
+  }
+}
+
+package "dominio" #D5E8D4 {
+
+  interface ReglaAgregacion {
+    + agregar(resultados: ResultadoParametro[]): EstadoGlobal
+  }
+
+  interface ConsultaRangos {
+    + rangos_de(especie: string): Especie
+  }
+
+  interface CatalogoEspecies {
+    + listar(): Especie[]
+  }
+
+  class EvaluadorPlanta {
+    - regla: ReglaAgregacion
+    - recomendaciones: GeneradorRecomendaciones
+    + evaluar(especie: Especie, medicion: Medicion): Diagnostico
+  }
+
+  class ServicioDiagnostico {
+    - consulta: ConsultaRangos
+    - evaluador: EvaluadorPlanta
+    + diagnosticar(especie: string, medicion: Medicion): Diagnostico
+  }
+
+  class GeneradorRecomendaciones {
+    + para(resultado: ResultadoParametro): string
+  }
+
+  class ReglaHibrida {
+    - umbral: float = 0.5
+    + agregar(resultados: ResultadoParametro[]): EstadoGlobal
+  }
+
+  class ReglaConteo {
+    + agregar(resultados: ResultadoParametro[]): EstadoGlobal
+  }
+
+  class Parametro {
+    + nombre: string
+    + unidad: string
+    + minimoFisico: float
+    + maximoFisico: float
+  }
+
+  class Especie {
+    + nombre: string
+    + rangos: Map<Parametro, Rango>
+    + nombreCientifico: string
+    + rango_de(parametro: Parametro): Rango
+  }
+
+  class Rango {
+    + minimo: float
+    + maximo: float
+    + ancho: float
+    + clasificar(valor: float): EstadoParametro
+    + desviacion(valor: float): float
+  }
+
+  enum EstadoParametro {
+    BAJO
+    OPTIMO
+    ALTO
+  }
+
+  enum EstadoGlobal {
+    SALUDABLE
+    EN_RIESGO
+    CRITICO
+  }
+
+  class Lectura {
+    + parametro: Parametro
+    + valor: float
+  }
+
+  class Medicion {
+    + lecturas: Lectura[]
+  }
+
+  class ResultadoParametro {
+    + parametro: Parametro
+    + valor: float
+    + rango: Rango
+    + estado: EstadoParametro
+    + desviacion: float
+    + fueraDeRango: bool
+  }
+
+  class Diagnostico {
+    + especie: string
+    + estado: EstadoGlobal
+    + resultados: ResultadoParametro[]
+    + recomendaciones: string[]
+  }
+
+  note as ErroresDominio
+    dominio.errores.py
+    ErrorDominio (base)
+    -> EspecieNoSoportada
+    -> ValorFisicamenteImposible
+    -> MedicionInvalida
+    -> ParametroSinRango
+    -> RangoInvalido
+  end note
+}
+
+package "infraestructura" #DAE8FC {
+  class RepositorioEspeciesCsv {
+    - ruta: Path
+    - especies: Map<string, Especie>
+    + rangos_de(especie: string): Especie
+    + listar(): Especie[]
+  }
+
+  class Configuracion {
+    + puerto: int
+    + rutaCsv: Path
+    + origenesCors: string[]
+    + desdeEntorno(): Configuracion
+  }
+}
+
+' =========================================================================
+' GESTION DE USUARIOS — evolucion futura, NO implementada en este corte.
+' No toca el nucleo: DiagnosticarPlantaDeUsuario compone ServicioDiagnostico,
+' que ya existe, sin modificarlo (ver docs/arquitectura, plan de evolucion).
+' =========================================================================
+package "usuarios (futuro, no implementado)" #CCCCCC {
+  class Usuario <<futuro>> {
+    + id: string
+    + email: string
+    + nombre: string
+  }
+
+  class PlantaDeUsuario <<futuro>> {
+    + id: string
+    + usuarioId: string
+    + especie: string
+    + apodo: string
+  }
+
+  interface RepositorioUsuarios <<futuro>> {
+    + buscar_por_id(id: string): Usuario
+    + guardar(usuario: Usuario): void
+  }
+
+  interface RepositorioPlantas <<futuro>> {
+    + plantas_de(usuarioId: string): PlantaDeUsuario[]
+    + guardar(planta: PlantaDeUsuario): void
+  }
+
+  class RegistrarPlanta <<futuro>> {
+    - repositorioPlantas: RepositorioPlantas
+    + ejecutar(usuarioId: string, especie: string, apodo: string): PlantaDeUsuario
+  }
+
+  class DiagnosticarPlantaDeUsuario <<futuro>> {
+    - repositorioPlantas: RepositorioPlantas
+    - servicio: ServicioDiagnostico
+    + ejecutar(usuarioId: string, plantaId: string, medicion: Medicion): Diagnostico
+  }
+}
+
+' ---- presentacion: rutas -> casos de uso, esquemas y manejo de errores ----
+RutasApiV1 ..> DiagnosticarPlanta
+RutasApiV1 ..> ListarEspecies
+RutasApiV1 ..> ListarParametros
+RutasApiV1 ..> EsquemasJson
+RutasApiV1 ..> ErroresHttp
+EsquemasJson ..> SolicitudDiagnostico : crea
+EsquemasJson ..> EntradaInvalida : lanza
+EsquemasJson ..> Diagnostico
+ErroresHttp ..> EntradaInvalida
+ErroresHttp ..> ErroresDominio : atrapa
+
+' ---- realizaciones (implementa la interfaz) ----
+ReglaHibrida ..|> ReglaAgregacion
+ReglaConteo ..|> ReglaAgregacion
+RepositorioEspeciesCsv ..|> ConsultaRangos
+RepositorioEspeciesCsv ..|> CatalogoEspecies
+
+' ---- composicion / agregacion ----
+Medicion "1" *-- "1..3" Lectura
+Diagnostico "1" *-- "1..*" ResultadoParametro
+Especie "1" o-- "0..*" Rango : rangos
+ListarParametros o-- "0..*" Parametro
+
+' ---- asociaciones (dependencia por constructor) ----
+EvaluadorPlanta --> ReglaAgregacion : regla
+EvaluadorPlanta --> GeneradorRecomendaciones : recomendaciones
+ServicioDiagnostico --> ConsultaRangos : consulta
+ServicioDiagnostico --> EvaluadorPlanta : evaluador
+DiagnosticarPlanta --> ServicioDiagnostico : servicio
+ListarEspecies --> CatalogoEspecies : catalogo
+Lectura --> Parametro : parametro
+ResultadoParametro --> Parametro : parametro
+ResultadoParametro --> EstadoParametro : estado
+Diagnostico --> EstadoGlobal : estado
+SolicitudDiagnostico --> Medicion : medicion
+
+' ---- dependencia (parametro de metodo) ----
+DiagnosticarPlanta ..> SolicitudDiagnostico
+
+' ---- usuarios (futuro): internas ----
+RegistrarPlanta --> RepositorioPlantas : repositorioPlantas
+DiagnosticarPlantaDeUsuario --> RepositorioPlantas : repositorioPlantas
+PlantaDeUsuario ..> Usuario : usuarioId (ref)
+
+' ---- usuarios (futuro) -> nucleo existente: la unica conexion real -------
+DiagnosticarPlantaDeUsuario -[#B85450,bold]-> ServicioDiagnostico : servicio\n(compone el nucleo, no lo modifica)
+
+@enduml
