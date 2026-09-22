@@ -27,7 +27,8 @@ frontend/            HTML, CSS y JavaScript estáticos, servidos aparte
   js/escala.js       geometría de escalas y anillos
   js/formato.js      textos, colores y ayudas para crear nodos
 docs/
-  diagramas/         diagrama de paquetes y de secuencia (fuente .mmd, SVG y PNG)
+  diagramas/         casos de uso, paquetes, clases, entidad-relación y secuencias,
+                     del corte 1 y del diseño del corte 2 (fuente .mmd, SVG y PNG)
   entrega/           documento de arquitectura y bitácora de uso de IA (PDF)
 ```
 
