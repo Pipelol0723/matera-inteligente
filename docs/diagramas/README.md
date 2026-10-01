@@ -236,6 +236,14 @@ Fuente: [`secuencia-admin-especie.mmd`](secuencia-admin-especie.mmd). Corte 2.
 
 ---
 
+## Vista general: diagrama de clases del backend
+
+![Diagrama de clases del backend](clases-backend-general.png)
+
+Vista combinada de las cuatro capas del backend (presentación, aplicación, dominio e infraestructura) más el módulo de usuarios aún no implementado, en una sola imagen. No tiene fuente `.mmd`: se subió directamente como PNG. Para el detalle por capa y por corte, use los diagramas de clases de la sección anterior.
+
+---
+
 ## Si cambia el código
 
 Los diagramas del corte 1 tienen que seguir correspondiendo uno a uno con el repositorio. Si se agrega, se renombra o se mueve un archivo, o cambia un import entre capas:
