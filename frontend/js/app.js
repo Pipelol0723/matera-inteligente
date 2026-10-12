@@ -2,6 +2,7 @@
 // el estado de la conexión y de la sesión. Las reglas de negocio viven en el backend.
 import { avisarAlVencerSesion, obtenerEspecies, obtenerMiCuenta, obtenerParametros } from "./api.js";
 import { crearPantallaAcceso } from "./acceso.js";
+import { crearPantallaAdmin } from "./admin.js";
 import { crearPantallaCuenta } from "./cuenta.js";
 import { crearPantallaDiagnostico } from "./diagnostico.js";
 import { crearPantallaEspecies } from "./especies.js";
@@ -12,8 +13,9 @@ import { crearSimulador } from "./simulador.js";
 import { crearPantallaVincular } from "./vincular.js";
 
 const PUBLICAS = ["diagnostico", "especies", "acceso"];
-// Exigen sesión. Ocultarlas no protege nada: la API responde 401 sin token.
-const PRIVADAS = ["materas", "vincular", "historial", "cuenta"];
+// Exigen sesión. Ocultarlas no protege nada: la API responde 401 sin token, y 403 en
+// administración si el usuario no es ADMIN.
+const PRIVADAS = ["materas", "vincular", "historial", "cuenta", "admin"];
 const PANTALLAS = [...PUBLICAS, ...PRIVADAS];
 const PANTALLA_INICIAL = "diagnostico";
 const DESPUES_DE_INGRESAR = "materas";
@@ -49,6 +51,8 @@ const contexto = {
     contexto.navegar(PANTALLA_INICIAL);
   },
   alCambiarUsuario: pintarSesion,
+  // Después de que el admin agrega una especie: Diagnóstico, Especies y Mis materas la ven.
+  recargarCatalogos: () => cargarCatalogos(),
 };
 
 const diagnostico = crearPantallaDiagnostico(contexto);
@@ -60,6 +64,7 @@ const pantallas = {
   materas: crearPantallaMateras(contexto),
   vincular: crearPantallaVincular(contexto, simulador),
   historial: crearPantallaHistorial(contexto),
+  admin: crearPantallaAdmin(contexto),
 };
 
 function pantallaPedida() {
@@ -74,7 +79,7 @@ function mostrarPantalla() {
     location.replace("#acceso");
     return;
   }
-  if (pedida === "acceso" && sesion.activa()) {
+  if ((pedida === "acceso" && sesion.activa()) || (pedida === "admin" && !sesion.esAdmin())) {
     location.replace(`#${DESPUES_DE_INGRESAR}`);
     return;
   }
@@ -97,6 +102,7 @@ function pintarSesion() {
   boton.textContent = usuario ? usuario.nombre : "Ingresar";
   boton.dataset.pantalla = usuario ? "cuenta" : "acceso";
   boton.classList.toggle("boton-cuenta--activa", Boolean(usuario));
+  document.querySelector('.pestana[data-pantalla="admin"]').hidden = !sesion.esAdmin();
 }
 
 function marcarConexion(conectada) {
@@ -121,6 +127,7 @@ async function cargarCatalogos() {
   diagnostico.alCargarCatalogos();
   especies.pintar();
   pantallas.materas.alCargarCatalogos();
+  pantallas.admin.alCargarCatalogos();
   simulador.alCargarCatalogos();
 }
 

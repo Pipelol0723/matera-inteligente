@@ -1349,6 +1349,102 @@ a:hover {
   color: var(--tenue);
 }
 
+/* ---- administración (corte 2) ---- */
+
+.admin {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.admin > .bajada {
+  margin-bottom: 4px;
+}
+
+.admin__usuarios {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.admin__usuarios .rotulo {
+  margin: 0;
+}
+
+.tabla__contenedor {
+  overflow-x: auto;
+}
+
+.tabla {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.tabla th {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--borde);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-align: left;
+  text-transform: uppercase;
+  color: var(--tenue);
+}
+
+.tabla td {
+  padding: 10px;
+  border-bottom: 1px solid var(--borde-suave);
+  vertical-align: middle;
+}
+
+.tabla__fuerte {
+  font-weight: 600;
+}
+
+.tabla__numero {
+  font-variant-numeric: tabular-nums;
+}
+
+.tabla__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pastilla--activa {
+  background: #e1f0e6;
+  color: #2b7a4b;
+}
+
+.pastilla--inactiva {
+  background: #eef2ec;
+  color: #5a6a5f;
+}
+
+.admin__especie {
+  max-width: 760px;
+}
+
+.admin__rangos {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.admin__rango {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px 110px;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin__rango .formulario__etiqueta {
+  margin: 0;
+}
+
 /* ---- pantallas angostas (el diseño es de escritorio) ---- */
 
 @media (max-width: 1100px) {
@@ -1389,6 +1485,14 @@ a:hover {
   }
 
   .registro--origen .registro__lectura {
+    grid-column: 1 / -1;
+  }
+
+  .admin__rango {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .admin__rango .formulario__etiqueta {
     grid-column: 1 / -1;
   }
 

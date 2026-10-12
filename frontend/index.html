@@ -24,6 +24,7 @@
         <button type="button" class="pestana" data-pantalla="materas">Mis materas</button>
         <button type="button" class="pestana" data-pantalla="vincular">Vincular sensor</button>
         <button type="button" class="pestana" data-pantalla="historial">Historial</button>
+        <button type="button" class="pestana" data-pantalla="admin" hidden>Administración</button>
       </div>
       <div id="conexion" class="conexion conexion--pendiente" role="status">
         <span class="conexion__punto" aria-hidden="true"></span>
@@ -223,6 +224,42 @@
       <div id="resumen-filas" class="resumen__filas"></div>
       <p class="resumen__nota">Cada estado es el que calculó la API en el momento de la medición. Si después cambian los rangos de la especie, el pasado no se recalcula.</p>
     </aside>
+  </main>
+
+  <main id="pantalla-admin" class="pantalla admin" hidden>
+    <p class="ceja">Solo para administradores</p>
+    <h1 class="titulo">Administración</h1>
+    <p class="bajada bajada--angosta">Los permisos los revisa la API: a quien no sea administrador, cada una de estas acciones le responde 403. Si una acción no se permite, aquí se muestra el error que respondió.</p>
+    <section class="tarjeta admin__usuarios">
+      <p class="rotulo">Cuentas</p>
+      <div id="error-admin" class="tarjeta-error" role="alert" hidden></div>
+      <div class="tabla__contenedor">
+        <table class="tabla">
+          <thead>
+            <tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Plantas</th><th>Acciones</th></tr>
+          </thead>
+          <tbody id="filas-usuarios"></tbody>
+        </table>
+      </div>
+    </section>
+    <form id="form-especie" class="tarjeta formulario admin__especie" novalidate>
+      <h2 class="formulario__titulo">Agregar una especie</h2>
+      <p class="formulario__ayuda">Un mínimo y un máximo por cada parámetro que se mide. Desde ese momento aparece en Especies y se puede usar en Mis materas.</p>
+      <div class="formulario__fila">
+        <div class="formulario__grupo">
+          <label class="formulario__etiqueta" for="especie-nombre">Nombre</label>
+          <input id="especie-nombre" name="nombre" class="formulario__campo" autocomplete="off">
+        </div>
+        <div class="formulario__grupo">
+          <label class="formulario__etiqueta" for="especie-cientifico">Nombre científico (opcional)</label>
+          <input id="especie-cientifico" name="nombreCientifico" class="formulario__campo" autocomplete="off">
+        </div>
+      </div>
+      <div id="rangos-especie" class="admin__rangos"></div>
+      <div id="error-especie" class="tarjeta-error" role="alert" hidden></div>
+      <p id="exito-especie" class="mensaje-exito" role="status" hidden></p>
+      <button type="submit" class="boton-primario">Agregar especie</button>
+    </form>
   </main>
 </body>
 </html>
