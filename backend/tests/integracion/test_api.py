@@ -154,7 +154,7 @@ def test_un_error_inesperado_responde_json_sin_la_traza(tmp_path):
     api = crear_blueprint(
         CasoDeUsoQueFalla(), ListarEspecies(RepositorioEspeciesEnMemoria()), ListarParametros(PARAMETROS)
     )
-    cliente = crear_app(api, _config(tmp_path)).test_client()
+    cliente = crear_app([api], _config(tmp_path)).test_client()
 
     respuesta = _pedir(cliente)
 
