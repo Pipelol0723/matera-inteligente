@@ -1,0 +1,140 @@
+"""Puertos del corte 2: lo que cuentas, plantas, sensores e historial necesitan de afuera.
+
+Igual que dominio.puertos, se declaran aqui y se implementan en
+infraestructura (RA5, DIP). En las pruebas, cada uno tiene un doble en memoria.
+Los puertos del corte 1 no cambian: RegistroEspecies es una interfaz aparte,
+asi que quien solo consulta especies sigue dependiendo solo de ConsultaRangos (ISP).
+"""
+from abc import ABC, abstractmethod
+from datetime import datetime
+
+from dominio.especie import Especie
+from dominio.historial import RegistroMedicion
+from dominio.plantas import Planta
+from dominio.sensores import CodigoSensor, Sensor
+from dominio.usuarios import Correo, ResumenUsuario, Sesion, Usuario
+
+
+class RegistroEspecies(ABC):
+    """Agregar una especie a la tabla de referencia. Solo lo usa la administracion."""
+
+    @abstractmethod
+    def agregar(self, especie: Especie) -> None:
+        """Lanza EspecieYaExiste si ya hay una con ese nombre."""
+
+
+class RepositorioUsuarios(ABC):
+    @abstractmethod
+    def por_correo(self, correo: Correo) -> Usuario | None: ...
+
+    @abstractmethod
+    def por_id(self, usuario_id: int) -> Usuario | None: ...
+
+    @abstractmethod
+    def guardar(self, usuario: Usuario) -> Usuario:
+        """Crea la cuenta si no tiene id y la devuelve con su id; si lo tiene, la actualiza.
+
+        Lanza CorreoYaRegistrado si el correo ya es de otra cuenta.
+        """
+
+    @abstractmethod
+    def resumenes(self) -> list[ResumenUsuario]: ...
+
+    @abstractmethod
+    def eliminar(self, usuario_id: int) -> None:
+        """Borra la cuenta con sus sesiones, plantas, sensores e historial."""
+
+
+class RepositorioSesiones(ABC):
+    @abstractmethod
+    def guardar(self, sesion: Sesion) -> None: ...
+
+    @abstractmethod
+    def por_huella(self, huella: str) -> Sesion | None: ...
+
+    @abstractmethod
+    def eliminar(self, huella: str) -> None: ...
+
+    @abstractmethod
+    def eliminar_de_usuario(self, usuario_id: int) -> None: ...
+
+
+class RepositorioPlantas(ABC):
+    """Aqui vive el aislamiento entre usuarios: no hay forma de pedir una planta sin decir de quien es."""
+
+    @abstractmethod
+    def guardar(self, planta: Planta) -> Planta:
+        """Crea la planta y la devuelve con su id. Lanza ApodoRepetido si el dueno ya usa ese apodo."""
+
+    @abstractmethod
+    def de_usuario(self, usuario_id: int) -> list[Planta]: ...
+
+    @abstractmethod
+    def por_id(self, usuario_id: int, planta_id: int) -> Planta | None:
+        """None si la planta no existe o si es de otro usuario."""
+
+    @abstractmethod
+    def vinculada_a(self, codigo: CodigoSensor) -> Planta | None:
+        """La planta del sensor. Solo se usa despues de verificar la clave del sensor."""
+
+    @abstractmethod
+    def eliminar(self, usuario_id: int, planta_id: int) -> None:
+        """Borra la planta con su sensor y su historial."""
+
+
+class RepositorioSensores(ABC):
+    @abstractmethod
+    def por_codigo(self, codigo: CodigoSensor) -> Sensor | None: ...
+
+    @abstractmethod
+    def de_planta(self, planta_id: int) -> Sensor | None: ...
+
+    @abstractmethod
+    def guardar(self, sensor: Sensor) -> None:
+        """Lanza SensorYaVinculado si el codigo ya esta en uso."""
+
+    @abstractmethod
+    def eliminar(self, codigo: CodigoSensor) -> None: ...
+
+
+class HistorialMediciones(ABC):
+    @abstractmethod
+    def agregar(self, registro: RegistroMedicion) -> None: ...
+
+    @abstractmethod
+    def de_planta(self, planta_id: int, limite: int) -> list[RegistroMedicion]:
+        """Los registros mas recientes primero, como maximo `limite`."""
+
+    @abstractmethod
+    def ultimo_de(self, planta_id: int) -> RegistroMedicion | None: ...
+
+
+class Cifrador(ABC):
+    """Huella lenta de una contrasena, con sal. Nunca se guarda la contrasena."""
+
+    @abstractmethod
+    def cifrar(self, texto: str) -> str: ...
+
+    @abstractmethod
+    def verificar(self, texto: str, cifrado: str) -> bool: ...
+
+
+class GeneradorSecretos(ABC):
+    """Tokens de sesion y claves de sensor: aleatorios, y guardados solo como huella."""
+
+    @abstractmethod
+    def nuevo(self) -> str: ...
+
+    @abstractmethod
+    def huella(self, secreto: str) -> str: ...
+
+    @abstractmethod
+    def coincide(self, secreto: str, huella: str) -> bool:
+        """Compara en tiempo constante."""
+
+
+class Reloj(ABC):
+    """La hora actual, para que las pruebas puedan fijarla."""
+
+    @abstractmethod
+    def ahora(self) -> datetime: ...
