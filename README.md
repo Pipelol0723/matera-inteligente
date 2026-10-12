@@ -1,29 +1,39 @@
 # Matera inteligente
 
-Núcleo de la matera inteligente: una API que diagnostica el estado de una planta a partir de su especie y de una medición de humedad del sustrato, luz y temperatura, y un front web estático que la consume.
+Matera inteligente: una API que diagnostica el estado de una planta a partir de su especie y de una medición de humedad del sustrato, luz y temperatura, y un front web estático que la consume. Desde el corte 2, cada persona tiene su cuenta, sus plantas, un sensor por planta y el historial de mediciones; un administrador gestiona las cuentas y agrega especies.
 
-Proyecto de corte de Arquitectura de Software, semestre 2026-03.
+Proyecto de Arquitectura de Software, semestre 2026-03. El corte 1, tal como se entregó, está en el tag `corte-1`.
 
 ## Estructura
 
 ```
 backend/
   main.py            raíz de composición: el único archivo que elige clases concretas
-  datos/especies.csv tabla de referencia
-  dominio/           entidades y reglas de negocio; no importa flask, csv ni http
+  crear_admin.py     da el rol de administrador a una cuenta, desde la consola
+  datos/             esquema.sql y carga.sql de la base SQLite
+  dominio/           entidades y reglas de negocio; no importa flask, sqlite3, hashlib ni http
   aplicacion/        casos de uso
-  presentacion/      rutas REST y conversión entre JSON y objetos del dominio
-  infraestructura/   lectura del CSV, configuración, Flask y CORS
+  presentacion/      rutas REST, autenticación y conversión entre JSON y objetos del dominio
+  infraestructura/   SQLite, contraseñas y secretos, reloj, configuración, Flask y CORS
   tests/
-    dominio/         reglas de negocio con dobles de prueba, sin servidor ni CSV
+    dominio/         reglas de negocio con dobles de prueba, sin servidor ni base de datos
     aplicacion/      casos de uso con dobles de prueba
-    integracion/     API y lectura del CSV
+    integracion/     API, repositorios SQLite, seguridad y el servidor real
 frontend/            HTML, CSS y JavaScript estáticos, servidos aparte
-  js/api.js          peticiones a la API
-  js/app.js          arranque, navegación entre pantallas y estado de la conexión
+  js/api.js          peticiones a la API, con el token en las rutas privadas
+  js/app.js          arranque, navegación, pantallas públicas y privadas
+  js/sesion.js       token de la sesión, en sessionStorage
   js/diagnostico.js  pantalla de diagnóstico
   js/especies.js     catálogo de especies
-  js/prototipos.js   maquetas de historial, materas y vincular sensor
+  js/acceso.js       ingresar y crear cuenta
+  js/cuenta.js       mi cuenta y cerrar sesión
+  js/materas.js      mis materas y medición a mano
+  js/vincular.js     vincular y desvincular el sensor de una planta
+  js/simulador.js    manda mediciones como lo haría el ESP32
+  js/historial.js    historial de una planta
+  js/admin.js        administración de cuentas y especies
+  js/formularios.js  errores de la API en los formularios
+  js/lecturas.js     campos de una medición y texto de unas lecturas
   js/escala.js       geometría de escalas y anillos
   js/formato.js      textos, colores y ayudas para crear nodos
 docs/
@@ -32,7 +42,7 @@ docs/
   entrega/           documento de arquitectura y bitácora de uso de IA (PDF)
 ```
 
-Las dependencias apuntan hacia el dominio: `presentacion → aplicacion → dominio ← infraestructura`. Los puertos `ConsultaRangos` y `CatalogoEspecies` están declarados en `dominio/puertos.py` y los implementa `infraestructura/repositorio_especies_csv.py`.
+Las dependencias apuntan hacia el dominio: `presentacion → aplicacion → dominio ← infraestructura`. Los puertos están declarados en `dominio/puertos.py` (corte 1) y `dominio/puertos_usuarios.py` (corte 2), y los implementan las clases de `infraestructura/sqlite/`, `infraestructura/seguridad.py` e `infraestructura/reloj.py`.
 
 ## Requisitos
 
@@ -55,8 +65,26 @@ La API queda en `http://127.0.0.1:5000/api/v1`. Se puede configurar con variable
 | Variable | Por defecto |
 |---|---|
 | `MATERA_PUERTO` | `5000` |
-| `MATERA_RUTA_CSV` | `backend/datos/especies.csv` |
+| `MATERA_RUTA_BD` | `backend/datos/matera.sqlite` |
 | `MATERA_ORIGENES_CORS` | `http://localhost:5500,http://127.0.0.1:5500` |
+| `MATERA_DIAS_SESION` | `7` |
+
+Al arrancar, el backend crea las tablas que falten y, si no hay ninguna especie, carga las de `datos/carga.sql`. Git ignora el archivo de la base.
+
+Si el repositorio está en una carpeta sincronizada (Google Drive, OneDrive), ponga la base afuera: SQLite escribe a cada rato y la sincronización puede bloquear el archivo. En PowerShell:
+
+```powershell
+$env:MATERA_RUTA_BD = "$env:USERPROFILE\matera\matera.sqlite"
+python main.py
+```
+
+### El primer administrador
+
+El registro siempre crea usuarios comunes, y la API no tiene ninguna ruta que dé el rol de admin si no lo pide otro admin. El primero se crea por consola, desde `backend/`, con una cuenta ya registrada y la misma `MATERA_RUTA_BD` del servidor:
+
+```bash
+python crear_admin.py correo@ejemplo.com
+```
 
 ## Ejecutar el front
 
@@ -70,11 +98,18 @@ Abra `http://localhost:5500`. El front se tiene que servir por HTTP; abrir `inde
 
 El front no tiene rangos, umbrales ni reglas. Los parámetros, las especies, los estados y las recomendaciones salen de la API.
 
-| Pantalla | Qué hace |
-|---|---|
-| Diagnóstico | Consulta `POST /diagnosticos` mientras se escribe (espera 400 ms después de la última tecla) y muestra el estado en los anillos. Los botones Saludable, En riesgo y Crítico llenan valores de ejemplo a partir de los rangos, y la API decide el estado. El panel "Errores de la API" envía peticiones inválidas a propósito. |
-| Especies | Muestra el catálogo de `GET /especies` con bandas escaladas según los límites físicos de `GET /parametros`. |
-| Historial, Materas, Vincular sensor | **Prototipos fuera del alcance de este corte**, marcados en pantalla. Usan lecturas de ejemplo, pero sus estados los calcula la API. |
+| Pantalla | Acceso | Qué hace |
+|---|---|---|
+| Diagnóstico | pública | Consulta `POST /diagnosticos` mientras se escribe (espera 400 ms después de la última tecla) y muestra el estado en los anillos. Los botones Saludable, En riesgo y Crítico llenan valores de ejemplo a partir de los rangos, y la API decide el estado. El panel "Errores de la API" envía peticiones inválidas a propósito. No guarda nada. |
+| Especies | pública | Muestra el catálogo de `GET /especies` con bandas escaladas según los límites físicos de `GET /parametros`. |
+| Ingresar / Crear cuenta | pública | Dos formularios. Al entrar guarda el token y vuelve a la pantalla privada que se había pedido. |
+| Mis materas | con sesión | Las plantas del usuario con su última medición. Permite agregar y eliminar plantas y registrar una medición a mano. |
+| Vincular sensor | con sesión | Vincula un sensor a una planta por su código; la clave se muestra una sola vez. Incluye el simulador, que manda una medición como lo haría el ESP32. |
+| Historial | con sesión | La lista, la gráfica y el resumen de las mediciones de una planta, con el estado que calculó la API en su momento. |
+| Mi cuenta | con sesión | Nombre, correo, rol, cantidad de plantas y cerrar sesión. |
+| Administración | solo admin | Activar, desactivar, dar o quitar el rol y eliminar cuentas; agregar especies. La pestaña solo aparece para un admin, pero los permisos los revisa la API. |
+
+Si la API responde `401 SESION_INVALIDA`, el front borra el token y lleva a Ingresar.
 
 ## Pruebas
 
@@ -91,7 +126,9 @@ Para correr solo las pruebas del dominio:
 python -m pytest tests/dominio
 ```
 
-Estas pruebas no levantan el servidor ni leen el CSV, y siguen pasando aunque se borre la carpeta `infraestructura/`. `tests/dominio/test_arquitectura.py` falla si algún archivo del dominio importa Flask, `csv`, HTTP u otra capa.
+Las pruebas de dominio y de aplicación no levantan el servidor ni abren la base de datos: usan dobles en memoria de cada puerto (`tests/dobles.py` y `tests/dobles_usuarios.py`), y siguen pasando aunque se borre la carpeta `infraestructura/`. `tests/dominio/test_arquitectura.py` falla si algún archivo del dominio importa Flask, `sqlite3`, `hashlib`, `secrets`, HTTP u otra capa, o si la aplicación importa Flask, la base de datos o la criptografía.
+
+Las de integración usan una base SQLite temporal. `test_servidor_real.py` levanta el servidor con hilos, como `python main.py`: es la prueba que detecta un error que el cliente de pruebas de Flask no ve, usar una misma conexión de `sqlite3` desde varios hilos.
 
 ## API
 
@@ -146,6 +183,31 @@ Los valores pueden llegar como números o como texto numérico (`"32.5"` o `"32,
 }
 ```
 
+### Cuentas, plantas y sensores (corte 2)
+
+Todas van bajo `/api/v1`. Las de sesión llevan la cabecera `Authorization: Bearer <token>`; la del sensor, `X-Clave-Sensor: <clave>`.
+
+| Ruta | Quién | Responde |
+|---|---|---|
+| `POST /usuarios` | pública | 201 · `{id, nombre, correo, rol}`; el rol siempre es USUARIO |
+| `POST /sesiones` | pública | 201 · `{token, venceEn, usuario}` |
+| `DELETE /sesiones/actual` | sesión | 200 · `{mensaje}` |
+| `GET /usuarios/yo` | sesión | 200 · `{id, nombre, correo, rol, plantas}` |
+| `GET /plantas` | sesión | 200 · lista con `sensor` y `ultimaMedicion` |
+| `POST /plantas` | sesión | 201 · `{id, apodo, especie}` |
+| `DELETE /plantas/{id}` | sesión | 200 · borra también su sensor y su historial |
+| `POST /plantas/{id}/sensor` | sesión | 201 · `{planta, codigo, clave}`; la clave solo aparece aquí |
+| `DELETE /plantas/{id}/sensor` | sesión | 200 · el código queda libre |
+| `GET /plantas/{id}/historial?limite=30` | sesión | 200 · `{planta, registros}`, el más reciente primero |
+| `POST /plantas/{id}/mediciones` | sesión | 201 · `{planta, momento, diagnostico}`; se guarda con origen MANUAL |
+| `POST /sensores/{codigo}/mediciones` | clave del sensor | 201 · `{planta, momento, diagnostico}`; se guarda con el código como origen |
+| `GET /admin/usuarios` | admin | 200 · lista de `{id, correo, nombre, rol, activo, cantidadPlantas}` |
+| `PATCH /admin/usuarios/{id}` | admin | 200 · el cuerpo lleva `{activo}` o `{rol}` |
+| `DELETE /admin/usuarios/{id}` | admin | 200 · borra la cuenta con sus plantas, sensores e historial |
+| `POST /admin/especies` | admin | 201 · la especie, con la misma forma que en `GET /especies` |
+
+Las mediciones manuales y las del sensor usan el mismo cuerpo que `POST /diagnosticos`, sin la especie: la especie es la de la planta. Una planta de otro usuario responde 404, igual que una que no existe.
+
 ### Errores
 
 Todas las respuestas de error, incluidas las de rutas inexistentes, tienen la forma `{ "error", "mensaje", "detalle" }`. El backend nunca responde HTML.
@@ -159,6 +221,19 @@ Todas las respuestas de error, incluidas las de rutas inexistentes, tienen la fo
 | El cuerpo no es JSON | 400 | `SOLICITUD_INVALIDA` | vacío |
 | Ruta inexistente / método no permitido | 404 / 405 | `RUTA_NO_ENCONTRADA` / `METODO_NO_PERMITIDO` | `ruta` |
 | Error inesperado | 500 | `ERROR_INTERNO` | vacío |
+| Correo, nombre, contraseña, apodo o rango inválidos | 400 | `PARAMETRO_INVALIDO` | `campo`, `motivo` |
+| Código de sensor con otra forma (no `MT-0000-XX`) | 400 | `CODIGO_SENSOR_INVALIDO` | `campo`, `texto` |
+| Correo o contraseña incorrectos (el mismo en los dos casos) | 401 | `CREDENCIALES_INVALIDAS` | vacío |
+| Sin token, token vencido o cuenta desactivada | 401 | `SESION_INVALIDA` | vacío |
+| Sensor inexistente o clave incorrecta (el mismo en los dos casos) | 401 | `CLAVE_SENSOR_INVALIDA` | vacío |
+| Cuenta desactivada al iniciar sesión | 403 | `CUENTA_DESACTIVADA` | vacío |
+| Acción de administración sin ser admin | 403 | `PERMISO_DENEGADO` | vacío |
+| Planta inexistente o de otro usuario | 404 | `PLANTA_NO_ENCONTRADA` | `planta_id` |
+| Desvincular una planta sin sensor | 404 | `PLANTA_SIN_SENSOR` | `planta_id` |
+| Usuario inexistente | 404 | `USUARIO_NO_ENCONTRADO` | `referencia` |
+| Correo, apodo, especie o código de sensor repetidos | 409 | `CORREO_YA_REGISTRADO`, `APODO_REPETIDO`, `ESPECIE_YA_EXISTE`, `SENSOR_YA_VINCULADO` | el dato repetido |
+| La planta ya tiene sensor | 409 | `PLANTA_CON_SENSOR` | `planta_id` |
+| Un admin actúa sobre su propia cuenta | 409 | `ACCION_SOBRE_SI_MISMO` | vacío |
 
 Límites físicos: humedad de 0 a 100 %, luz de 0 a 150 000 lux y temperatura de −50 a 60 °C.
 
@@ -176,7 +251,7 @@ La regla está en `dominio/reglas.py` (`ReglaHibrida`) y se elige en `main.py`.
 
 ## Tabla de referencia y fuentes
 
-`backend/datos/especies.csv` tiene una fila por especie con las columnas `especie`, `nombre_cientifico` (opcional), `humedad_min`, `humedad_max`, `luz_min`, `luz_max`, `temperatura_min` y `temperatura_max`.
+`backend/datos/carga.sql` llena las tablas `especie` (nombre y nombre científico) y `rango_optimo` (una fila por especie y parámetro, con su mínimo y su máximo). Son las mismas especies y rangos que tenía el CSV del corte 1. Un administrador puede agregar otras desde la API; `carga.sql` solo se ejecuta si la tabla de especies está vacía.
 
 | Especie | Nombre científico de referencia | Humedad % | Luz lux | Temperatura °C |
 |---|---|---|---|---|
