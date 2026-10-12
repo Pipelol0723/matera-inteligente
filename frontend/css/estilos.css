@@ -1148,6 +1148,127 @@ a:hover {
   color: var(--tenue);
 }
 
+/* ---- sesión y formularios (corte 2) ---- */
+
+.boton-cuenta {
+  flex: none;
+  max-width: 180px;
+  overflow: hidden;
+  padding: 7px 14px;
+  border: 1px solid var(--acento);
+  border-radius: 999px;
+  background: var(--acento);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #fff;
+  cursor: pointer;
+}
+
+.boton-cuenta--activa {
+  background: transparent;
+  color: var(--acento);
+}
+
+.boton-cuenta--activa.pestana--activa,
+.boton-cuenta--activa:hover {
+  background: var(--superficie);
+}
+
+.boton-primario:disabled,
+.boton-secundario:disabled,
+.boton-contorno:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.boton-secundario--lleno {
+  border-color: var(--acento);
+  color: var(--acento);
+}
+
+.acceso {
+  max-width: 920px;
+}
+
+.acceso__formularios {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+  align-items: start;
+}
+
+.formulario {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 24px;
+}
+
+.formulario .boton-primario,
+.formulario .boton-secundario {
+  align-self: flex-start;
+  margin-top: 8px;
+}
+
+.formulario__titulo {
+  margin: 0 0 6px;
+  font-family: var(--serif);
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.formulario__etiqueta {
+  margin-top: 6px;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.formulario__campo {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  background: var(--superficie-suave);
+  font: inherit;
+  color: inherit;
+}
+
+.formulario__ayuda {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--tenue);
+}
+
+.mensaje-exito {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #b9d7c3;
+  border-radius: 10px;
+  background: #e1f0e6;
+  font-size: 0.88rem;
+  color: #22523b;
+}
+
+.cuenta {
+  max-width: 640px;
+}
+
+.cuenta__tarjeta {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 24px;
+}
+
+.cuenta__valor {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
 /* ---- pantallas angostas (el diseño es de escritorio) ---- */
 
 @media (max-width: 1100px) {
@@ -1178,8 +1299,13 @@ a:hover {
   .diagnostico,
   .historial,
   .vincular__cuerpo,
-  .catalogo {
+  .catalogo,
+  .acceso__formularios {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .boton-cuenta {
+    max-width: 110px;
   }
 
   .terrario__dial {

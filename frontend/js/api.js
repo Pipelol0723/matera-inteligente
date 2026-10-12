@@ -1,5 +1,6 @@
 // Cliente de la API: peticiones asíncronas y traducción del cuerpo de error uniforme.
 import { API_BASE } from "./config.js";
+import { sesion } from "./sesion.js";
 
 // Dirección en la que no escucha ningún servidor: sirve para ver el error real de "sin conexión".
 const API_INALCANZABLE = "http://127.0.0.1:5999/api/v1";
@@ -11,6 +12,12 @@ export class ErrorApi extends Error {
     this.codigo = error;
     this.detalle = detalle ?? {};
   }
+}
+
+// Quien quiera enterarse de que la sesión dejó de servir (la app lleva a Ingresar).
+let alVencerSesion = () => {};
+export function avisarAlVencerSesion(funcion) {
+  alVencerSesion = funcion;
 }
 
 async function pedir(base, ruta, opciones = {}) {
@@ -41,14 +48,33 @@ async function pedir(base, ruta, opciones = {}) {
   return cuerpo;
 }
 
-function enviarDiagnostico(base, datos, signal) {
-  return pedir(base, "/diagnosticos", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+function conJson(metodo, datos, cabeceras = {}) {
+  return {
+    method: metodo,
+    headers: { "Content-Type": "application/json", ...cabeceras },
     body: JSON.stringify(datos),
-    signal,
-  });
+  };
 }
+
+// Rutas que exigen sesión: llevan el token, y un 401 SESION_INVALIDA cierra la sesión local.
+async function privada(ruta, opciones = {}) {
+  const cabeceras = { ...opciones.headers, Authorization: `Bearer ${sesion.token()}` };
+  try {
+    return await pedir(API_BASE, ruta, { ...opciones, headers: cabeceras });
+  } catch (error) {
+    if (error.codigo === "SESION_INVALIDA") {
+      sesion.cerrar();
+      alVencerSesion();
+    }
+    throw error;
+  }
+}
+
+function enviarDiagnostico(base, datos, signal) {
+  return pedir(base, "/diagnosticos", { ...conJson("POST", datos), signal });
+}
+
+// ---- públicas: corte 1 ----
 
 export function obtenerParametros() {
   return pedir(API_BASE, "/parametros");
@@ -65,3 +91,33 @@ export function pedirDiagnostico(datos, { signal } = {}) {
 export function pedirDiagnosticoSinConexion(datos, { signal } = {}) {
   return enviarDiagnostico(API_INALCANZABLE, datos, signal);
 }
+
+// ---- cuenta ----
+
+export const registrarse = (datos) => pedir(API_BASE, "/usuarios", conJson("POST", datos));
+export const iniciarSesion = (datos) => pedir(API_BASE, "/sesiones", conJson("POST", datos));
+export const cerrarSesion = () => privada("/sesiones/actual", { method: "DELETE" });
+export const obtenerMiCuenta = () => privada("/usuarios/yo");
+
+// ---- plantas, sensores e historial ----
+
+export const obtenerPlantas = () => privada("/plantas");
+export const registrarPlanta = (datos) => privada("/plantas", conJson("POST", datos));
+export const eliminarPlanta = (id) => privada(`/plantas/${id}`, { method: "DELETE" });
+export const vincularSensor = (id, codigo) => privada(`/plantas/${id}/sensor`, conJson("POST", { codigo }));
+export const desvincularSensor = (id) => privada(`/plantas/${id}/sensor`, { method: "DELETE" });
+export const obtenerHistorial = (id, limite) => privada(`/plantas/${id}/historial?limite=${limite}`);
+export const registrarMedicion = (id, datos) => privada(`/plantas/${id}/mediciones`, conJson("POST", datos));
+
+// El sensor no tiene sesión: se identifica con su código y su clave, como lo haría el ESP32.
+export function enviarComoSensor(codigo, clave, datos) {
+  const ruta = `/sensores/${encodeURIComponent(codigo.trim())}/mediciones`;
+  return pedir(API_BASE, ruta, conJson("POST", datos, { "X-Clave-Sensor": clave.trim() }));
+}
+
+// ---- administración ----
+
+export const obtenerUsuarios = () => privada("/admin/usuarios");
+export const cambiarUsuario = (id, cambio) => privada(`/admin/usuarios/${id}`, conJson("PATCH", cambio));
+export const eliminarUsuario = (id) => privada(`/admin/usuarios/${id}`, { method: "DELETE" });
+export const agregarEspecie = (datos) => privada("/admin/especies", conJson("POST", datos));

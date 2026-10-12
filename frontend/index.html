@@ -16,19 +16,20 @@
       <div class="marca">
         <span class="marca__logo" aria-hidden="true"></span>
         <span class="marca__nombre">Matera</span>
-        <span class="marca__version">v1</span>
+        <span class="marca__version">v2</span>
       </div>
       <div class="pestanas">
         <button type="button" class="pestana" data-pantalla="diagnostico">Diagnóstico</button>
         <button type="button" class="pestana" data-pantalla="especies">Especies</button>
-        <button type="button" class="pestana" data-pantalla="historial">Historial</button>
-        <button type="button" class="pestana" data-pantalla="materas">Materas</button>
+        <button type="button" class="pestana" data-pantalla="materas">Mis materas</button>
         <button type="button" class="pestana" data-pantalla="vincular">Vincular sensor</button>
+        <button type="button" class="pestana" data-pantalla="historial">Historial</button>
       </div>
       <div id="conexion" class="conexion conexion--pendiente" role="status">
         <span class="conexion__punto" aria-hidden="true"></span>
         <span id="conexion-texto" class="conexion__texto">Conectando con la API…</span>
       </div>
+      <button id="boton-cuenta" type="button" class="boton-cuenta" data-pantalla="acceso">Ingresar</button>
     </div>
   </nav>
 
@@ -96,6 +97,46 @@
     <h1 class="titulo">Catálogo de especies</h1>
     <p id="especies-bajada" class="bajada bajada--angosta">Cargando especies…</p>
     <div id="catalogo" class="catalogo"></div>
+  </main>
+
+  <main id="pantalla-acceso" class="pantalla acceso" hidden>
+    <p class="ceja">Mis materas, sensores e historial</p>
+    <h1 class="titulo titulo--grande">Ingrese a su cuenta</h1>
+    <p class="bajada bajada--angosta">Diagnóstico y Especies son públicas. Para registrar sus plantas, vincularles un sensor y ver su historial necesita una cuenta.</p>
+    <div class="acceso__formularios">
+      <form id="form-ingresar" class="tarjeta formulario" novalidate>
+        <h2 class="formulario__titulo">Ingresar</h2>
+        <label class="formulario__etiqueta" for="ingresar-correo">Correo</label>
+        <input id="ingresar-correo" name="correo" class="formulario__campo" type="email" autocomplete="username">
+        <label class="formulario__etiqueta" for="ingresar-contrasena">Contraseña</label>
+        <input id="ingresar-contrasena" name="contrasena" class="formulario__campo" type="password" autocomplete="current-password">
+        <div id="error-ingresar" class="tarjeta-error" role="alert" hidden></div>
+        <button type="submit" class="boton-primario">Ingresar</button>
+      </form>
+      <form id="form-registrar" class="tarjeta formulario" novalidate>
+        <h2 class="formulario__titulo">Crear cuenta</h2>
+        <label class="formulario__etiqueta" for="registrar-nombre">Nombre</label>
+        <input id="registrar-nombre" name="nombre" class="formulario__campo" autocomplete="name">
+        <label class="formulario__etiqueta" for="registrar-correo">Correo</label>
+        <input id="registrar-correo" name="correo" class="formulario__campo" type="email" autocomplete="email">
+        <label class="formulario__etiqueta" for="registrar-contrasena">Contraseña</label>
+        <input id="registrar-contrasena" name="contrasena" class="formulario__campo" type="password" autocomplete="new-password">
+        <div id="error-registrar" class="tarjeta-error" role="alert" hidden></div>
+        <button type="submit" class="boton-secundario boton-secundario--lleno">Crear cuenta</button>
+      </form>
+    </div>
+  </main>
+
+  <main id="pantalla-cuenta" class="pantalla cuenta" hidden>
+    <h1 class="titulo">Mi cuenta</h1>
+    <p class="bajada">Los datos y el rol los entrega la API en cada visita a esta pantalla.</p>
+    <div class="tarjeta cuenta__tarjeta">
+      <div id="datos-cuenta" class="resumen__filas"></div>
+      <div id="error-cuenta" class="tarjeta-error" role="alert" hidden></div>
+      <div class="acciones cuenta__acciones">
+        <button id="cerrar-sesion" type="button" class="boton-secundario">Cerrar sesión</button>
+      </div>
+    </div>
   </main>
 
   <main id="pantalla-historial" class="pantalla historial" hidden>
