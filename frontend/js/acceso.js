@@ -1,6 +1,6 @@
 // Pantalla Ingresar / Crear cuenta. El correo, la contraseña y el nombre los valida la API.
 import { iniciarSesion, registrarse } from "./api.js";
-import { datosDe, mostrarError, ocupado } from "./formularios.js";
+import { botonDe, datosDe, mostrarError, ocupado } from "./formularios.js";
 import { sesion } from "./sesion.js";
 
 export function crearPantallaAcceso(contexto) {
@@ -11,20 +11,20 @@ export function crearPantallaAcceso(contexto) {
   ingresar.addEventListener("submit", (evento) => {
     evento.preventDefault();
     const { correo, contrasena } = datosDe(ingresar);
-    entrar(correo, contrasena, $("error-ingresar"), evento.submitter);
+    entrar(correo, contrasena, $("error-ingresar"), botonDe(evento));
   });
 
   registrar.addEventListener("submit", async (evento) => {
     evento.preventDefault();
     const datos = datosDe(registrar);
     try {
-      await ocupado(evento.submitter, () => registrarse(datos));
+      await ocupado(botonDe(evento), () => registrarse(datos));
     } catch (error) {
       mostrarError($("error-registrar"), error);
       return;
     }
     // Recién creada la cuenta, se entra con los mismos datos.
-    entrar(datos.correo, datos.contrasena, $("error-registrar"), evento.submitter);
+    entrar(datos.correo, datos.contrasena, $("error-registrar"), botonDe(evento));
   });
 
   async function entrar(correo, contrasena, cajaError, boton) {

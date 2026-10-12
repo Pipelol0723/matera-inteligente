@@ -139,11 +139,79 @@
     </div>
   </main>
 
+  <main id="pantalla-materas" class="pantalla" hidden>
+    <div class="materas__cabecera">
+      <div>
+        <h1 class="titulo">Mis materas</h1>
+        <p id="materas-bajada" class="bajada bajada--sin-margen">Cargando sus plantas…</p>
+      </div>
+    </div>
+    <form id="form-planta" class="tarjeta formulario formulario--linea" novalidate>
+      <div class="formulario__fila">
+        <div class="formulario__grupo">
+          <label class="formulario__etiqueta" for="planta-apodo">Apodo de la planta</label>
+          <input id="planta-apodo" name="apodo" class="formulario__campo" autocomplete="off" placeholder="Por ejemplo, Sala">
+        </div>
+        <div class="formulario__grupo">
+          <label class="formulario__etiqueta" for="planta-especie">Especie</label>
+          <select id="planta-especie" name="especie" class="selector"></select>
+        </div>
+        <button type="submit" class="boton-primario">Agregar planta</button>
+      </div>
+      <div id="error-planta" class="tarjeta-error" role="alert" hidden></div>
+    </form>
+    <div id="error-materas" class="tarjeta-error" role="alert" hidden></div>
+    <div id="materas" class="materas"></div>
+  </main>
+
+  <main id="pantalla-vincular" class="pantalla vincular" hidden>
+    <p class="ceja">Sensor de la matera</p>
+    <h1 class="titulo titulo--grande">Vincule un sensor a una planta</h1>
+    <p class="bajada bajada--vincular">Clave el sensor en el sustrato, a media profundidad y lejos del borde, y escriba el código impreso en su base. La API entrega una clave que se muestra una sola vez: guárdela en el ESP32.</p>
+    <div class="vincular__cuerpo">
+      <form id="form-vincular" class="tarjeta vincular__formulario" novalidate>
+        <label class="vincular__etiqueta" for="vincular-planta">Planta</label>
+        <select id="vincular-planta" class="selector"></select>
+        <p id="vincular-estado" class="vincular__ayuda"></p>
+        <label class="vincular__etiqueta" for="codigo-sensor">Código del sensor</label>
+        <input id="codigo-sensor" class="codigo-sensor" autocomplete="off" placeholder="MT-0000-XX">
+        <div id="error-vincular" class="tarjeta-error vincular__error" role="alert" hidden></div>
+        <div id="clave-sensor" class="clave" hidden>
+          <p class="rotulo">Clave del sensor · se muestra una sola vez</p>
+          <code id="clave-texto" class="clave__texto"></code>
+          <button id="copiar-clave" type="button" class="boton-contorno">Copiar</button>
+        </div>
+        <div class="acciones">
+          <button id="boton-vincular" type="submit" class="boton-primario boton-primario--grande">Vincular</button>
+          <button id="boton-desvincular" type="button" class="boton-secundario" hidden>Desvincular</button>
+        </div>
+      </form>
+      <section class="tarjeta tarjeta--punteada simulador">
+        <p class="rotulo">Simular sensor</p>
+        <p class="pruebas__texto">Manda una medición como lo haría el ESP32: con el código del sensor y su clave, sin sesión.</p>
+        <form id="form-simulador" class="simulador__formulario" novalidate>
+          <label class="formulario__etiqueta" for="sim-codigo">Código</label>
+          <input id="sim-codigo" class="formulario__campo" autocomplete="off">
+          <label class="formulario__etiqueta" for="sim-clave">Clave</label>
+          <input id="sim-clave" class="formulario__campo" autocomplete="off">
+          <div id="sim-campos"></div>
+          <div id="error-simulador" class="tarjeta-error" role="alert" hidden></div>
+          <p id="resultado-simulador" class="mensaje-exito" role="status" hidden></p>
+          <button type="submit" class="boton-primario">Enviar como el sensor</button>
+        </form>
+      </section>
+    </div>
+  </main>
+
   <main id="pantalla-historial" class="pantalla historial" hidden>
     <section>
-      <p class="aviso-prototipo">Prototipo · fuera del alcance de este corte · datos de ejemplo</p>
       <h1 class="titulo">Historial de mediciones</h1>
-      <p class="bajada bajada--historial">Sansevieria del estudio · últimos 14 días</p>
+      <div class="historial__selector">
+        <label class="formulario__etiqueta" for="historial-planta">Planta</label>
+        <select id="historial-planta" class="selector"></select>
+      </div>
+      <p id="historial-bajada" class="bajada bajada--historial"></p>
+      <div id="error-historial" class="tarjeta-error" role="alert" hidden></div>
       <div class="tarjeta grafica">
         <div id="leyenda" class="leyenda"></div>
         <svg id="grafica" class="grafica__svg" viewBox="0 0 640 200" preserveAspectRatio="none" aria-hidden="true"></svg>
@@ -151,56 +219,10 @@
       <div id="registros" class="registros"></div>
     </section>
     <aside class="tarjeta resumen">
-      <p class="rotulo">Resumen del periodo</p>
-      <div class="resumen__filas">
-        <div class="resumen__fila"><span class="resumen__nombre">Diagnósticos</span><span class="resumen__valor">14</span></div>
-        <div class="resumen__fila"><span class="resumen__nombre">Días saludables</span><span class="resumen__valor">9</span></div>
-        <div class="resumen__fila"><span class="resumen__nombre">Humedad promedio</span><span class="resumen__valor">26 %</span></div>
-        <div class="resumen__fila"><span class="resumen__nombre">Riegos sugeridos</span><span class="resumen__valor">4</span></div>
-      </div>
-      <p class="resumen__nota">La humedad cae por debajo de 20 % cada cuatro días: considere riegos más frecuentes y menos abundantes.</p>
+      <p class="rotulo">Resumen</p>
+      <div id="resumen-filas" class="resumen__filas"></div>
+      <p class="resumen__nota">Cada estado es el que calculó la API en el momento de la medición. Si después cambian los rangos de la especie, el pasado no se recalcula.</p>
     </aside>
-  </main>
-
-  <main id="pantalla-materas" class="pantalla" hidden>
-    <p class="aviso-prototipo">Prototipo · fuera del alcance de este corte · datos de ejemplo</p>
-    <div class="materas__cabecera">
-      <div>
-        <h1 class="titulo">Mis materas</h1>
-        <p id="materas-bajada" class="bajada bajada--sin-margen">Cuatro materas de ejemplo</p>
-      </div>
-      <button id="vincular-matera" type="button" class="boton-primario">Vincular matera</button>
-    </div>
-    <div id="materas" class="materas"></div>
-  </main>
-
-  <main id="pantalla-vincular" class="pantalla vincular" hidden>
-    <p class="aviso-prototipo">Prototipo · fuera del alcance de este corte · datos de ejemplo</p>
-    <p class="ceja">Paso 2 de 3</p>
-    <h1 class="titulo titulo--grande">Vincule el sensor a la matera</h1>
-    <p class="bajada bajada--vincular">Clave el sensor en el sustrato, a media profundidad y lejos del borde. Cuando la luz del sensor quede fija, escriba el código impreso en la base.</p>
-    <div class="pasos" aria-hidden="true">
-      <div class="paso paso--hecho"></div>
-      <div class="paso paso--hecho"></div>
-      <div class="paso"></div>
-    </div>
-    <div class="vincular__cuerpo">
-      <div class="tarjeta vincular__formulario">
-        <label class="vincular__etiqueta" for="codigo-sensor">Código del sensor</label>
-        <input id="codigo-sensor" class="codigo-sensor" value="MT-4821-KQ" autocomplete="off">
-        <p class="vincular__ayuda">Ocho caracteres, impresos en la base junto al código QR.</p>
-        <p class="vincular__etiqueta">¿Qué planta hay en esta matera?</p>
-        <div id="chips" class="chips"></div>
-        <div class="acciones">
-          <button id="vincular-buscar" type="button" class="boton-primario boton-primario--grande">Buscar sensor</button>
-          <button id="vincular-despues" type="button" class="boton-secundario">Lo hago después</button>
-        </div>
-      </div>
-      <div class="foto">
-        <div class="foto__marco">Foto del sensor en el sustrato</div>
-        <p class="foto__texto">Placeholder: reemplazar por la foto real del montaje.</p>
-      </div>
-    </div>
   </main>
 </body>
 </html>

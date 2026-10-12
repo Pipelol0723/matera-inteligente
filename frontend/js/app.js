@@ -5,8 +5,11 @@ import { crearPantallaAcceso } from "./acceso.js";
 import { crearPantallaCuenta } from "./cuenta.js";
 import { crearPantallaDiagnostico } from "./diagnostico.js";
 import { crearPantallaEspecies } from "./especies.js";
-import { crearPrototipos } from "./prototipos.js";
+import { crearPantallaHistorial } from "./historial.js";
+import { crearPantallaMateras } from "./materas.js";
 import { sesion } from "./sesion.js";
+import { crearSimulador } from "./simulador.js";
+import { crearPantallaVincular } from "./vincular.js";
 
 const PUBLICAS = ["diagnostico", "especies", "acceso"];
 // Exigen sesión. Ocultarlas no protege nada: la API responde 401 sin token.
@@ -22,8 +25,14 @@ let destino = null;
 const contexto = {
   especies: [],
   parametros: [],
+  // La planta que se eligió en una pantalla, para abrir otra con esa misma planta.
+  plantaElegida: null,
   navegar: (pantalla) => {
     location.hash = pantalla;
+  },
+  verPlanta(pantalla, plantaId) {
+    contexto.plantaElegida = plantaId;
+    contexto.navegar(pantalla);
   },
   marcarConexion,
   diagnosticarEspecie: (nombre) => {
@@ -44,10 +53,13 @@ const contexto = {
 
 const diagnostico = crearPantallaDiagnostico(contexto);
 const especies = crearPantallaEspecies(contexto);
-const prototipos = crearPrototipos(contexto);
+const simulador = crearSimulador(contexto);
 const pantallas = {
   acceso: crearPantallaAcceso(contexto),
   cuenta: crearPantallaCuenta(contexto),
+  materas: crearPantallaMateras(contexto),
+  vincular: crearPantallaVincular(contexto, simulador),
+  historial: crearPantallaHistorial(contexto),
 };
 
 function pantallaPedida() {
@@ -108,7 +120,8 @@ async function cargarCatalogos() {
   marcarConexion(true);
   diagnostico.alCargarCatalogos();
   especies.pintar();
-  prototipos.alCargarCatalogos();
+  pantallas.materas.alCargarCatalogos();
+  simulador.alCargarCatalogos();
 }
 
 // Si había una sesión guardada, se pregunta a la API quién es: el rol pudo cambiar.

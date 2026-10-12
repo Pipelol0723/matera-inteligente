@@ -24,12 +24,16 @@ export function mostrarExito(caja, texto) {
   caja.hidden = !texto;
 }
 
+// El botón que envió el formulario. Si se envió de otra forma (requestSubmit, un lector de
+// pantalla), el submitter puede venir vacío: se usa el botón de envío del formulario.
+export const botonDe = (evento) => evento.submitter ?? evento.target.querySelector("[type=submit]");
+
 export async function ocupado(boton, accion) {
-  boton.disabled = true;
+  if (boton) boton.disabled = true;
   try {
     return await accion();
   } finally {
-    boton.disabled = false;
+    if (boton) boton.disabled = false;
   }
 }
 
