@@ -23,6 +23,8 @@ Hay diagramas de dos momentos:
 | [Secuencia: login y «mis plantas»](#secuencia-de-login-y-mis-plantas) | no existía | [`secuencia-login`](secuencia-login.png) |
 | [Secuencia: el admin agrega una especie](#secuencia-del-admin-que-agrega-una-especie) | no existía | [`secuencia-admin-especie`](secuencia-admin-especie.png) |
 
+Al final hay además una [propuesta no adoptada](#propuesta-no-adoptada-diagrama-general-del-backend): un diagrama general del backend que no sigue el diseño aprobado.
+
 Los cuatro diagramas de clases del corte 2 no llevan sufijo porque muestran los dos cortes a la vez: **borde continuo = corte 1, borde punteado = corte 2**. Los `-corte1` se generan desde la misma fuente, quitando lo del corte 2.
 
 ## Convenciones
@@ -236,11 +238,24 @@ Fuente: [`secuencia-admin-especie.mmd`](secuencia-admin-especie.mmd). Corte 2.
 
 ---
 
-## Vista general: diagrama de clases del backend
+## Propuesta no adoptada: diagrama general del backend
 
 ![Diagrama de clases del backend](clases-backend-general.png)
 
-Vista combinada de las cuatro capas del backend (presentación, aplicación, dominio e infraestructura) más el módulo de usuarios aún no implementado, en una sola imagen. No tiene fuente `.mmd`: se subió directamente como PNG. Para el detalle por capa y por corte, use los diagramas de clases de la sección anterior.
+Propuesta de Roger del 1 de octubre: las cuatro capas del backend y un módulo de usuarios en una sola imagen. **No es el diseño aprobado del corte 2** y se conserva solo como registro. Si contradice a otro diagrama de esta carpeta, vale el otro.
+
+En qué se aparta del diseño aprobado:
+
+| La propuesta | El diseño aprobado |
+|---|---|
+| `VerificadorJwt`: token JWT | Token opaco: la base guarda su huella SHA-256 y su vencimiento. JWT fue la alternativa descartada, porque cerrar sesión o desactivar una cuenta no lo invalida. |
+| `websocket`, `mqtt_listener`, `NotificadorDiagnosticos` | No entran en el corte 2. MQTT sigue siendo el escenario 5.1 del documento. |
+| `RepositorioEspeciesCsv` | Las especies pasan a SQLite y el CSV se elimina. |
+| `rutas` usa el decorador de autenticación | `rutas.py` no se toca: Diagnóstico y Especies siguen siendo públicas. |
+| Paquete «usuarios» aparte | Cada clase nueva va en su capa: dominio, aplicación, presentación o infraestructura. |
+| `PlantaNoPertenece` (403) | Una planta ajena responde 404, porque un 403 confirmaría que existe. |
+
+Tampoco tiene fuente `.mmd`, así que no se puede regenerar cuando cambie el código.
 
 ---
 
