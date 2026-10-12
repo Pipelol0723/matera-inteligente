@@ -9,9 +9,14 @@ PROHIBIDOS_EN_DOMINIO = {
     "flask", "flask_cors", "werkzeug", "http", "urllib", "requests", "json",
     # persistencia
     "csv", "pandas", "sqlite3", "sqlalchemy", "psycopg2",
+    # criptografia: el dominio la pide por los puertos Cifrador y GeneradorSecretos
+    "hashlib", "secrets", "hmac",
     # otras capas
     "aplicacion", "presentacion", "infraestructura",
 }
+
+# La aplicacion puede importar el dominio, pero no el framework, la persistencia ni las capas de afuera.
+PROHIBIDOS_EN_APLICACION = PROHIBIDOS_EN_DOMINIO - {"aplicacion"}
 
 
 def _modulos_importados(archivo: Path) -> set[str]:
@@ -38,8 +43,19 @@ def test_el_dominio_no_importa_framework_persistencia_ni_otras_capas():
     assert _violaciones(archivos, PROHIBIDOS_EN_DOMINIO) == {}
 
 
-def test_las_pruebas_de_dominio_no_dependen_de_infraestructura_ni_de_flask():
+def test_la_aplicacion_no_importa_framework_persistencia_criptografia_ni_capas_de_afuera():
+    archivos = sorted((BACKEND / "aplicacion").glob("*.py"))
+    assert archivos, "no se encontraron archivos de la aplicacion"
+
+    assert _violaciones(archivos, PROHIBIDOS_EN_APLICACION) == {}
+
+
+def test_las_pruebas_de_dominio_y_aplicacion_no_dependen_de_infraestructura_ni_de_flask():
     """Si se borra la carpeta infraestructura, estas pruebas tienen que seguir pasando."""
-    archivos = sorted((BACKEND / "tests" / "dominio").glob("*.py")) + [BACKEND / "tests" / "dobles.py"]
+    archivos = (
+        sorted((BACKEND / "tests" / "dominio").glob("*.py"))
+        + sorted((BACKEND / "tests" / "aplicacion").glob("*.py"))
+        + [BACKEND / "tests" / "dobles.py", BACKEND / "tests" / "dobles_usuarios.py"]
+    )
 
     assert _violaciones(archivos, {"flask", "infraestructura", "presentacion", "main"}) == {}
