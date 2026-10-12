@@ -1,7 +1,7 @@
 %% Presentación y aplicación: el diagnóstico y, desde el corte 2, las plantas, los sensores y el historial.
 %% Las cuentas y la administración están en clases-cuentas.mmd.
 %% Morado: presentación. Amarillo: aplicación. Verde: clase del dominio que se reutiliza.
-%% Borde punteado: se agrega en el corte 2 y todavía no tiene código.
+%% Borde grueso: se agregó en el corte 2.
 classDiagram
     direction LR
 
@@ -28,17 +28,19 @@ classDiagram
             +mensaje: str
             +detalle: dict
         }
-        class autenticacion {
-            <<módulo>>
+        class Autenticacion {
+            +token() str
             +usuario_actual() Usuario
         }
         class rutas_plantas {
             <<módulo>>
-            exigen sesión
+            +crear_blueprint_plantas(...) Blueprint
+            todas exigen sesión
         }
         class rutas_sensores {
             <<módulo>>
-            exigen la clave del sensor
+            +crear_blueprint_sensores(recibir) Blueprint
+            exige la clave del sensor
         }
     }
 
@@ -75,14 +77,16 @@ classDiagram
             +ejecutar(usuario, planta_id)
         }
         class ConsultarHistorial {
-            +ejecutar(usuario, planta_id, limite) list~RegistroMedicion~
+            +ejecutar(usuario, planta_id, limite) HistorialPlanta
         }
         class RecibirMedicionDeSensor {
-            +ejecutar(codigo, clave, medicion) Diagnostico
+            +ejecutar(codigo, clave, medicion) ResultadoMedicion
         }
         class DiagnosticarPlantaDeUsuario {
+            -plantas: RepositorioPlantas
             -servicio: ServicioDiagnostico
-            +ejecutar(planta, medicion) Diagnostico
+            -historial: HistorialMediciones
+            +ejecutar(usuario_id, planta_id, medicion, origen) ResultadoMedicion
         }
     }
 
@@ -107,13 +111,15 @@ classDiagram
     DiagnosticarPlanta --> ServicioDiagnostico : servicio
     DiagnosticarPlanta ..> SolicitudDiagnostico
 
-    rutas_plantas ..> autenticacion
+    rutas_plantas ..> Autenticacion
     rutas_plantas ..> RegistrarPlanta
     rutas_plantas ..> ListarPlantas
     rutas_plantas ..> EliminarPlanta
     rutas_plantas ..> VincularSensor
     rutas_plantas ..> DesvincularSensor
     rutas_plantas ..> ConsultarHistorial
+    rutas_plantas ..> DiagnosticarPlantaDeUsuario : medición manual
+    rutas_plantas ..> esquemas : medicion_desde_json
     rutas_sensores ..> esquemas : medicion_desde_json
     rutas_sensores ..> RecibirMedicionDeSensor
     RecibirMedicionDeSensor --> DiagnosticarPlantaDeUsuario : diagnosticar
@@ -131,14 +137,14 @@ classDiagram
     style ListarParametros fill:#FFF2CC,stroke:#b59a45,color:#16231b
     style ServicioDiagnostico fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
     style Medicion fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
-    style autenticacion fill:#E1D5E7,stroke:#6a3d80,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style rutas_plantas fill:#E1D5E7,stroke:#6a3d80,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style rutas_sensores fill:#E1D5E7,stroke:#6a3d80,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style RegistrarPlanta fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style ListarPlantas fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style EliminarPlanta fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style VincularSensor fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style DesvincularSensor fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style ConsultarHistorial fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style RecibirMedicionDeSensor fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style DiagnosticarPlantaDeUsuario fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style Autenticacion fill:#E1D5E7,stroke:#6a3d80,stroke-width:2px,color:#16231b
+    style rutas_plantas fill:#E1D5E7,stroke:#6a3d80,stroke-width:2px,color:#16231b
+    style rutas_sensores fill:#E1D5E7,stroke:#6a3d80,stroke-width:2px,color:#16231b
+    style RegistrarPlanta fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,color:#16231b
+    style ListarPlantas fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,color:#16231b
+    style EliminarPlanta fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,color:#16231b
+    style VincularSensor fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,color:#16231b
+    style DesvincularSensor fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,color:#16231b
+    style ConsultarHistorial fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,color:#16231b
+    style RecibirMedicionDeSensor fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,color:#16231b
+    style DiagnosticarPlantaDeUsuario fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,color:#16231b

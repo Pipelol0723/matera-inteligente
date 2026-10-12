@@ -1,4 +1,4 @@
-%% Casos de uso del corte 2 (diseño, todavía sin código): visitante, usuario registrado, administrador y sensor ESP32.
+%% Casos de uso del corte 2 (implementado): visitante, usuario registrado, administrador y sensor ESP32.
 %% Gris: casos del corte 1. Verde: casos nuevos. Oscuro: solo el administrador.
 flowchart LR
     visitante["Visitante"]
@@ -20,6 +20,7 @@ flowchart LR
         uc12(["Guardar en el historial"])
         uc13(["Administrar usuarios"])
         uc14(["Agregar especies"])
+        uc15(["Registrar una medición a mano"])
     end
     visitante --- uc1
     visitante --- uc2
@@ -31,6 +32,7 @@ flowchart LR
     usuario --- uc8
     usuario --- uc9
     usuario --- uc10
+    usuario --- uc15
     admin -->|también es| usuario
     admin --- uc13
     admin --- uc14
@@ -38,6 +40,8 @@ flowchart LR
     uc2 -.->|incluye| uc3
     uc11 -.->|incluye| uc2
     uc11 -.->|incluye| uc12
+    uc15 -.->|incluye| uc2
+    uc15 -.->|incluye| uc12
 
     classDef actor fill:#ffffff,stroke:#56665b,stroke-width:1.5px,color:#16231b
     classDef caso fill:#f5f8f4,stroke:#7b887f,color:#16231b
@@ -45,5 +49,5 @@ flowchart LR
     classDef soloAdmin fill:#16231b,stroke:#16231b,color:#ffffff
     class visitante,usuario,admin,sensor actor
     class uc1,uc2,uc3 caso
-    class uc4,uc5,uc6,uc7,uc8,uc9,uc10,uc11,uc12 nuevo
+    class uc4,uc5,uc6,uc7,uc8,uc9,uc10,uc11,uc12,uc15 nuevo
     class uc13,uc14 soloAdmin

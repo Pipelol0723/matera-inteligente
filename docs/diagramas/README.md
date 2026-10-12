@@ -4,12 +4,12 @@ La fuente de cada diagrama es su archivo `.mmd` (Mermaid). El `.svg` y el `.png`
 
 Hay diagramas de dos momentos:
 
-- **Corte 1**: lo que hoy está en el código (hasta el commit `8c37f83`). Estos diagramas corresponden uno a uno con el repositorio.
-- **Corte 2**: el diseño aprobado para usuarios, administración, sensores e historial. **Todavía no tiene código.** Cuando se implemente, estos diagramas pasan a ser los vigentes y hay que ajustarlos a lo que quede escrito.
+- **Corte 1**: el sistema entregado, en el tag `corte-1` (commit `8c37f83`). Estos diagramas quedan como registro del antes y no se actualizan.
+- **Corte 2**: el sistema actual, con usuarios, administración, sensores e historial. Se ajustaron al código el 12 de octubre de 2026 y corresponden uno a uno con el repositorio.
 
 ## Índice
 
-| Diagrama | Corte 1: código actual | Corte 2: diseño |
+| Diagrama | Corte 1: entregado | Corte 2: código actual |
 |---|---|---|
 | [Casos de uso](#casos-de-uso) | [`casos-de-uso-corte1`](casos-de-uso-corte1.png) | [`casos-de-uso-corte2`](casos-de-uso-corte2.png) |
 | [Paquetes](#paquetes) | [`paquetes`](paquetes.png) | [`paquetes-corte2`](paquetes-corte2.png) |
@@ -25,14 +25,14 @@ Hay diagramas de dos momentos:
 
 Al final hay además una [propuesta no adoptada](#propuesta-no-adoptada-diagrama-general-del-backend): un diagrama general del backend que no sigue el diseño aprobado.
 
-Los cuatro diagramas de clases del corte 2 no llevan sufijo porque muestran los dos cortes a la vez: **borde continuo = corte 1, borde punteado = corte 2**. Los `-corte1` se generan desde la misma fuente, quitando lo del corte 2.
+Los cuatro diagramas de clases del corte 2 no llevan sufijo porque muestran los dos cortes a la vez: **borde fino = corte 1, borde grueso = se agregó en el corte 2**. Los `-corte1` muestran solo lo del corte 1.
 
 ## Convenciones
 
 - **Clases:** el color indica la capa. Son los colores del diagrama de clases de Roger: morado para presentación, amarillo para aplicación, verde para dominio y azul para infraestructura.
 - **Paquetes:** conservan los colores del diagrama entregado en el corte 1. En el del corte 2, los nodos nuevos son verdes y punteados.
 - **Casos de uso del corte 2:** gris es un caso del corte 1, verde uno nuevo y oscuro uno exclusivo del administrador.
-- **Nombres:** los de clases, atributos, métodos y archivos son los del código. En los diagramas del corte 2 son los del diseño; si cambian al implementar, se actualizan aquí.
+- **Nombres:** los de clases, atributos, métodos y archivos son los del código. Si el código cambia, se actualizan aquí (ver [Si cambia el código](#si-cambia-el-código)).
 
 ---
 
@@ -57,6 +57,7 @@ Fuente: [`casos-de-uso-corte2.mmd`](casos-de-uso-corte2.mmd).
 
 - **Cuatro actores.** El *visitante* es la persona anónima del corte 1, que ahora además puede crear una cuenta e iniciar sesión. El *usuario registrado* también es visitante. El *administrador* también es usuario, y por eso también tiene plantas. El *sensor ESP32* es un actor sin persona.
 - **El sensor no tiene su propia lógica de diagnóstico.** «Enviar una medición» *incluye* «Diagnosticar una planta», el mismo caso de uso del corte 1, e incluye «Guardar en el historial».
+- **La medición manual hace lo mismo.** «Registrar una medición a mano» incluye los mismos dos casos: sirve para las plantas que no tienen un ESP32.
 - **Casos exclusivos del administrador:** «Administrar usuarios» agrupa listar, desactivar y reactivar, dar y quitar el rol de admin, y eliminar cuentas. «Agregar especies» solo lo puede hacer el admin.
 
 ## Paquetes
@@ -79,14 +80,14 @@ Fuente: [`paquetes.mmd`](paquetes.mmd).
 Fuente: [`paquetes-corte2.mmd`](paquetes-corte2.mmd).
 
 - **Las flechas entre capas son las mismas del corte 1.** El corte 2 no agrega ninguna dependencia nueva entre capas: cambia el contenido de cada carpeta.
-- Cada caja separa lo que ya estaba de lo `nuevo:` y de lo que `se elimina`. El dominio conserva sus 12 módulos sin cambios.
+- Cada caja separa lo que ya estaba de lo `nuevo:` y de lo que `se eliminó`. El dominio conserva sus 12 módulos sin cambios.
 - **Hay una segunda entrada:** el ESP32, o el simulador del front, llega a la capa de presentación igual que el front, pero con su clave en la cabecera `X-Clave-Sensor` en lugar del token.
 - **`especies.csv` desaparece.** En su lugar están `esquema.sql` y `carga.sql`, y la base `matera.sqlite`, que vive fuera de Google Drive (se configura con `MATERA_RUTA_BD`).
 - `crear_admin.py` es una segunda raíz de composición, para la consola, igual que `main.py` lo es para la web.
 
 ## Clases
 
-Son cuatro diagramas, porque en uno solo no se leían las más de 60 clases. Juntan el diagrama de clases que Roger armó en PlantUML (commits `3987f72` y `6c43769`) con el diseño del corte 2.
+Son cuatro diagramas, porque en uno solo no se leían las más de 60 clases. Juntan el diagrama de clases que Roger armó en PlantUML (commits `3987f72` y `6c43769`) con el corte 2.
 
 | Se tomó del diagrama de Roger | Se tomó del diseño o se corrigió contra el código |
 |---|---|
@@ -105,9 +106,9 @@ En estos diagramas los colores van en líneas `style`, una por clase. Mermaid ac
 Fuentes: [`clases-dominio.mmd`](clases-dominio.mmd) (los dos cortes) y [`clases-dominio-corte1.mmd`](clases-dominio-corte1.mmd) ([imagen](clases-dominio-corte1.png), solo el corte 1).
 
 - **A la derecha, el núcleo del corte 1.** `ServicioDiagnostico` usa a `EvaluadorPlanta`, que aplica una `ReglaAgregacion` (la híbrida o la de conteo) y el `GeneradorRecomendaciones` a una `Especie` y una `Medicion`, y crea un `Diagnostico`.
-- **A la izquierda, lo nuevo.** `Usuario` con su `Rol`, `Sesion`, `Planta`, `Sensor` con su `CodigoSensor`, y `RegistroMedicion` para el historial.
+- **A la izquierda, lo nuevo.** `Usuario` con su `Rol`, `Sesion`, `Planta`, `Sensor` con su `CodigoSensor`, y `RegistroMedicion` para el historial, con su origen: MANUAL o el código del sensor.
 - **Ninguna flecha sale de una clase del corte 1 hacia una nueva.** Son las nuevas las que dependen de las viejas: `Planta` apunta a `Especie` y `RegistroMedicion` se construye desde un `Diagnostico`. Por eso el corte 2 no modifica ningún módulo del dominio actual.
-- **`Usuario.exigir_admin()` es la regla de permisos de todo el sistema.** Si el usuario no es ADMIN, lanza `PermisoDenegado`.
+- **`Usuario.exigir_admin()` es la regla de permisos de todo el sistema.** Si el usuario no es ADMIN, lanza `PermisoDenegado`. `Usuario.exigir_otro_usuario()` impide que un admin actúe sobre su propia cuenta.
 - Las dos notas amarillas listan los errores de cada corte. Todos heredan de `ErrorDominio`.
 
 ### Puertos e implementaciones
@@ -121,6 +122,7 @@ Fuentes: [`clases-puertos.mmd`](clases-puertos.mmd) y [`clases-puertos-corte1.mm
 - **`RepositorioEspeciesSqlite` reemplaza al CSV.** Implementa los mismos dos puertos más `RegistroEspecies`, el que usa el admin para agregar especies. Es el escenario 5.2 del documento: una clase nueva y ningún cambio en el dominio.
 - **`RepositorioPlantas` solo encuentra una planta de dos formas:** por su dueño, `por_id(usuario_id, planta_id)`, o por un sensor ya autenticado, `vinculada_a(codigo)`. Ahí vive el aislamiento entre usuarios.
 - `Cifrador`, `GeneradorSecretos` y `Reloj` son puertos para que el dominio y la aplicación no importen `hashlib`, `secrets` ni la hora del sistema. En las pruebas, cada interfaz tiene un doble en memoria.
+- **`BaseDatos` abre una conexión por operación** y activa `PRAGMA foreign_keys`. Flask atiende cada petición en un hilo y `sqlite3` no deja usar una conexión desde otro hilo: con una sola conexión compartida, el servidor real fallaba aunque las pruebas con `test_client` pasaran.
 
 ### Presentación y aplicación: diagnóstico, plantas y sensores
 
@@ -130,8 +132,8 @@ Fuentes: [`clases-aplicacion.mmd`](clases-aplicacion.mmd) y [`clases-aplicacion-
 
 - **Las rutas públicas del corte 1 no cambian.** `rutas` llama a `DiagnosticarPlanta`, `ListarEspecies` y `ListarParametros`.
 - **`esquemas` crea la `Medicion`.** Esa es la línea donde el dato deja de saber que llegó por HTTP (RA6). En el corte 2 se extrae `medicion_desde_json()` para que la use también `rutas_sensores`.
-- `rutas_plantas` exige sesión a través de `autenticacion`. `rutas_sensores` no usa el token: el sensor se identifica con su propia clave.
-- **La reutilización del núcleo:** `RecibirMedicionDeSensor → DiagnosticarPlantaDeUsuario → ServicioDiagnostico`, el mismo servicio del corte 1, sin cambios.
+- `rutas_plantas` exige sesión a través de `Autenticacion`. `rutas_sensores` no usa el token: el sensor se identifica con su propia clave.
+- **La reutilización del núcleo:** la medición manual (`rutas_plantas`) y la del sensor (`RecibirMedicionDeSensor`) pasan por `DiagnosticarPlantaDeUsuario`, que busca la planta por su dueño y llama a `ServicioDiagnostico`, el mismo del corte 1, sin cambios.
 
 ### Presentación y aplicación: cuentas y administración
 
@@ -152,19 +154,20 @@ Qué puertos usa cada caso de uso nuevo (en negrita, lo que ya existía en el co
 | `IniciarSesion` | `cuentas.py` | RepositorioUsuarios, RepositorioSesiones, Cifrador, GeneradorSecretos, Reloj |
 | `CerrarSesion` | `cuentas.py` | RepositorioSesiones, GeneradorSecretos |
 | `IdentificarUsuario` | `cuentas.py` | RepositorioSesiones, RepositorioUsuarios, GeneradorSecretos, Reloj |
+| `ConsultarCuenta` | `cuentas.py` | RepositorioPlantas, para contar las plantas |
 | `RegistrarPlanta` | `plantas.py` | RepositorioPlantas, **ConsultaRangos** |
 | `ListarPlantas` | `plantas.py` | RepositorioPlantas, RepositorioSensores, HistorialMediciones |
 | `EliminarPlanta` | `plantas.py` | RepositorioPlantas |
 | `VincularSensor` | `sensores.py` | RepositorioPlantas, RepositorioSensores, GeneradorSecretos |
 | `DesvincularSensor` | `sensores.py` | RepositorioPlantas, RepositorioSensores |
 | `RecibirMedicionDeSensor` | `sensores.py` | RepositorioSensores, RepositorioPlantas, GeneradorSecretos, DiagnosticarPlantaDeUsuario |
-| `DiagnosticarPlantaDeUsuario` | `diagnosticar_planta_de_usuario.py` | **ServicioDiagnostico**, HistorialMediciones, Reloj |
+| `DiagnosticarPlantaDeUsuario` | `diagnosticar_planta_de_usuario.py` | RepositorioPlantas, **ServicioDiagnostico**, HistorialMediciones, Reloj |
 | `ConsultarHistorial` | `historial.py` | RepositorioPlantas, HistorialMediciones |
 | `ListarUsuarios` | `administracion.py` | RepositorioUsuarios |
 | `CambiarEstadoUsuario` | `administracion.py` | RepositorioUsuarios, RepositorioSesiones |
 | `CambiarRol` | `administracion.py` | RepositorioUsuarios |
 | `EliminarUsuario` | `administracion.py` | RepositorioUsuarios |
-| `AgregarEspecie` | `administracion.py` | **ConsultaRangos**, RegistroEspecies |
+| `AgregarEspecie` | `administracion.py` | **ConsultaRangos**, RegistroEspecies y el catálogo de parámetros |
 | `ConvertirEnAdministrador` | `administracion.py` | RepositorioUsuarios |
 
 ## Entidad-relación
@@ -189,6 +192,8 @@ Fuente: [`entidad-relacion-corte2.mmd`](entidad-relacion-corte2.mmd).
 - **`RANGO_OPTIMO` y `LECTURA` guardan una fila por parámetro**, así que agregar el pH no cambia el esquema.
 - `USUARIO.rol` es USUARIO o ADMIN, y `USUARIO.activo` permite desactivar una cuenta sin borrarla.
 - `SENSOR` es 0..1 por planta y solo existe mientras está vinculado. `hash_clave` y `hash_token` guardan huellas, nunca el secreto.
+- `MEDICION.origen` dice de dónde vino cada medición: MANUAL o el código del sensor.
+- El esquema real está en [`backend/datos/esquema.sql`](../../backend/datos/esquema.sql).
 - Borrar un usuario o una planta borra en cascada lo que depende de ellos. Las líneas punteadas llegan a `PARAMETRO`, que sigue en el código.
 
 ## Secuencias
@@ -201,7 +206,7 @@ Fuente: [`secuencia-diagnostico.mmd`](secuencia-diagnostico.mmd).
 
 Sigue una petición desde que la persona escribe en el front hasta que se pinta el resultado, con las funciones y clases reales. También muestra las dos salidas de error: 400 por entrada inválida y 404 por especie inexistente.
 
-En el corte 2 este recorrido no cambia. La única diferencia es el participante `P`: en vez de `RepositorioEspeciesCsv` estará `RepositorioEspeciesSqlite`, detrás del mismo puerto `ConsultaRangos`.
+En el corte 2 este recorrido no cambia. La única diferencia es el participante `P`: en vez de `RepositorioEspeciesCsv` está `RepositorioEspeciesSqlite`, detrás del mismo puerto `ConsultaRangos`.
 
 ### Secuencia de una medición del sensor
 
@@ -211,8 +216,8 @@ Fuente: [`secuencia-medicion-sensor.mmd`](secuencia-medicion-sensor.mmd). Corte 
 
 - **HTTP termina en `rutas_sensores.py`.** De ahí en adelante viajan un código, una clave y una `Medicion`, y los límites físicos ya se validaron al crear cada `Lectura`.
 - **El sensor se identifica con su clave.** `GeneradorSecretos.coincide()` la compara con la huella guardada. Un sensor inexistente y una clave incorrecta dan el mismo 401, para no revelar qué códigos existen.
-- La planta se obtiene con `vinculada_a(código)`, porque el sensor ya se autenticó.
-- **`ServicioDiagnostico` es el del corte 1, sin cambios.** El resultado se guarda como `RegistroMedicion`, con el estado que tenía en ese momento.
+- La planta se obtiene con `vinculada_a(código)`, porque el sensor ya se autenticó. Después `DiagnosticarPlantaDeUsuario` la busca por su dueño: es el mismo camino de la medición manual.
+- **`ServicioDiagnostico` es el del corte 1, sin cambios.** El resultado se guarda como `RegistroMedicion`, con el estado que tenía en ese momento y el código del sensor como origen.
 - Con MQTT solo cambiarían el primer participante y el adaptador que lo recibe. Desde `RecibirMedicionDeSensor` en adelante, todo queda igual.
 
 ### Secuencia de login y «mis plantas»
@@ -223,7 +228,7 @@ Fuente: [`secuencia-login.mmd`](secuencia-login.mmd). Corte 2.
 
 - Si el correo no existe o la contraseña no coincide, la respuesta es el mismo 401. Una cuenta desactivada da 403, pero solo después de que la contraseña fue correcta.
 - El token se devuelve una sola vez; la base guarda solo su huella y su vencimiento. El front lo guarda en `sessionStorage`.
-- **`autenticacion.py` es la línea donde el token deja de saber que existe HTTP:** saca el texto de la cabecera y a `IdentificarUsuario` solo le pasa un `str`.
+- **`Autenticacion` (`presentacion/autenticacion.py`) es donde el token deja de saber que existe HTTP:** saca el texto de la cabecera y a `IdentificarUsuario` solo le pasa un `str`.
 - `ListarPlantas` recibe el `Usuario` y el repositorio solo devuelve sus plantas.
 
 ### Secuencia del admin que agrega una especie
@@ -234,6 +239,7 @@ Fuente: [`secuencia-admin-especie.mmd`](secuencia-admin-especie.mmd). Corte 2.
 
 - **El permiso se revisa en el caso de uso, con `actor.exigir_admin()`.** Si el actor no es admin, la respuesta es 403, venga del front o de cualquier otro cliente.
 - La especie se arma con las mismas clases `Especie` y `Rango` del corte 1. Un rango con el mínimo mayor o igual que el máximo se rechaza con 400 antes de llegar al caso de uso.
+- `AgregarEspecie` además exige un rango por cada parámetro que se mide; si falta uno, la respuesta es 400.
 - Si la especie ya existe, la respuesta es 409. Si no, se guarda con `RegistroEspecies` y aparece de inmediato en `GET /especies`, disponible para las plantas de cualquier usuario.
 
 ---
@@ -261,12 +267,9 @@ Tampoco tiene fuente `.mmd`, así que no se puede regenerar cuando cambie el có
 
 ## Si cambia el código
 
-Los diagramas del corte 1 tienen que seguir correspondiendo uno a uno con el repositorio. Si se agrega, se renombra o se mueve un archivo, o cambia un import entre capas:
+Los diagramas del corte 2 tienen que seguir correspondiendo uno a uno con el repositorio. Si se agrega, se renombra o se mueve un archivo, o cambia un import entre capas:
 
 1. Edite el `.mmd`.
-2. Pegue su contenido en <https://mermaid.live> y exporte el SVG y el PNG con el mismo nombre. También se puede exportar con `npx @mermaid-js/mermaid-cli -i paquetes.mmd -o paquetes.svg`.
+2. Pegue su contenido en <https://mermaid.live> y exporte el SVG y el PNG con el mismo nombre. También se puede exportar con `npx @mermaid-js/mermaid-cli -i paquetes-corte2.mmd -o paquetes-corte2.svg`.
 
-Mientras se implementa el corte 2:
-
-- Cuando una clase del corte 2 ya tenga código, quite `stroke-dasharray` de su línea `style` en los diagramas de clases.
-- Cuando el corte 2 esté completo, los archivos `-corte2` pasan a ser los vigentes. Los `-corte1` quedan como registro del antes.
+Los del corte 1 (`-corte1`, `paquetes` y `secuencia-diagnostico`) son el registro de lo entregado en el tag `corte-1`: no se actualizan.

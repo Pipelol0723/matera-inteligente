@@ -1,4 +1,4 @@
-%% Secuencia del corte 2 (diseño): iniciar sesión y pedir la lista de plantas propias con el token.
+%% Secuencia del corte 2 (implementada): iniciar sesión y pedir la lista de plantas propias con el token.
 sequenceDiagram
     autonumber
     actor Persona
@@ -6,7 +6,7 @@ sequenceDiagram
     participant RU as rutas_usuarios.py<br/>(presentación)
     participant IS as IniciarSesion<br/>(aplicación)
     participant RP as rutas_plantas.py<br/>(presentación)
-    participant AU as autenticacion.py<br/>(presentación)
+    participant AU as Autenticacion<br/>(presentacion/autenticacion.py)
     participant IU as IdentificarUsuario<br/>(aplicación)
     participant LP as ListarPlantas<br/>(aplicación)
     participant PU as Cifrador, repositorios<br/>y GeneradorSecretos (puertos)
@@ -39,7 +39,7 @@ sequenceDiagram
             RP ->> LP: ejecutar(usuario)
             LP ->> PU: de_usuario(usuario.id)
             PU -->> LP: solo las plantas de ese usuario
-            LP -->> RP: plantas con su sensor y su último diagnóstico
+            LP -->> RP: plantas con su sensor y su última medición
             RP -->> UI: 200 JSON
         end
     end

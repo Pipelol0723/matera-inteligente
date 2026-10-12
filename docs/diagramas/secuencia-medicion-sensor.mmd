@@ -1,4 +1,4 @@
-%% Secuencia del corte 2 (diseño): una medición que llega del ESP32 o del simulador, con la clave del sensor,
+%% Secuencia del corte 2 (implementada): una medición que llega del ESP32 o del simulador, con la clave del sensor,
 %% hasta que se diagnostica con el ServicioDiagnostico del corte 1 y se guarda en el historial.
 sequenceDiagram
     autonumber
@@ -24,13 +24,15 @@ sequenceDiagram
         RS -->> ESP: 401 CLAVE_SENSOR_INVALIDA
     else clave correcta
         RM ->> PS: vinculada_a(código)
-        PS -->> RM: Planta
-        RM ->> DU: ejecutar(planta, medicion)
+        PS -->> RM: Planta, con su dueño
+        RM ->> DU: ejecutar(planta.usuario_id, planta.id, medicion, código)
+        DU ->> PS: por_id(usuario_id, planta_id)
+        PS -->> DU: Planta
         DU ->> S: diagnosticar(planta.especie, medicion)
         Note over S: el mismo recorrido del corte 1<br/>ConsultaRangos, EvaluadorPlanta, ReglaHibrida
         S -->> DU: Diagnostico
-        DU ->> H: agregar(RegistroMedicion.desde(diagnostico))
-        DU -->> RM: Diagnostico
-        RM -->> RS: planta y Diagnostico
+        DU ->> H: agregar(RegistroMedicion.desde(diagnostico, origen = código))
+        DU -->> RM: ResultadoMedicion
+        RM -->> RS: ResultadoMedicion: planta, diagnóstico y momento
         RS -->> ESP: 201 JSON con la planta y el diagnóstico
     end

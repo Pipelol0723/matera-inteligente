@@ -1,6 +1,6 @@
 %% Puertos del dominio (backend/dominio/) y las clases de infraestructura que los implementan.
 %% Toda flecha va de infraestructura hacia el dominio (RA5, DIP).
-%% Verde: dominio. Azul: infraestructura. Borde punteado: se agrega en el corte 2 y todavía no tiene código.
+%% Verde: dominio. Azul: infraestructura. Borde grueso: se agregó en el corte 2.
 classDiagram
     direction LR
 
@@ -72,22 +72,22 @@ classDiagram
 
     namespace infraestructura {
         class RepositorioEspeciesSqlite {
-            -conexion: Connection
+            -bd: BaseDatos
         }
         class RepositorioUsuariosSqlite {
-            -conexion: Connection
+            -bd: BaseDatos
         }
         class RepositorioSesionesSqlite {
-            -conexion: Connection
+            -bd: BaseDatos
         }
         class RepositorioPlantasSqlite {
-            -conexion: Connection
+            -bd: BaseDatos
         }
         class RepositorioSensoresSqlite {
-            -conexion: Connection
+            -bd: BaseDatos
         }
         class HistorialMedicionesSqlite {
-            -conexion: Connection
+            -bd: BaseDatos
         }
         class CifradorPbkdf2 {
             -iteraciones: int = 600000
@@ -97,6 +97,11 @@ classDiagram
         }
         class RelojSistema {
             usa datetime.now
+        }
+        class BaseDatos {
+            -ruta: Path
+            +conexion() Connection
+            +preparar() BaseDatos
         }
     }
 
@@ -112,23 +117,26 @@ classDiagram
     GeneradorSecretosSeguro ..|> GeneradorSecretos
     RelojSistema ..|> Reloj
 
+    note for BaseDatos "Abre una conexión por operación y activa<br>PRAGMA foreign_keys: Flask atiende cada petición<br>en un hilo y sqlite3 no comparte conexiones<br>entre hilos. La usan los seis repositorios SQLite."
+
     style ConsultaRangos fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
     style CatalogoEspecies fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
-    style RegistroEspecies fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style RepositorioUsuarios fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style RepositorioSesiones fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style RepositorioPlantas fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style RepositorioSensores fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style HistorialMediciones fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style Cifrador fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style GeneradorSecretos fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style Reloj fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style RepositorioEspeciesSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style RepositorioUsuariosSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style RepositorioSesionesSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style RepositorioPlantasSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style RepositorioSensoresSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style HistorialMedicionesSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style CifradorPbkdf2 fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style GeneradorSecretosSeguro fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style RelojSistema fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style RegistroEspecies fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style RepositorioUsuarios fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style RepositorioSesiones fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style RepositorioPlantas fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style RepositorioSensores fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style HistorialMediciones fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style Cifrador fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style GeneradorSecretos fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style Reloj fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style RepositorioEspeciesSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
+    style RepositorioUsuariosSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
+    style RepositorioSesionesSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
+    style RepositorioPlantasSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
+    style RepositorioSensoresSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
+    style HistorialMedicionesSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
+    style CifradorPbkdf2 fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
+    style GeneradorSecretosSeguro fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
+    style RelojSistema fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
+    style BaseDatos fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b

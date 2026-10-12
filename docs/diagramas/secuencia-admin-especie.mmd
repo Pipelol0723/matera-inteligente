@@ -1,10 +1,10 @@
-%% Secuencia del corte 2 (diseño): el administrador agrega una especie. Muestra dónde se revisa el permiso.
+%% Secuencia del corte 2 (implementada): el administrador agrega una especie. Muestra dónde se revisa el permiso.
 sequenceDiagram
     autonumber
     actor Admin
     participant UI as admin.js<br/>(front)
     participant RA as rutas_admin.py<br/>(presentación)
-    participant AU as autenticacion.py<br/>(presentación)
+    participant AU as Autenticacion<br/>(presentacion/autenticacion.py)
     participant EU as esquemas_usuarios.py<br/>(presentación)
     participant AE as AgregarEspecie<br/>(aplicación)
     participant U as Usuario<br/>(dominio)

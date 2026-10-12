@@ -1,4 +1,4 @@
-%% Modelo entidad-relación del corte 2 (diseño, todavía sin código): una sola base SQLite.
+%% Modelo entidad-relación del corte 2 (implementado en backend/datos/esquema.sql): una sola base SQLite.
 %% Las líneas punteadas llegan a PARAMETRO, que sigue en el código y no es una tabla.
 erDiagram
     USUARIO ||--o{ SESION : "abre"
@@ -39,7 +39,7 @@ erDiagram
         int id PK
         int usuario_id FK
         string especie FK
-        string apodo "único por usuario"
+        string apodo "único por usuario, sin importar mayúsculas"
         string creada_en
     }
     SENSOR {
@@ -53,7 +53,7 @@ erDiagram
         int planta_id FK
         string momento
         string estado "SALUDABLE, EN_RIESGO o CRITICO"
-        string origen "código del sensor"
+        string origen "MANUAL o el código del sensor"
     }
     LECTURA {
         int medicion_id PK, FK

@@ -1,6 +1,6 @@
 %% Clases del dominio de matera-inteligente (backend/dominio/).
-%% Une el diagrama de clases de Roger (commit 3987f72) con el diseño del corte 2.
-%% Relleno verde: capa de dominio. Borde punteado: se agrega en el corte 2 y todavía no tiene código.
+%% Une el diagrama de clases de Roger (commit 3987f72) con el corte 2.
+%% Relleno verde: capa de dominio. Borde grueso: se agregó en el corte 2.
 %% Los nombres son los del código. Los puertos y quién los implementa están en clases-puertos.mmd.
 classDiagram
     direction LR
@@ -122,6 +122,9 @@ classDiagram
         +activo: bool
         +es_admin() bool
         +exigir_admin()
+        +exigir_otro_usuario(usuario_id: int)
+        +con_estado(activo: bool) Usuario
+        +con_rol(rol: Rol) Usuario
     }
     class ResumenUsuario {
         +id: int
@@ -135,6 +138,7 @@ classDiagram
         +hash_token: str
         +usuario_id: int
         +vence_en: datetime
+        +abrir(hash_token, usuario_id, ahora, duracion)$ Sesion
         +vigente(ahora: datetime) bool
     }
     class Planta {
@@ -143,6 +147,7 @@ classDiagram
         +apodo: str
         +especie: str
         +es_de(usuario_id: int) bool
+        +mismo_apodo(apodo: str) bool
     }
     class CodigoSensor {
         +valor: str
@@ -157,7 +162,8 @@ classDiagram
         +momento: datetime
         +estado: EstadoGlobal
         +lecturas: tuple~LecturaRegistrada~
-        +desde(diagnostico, planta_id, momento)$ RegistroMedicion
+        +origen: str
+        +desde(diagnostico, planta_id, momento, origen)$ RegistroMedicion
     }
     class LecturaRegistrada {
         +parametro: Parametro
@@ -181,7 +187,7 @@ classDiagram
     LecturaRegistrada --> EstadoParametro : estado
     RegistroMedicion ..> Diagnostico : se construye desde
 
-    note "Errores del corte 2, heredan de ErrorDominio:<br>CorreoInvalido, ContrasenaDebil, CorreoYaRegistrado,<br>CredencialesInvalidas, CuentaDesactivada, SesionInvalida,<br>PermisoDenegado, AccionSobreSiMismo, UsuarioNoEncontrado,<br>EspecieYaExiste, PlantaNoEncontrada, ApodoRepetido,<br>CodigoSensorInvalido, SensorYaVinculado, PlantaConSensor,<br>ClaveSensorInvalida"
+    note "Errores del corte 2 (errores_usuarios.py), heredan de ErrorDominio:<br>CorreoInvalido, NombreInvalido, ContrasenaDebil, CorreoYaRegistrado,<br>CredencialesInvalidas, CuentaDesactivada, SesionInvalida,<br>PermisoDenegado, AccionSobreSiMismo, UsuarioNoEncontrado,<br>EspecieYaExiste, PlantaNoEncontrada, ApodoInvalido, ApodoRepetido,<br>CodigoSensorInvalido, SensorYaVinculado, PlantaConSensor,<br>PlantaSinSensor, ClaveSensorInvalida"
 
     style Parametro fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
     style Lectura fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
@@ -198,14 +204,14 @@ classDiagram
     style GeneradorRecomendaciones fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
     style EvaluadorPlanta fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
     style ServicioDiagnostico fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
-    style Rol fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style Correo fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style PoliticaContrasena fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style Usuario fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style ResumenUsuario fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style Sesion fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style Planta fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style CodigoSensor fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style Sensor fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style RegistroMedicion fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
-    style LecturaRegistrada fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,stroke-dasharray:6 4,color:#16231b
+    style Rol fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style Correo fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style PoliticaContrasena fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style Usuario fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style ResumenUsuario fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style Sesion fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style Planta fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style CodigoSensor fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style Sensor fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style RegistroMedicion fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style LecturaRegistrada fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b

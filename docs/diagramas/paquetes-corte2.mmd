@@ -1,7 +1,7 @@
-%% Diagrama de paquetes del corte 2 (diseño, todavía sin código). Misma forma que paquetes.mmd:
+%% Diagrama de paquetes del corte 2 (implementado). Misma forma que paquetes.mmd:
 %% cada caja es una carpeta y dice qué archivos se agregan y cuáles se eliminan. Punteado: nodos nuevos.
 flowchart TB
-    FRONT["frontend/ · cliente estático servido aparte (puerto 5500)<br/>index.html · css/estilos.css · js/config.js · js/app.js · js/api.js<br/>js/diagnostico.js · js/especies.js · js/escala.js · js/formato.js<br/>nuevos: js/sesion.js · js/acceso.js · js/cuenta.js · js/materas.js<br/>js/vincular.js · js/simulador.js · js/historial.js · js/admin.js<br/>se elimina js/prototipos.js"]
+    FRONT["frontend/ · cliente estático servido aparte (puerto 5500)<br/>index.html · css/estilos.css · js/config.js · js/app.js · js/api.js<br/>js/diagnostico.js · js/especies.js · js/escala.js · js/formato.js<br/>nuevos: js/sesion.js · js/acceso.js · js/cuenta.js · js/materas.js<br/>js/vincular.js · js/simulador.js · js/historial.js · js/admin.js<br/>js/formularios.js · js/lecturas.js · se eliminó js/prototipos.js"]
     ESP["ESP32 o simulador<br/>manda mediciones con su clave"]
 
     subgraph BACKEND["backend/ (Flask, puerto 5000)"]
@@ -9,11 +9,11 @@ flowchart TB
         PRES["presentacion/<br/>rutas.py · esquemas.py · errores_http.py<br/>nuevos: autenticacion.py · rutas_usuarios.py · rutas_plantas.py<br/>rutas_sensores.py · rutas_admin.py<br/>esquemas_usuarios.py · errores_usuarios.py<br/>usa: flask, werkzeug"]
         APP["aplicacion/<br/>diagnosticar_planta.py · listar_especies.py · listar_parametros.py<br/>nuevos: cuentas.py · plantas.py · sensores.py · historial.py<br/>diagnosticar_planta_de_usuario.py · administracion.py"]
         DOM["dominio/<br/>los 12 módulos del corte 1, sin cambios<br/>nuevos: usuarios.py · plantas.py · sensores.py · historial.py<br/>puertos_usuarios.py · errores_usuarios.py<br/>usa: solo la biblioteca estándar de Python"]
-        INFRA["infraestructura/<br/>configuracion.py · servidor_web.py<br/>nuevos: sqlite/ · seguridad.py · reloj.py<br/>se elimina repositorio_especies_csv.py<br/>usa: sqlite3, hashlib, secrets, flask, flask-cors"]
+        INFRA["infraestructura/<br/>configuracion.py · servidor_web.py<br/>nuevos: sqlite/ · seguridad.py · reloj.py<br/>se eliminó repositorio_especies_csv.py<br/>usa: sqlite3, hashlib, secrets, hmac, flask, flask-cors"]
         SQL["datos/esquema.sql · datos/carga.sql<br/>reemplazan a especies.csv"]
-        TESTS["tests/<br/>dominio/ · aplicacion/ · integracion/ · dobles.py"]
+        TESTS["tests/<br/>dominio/ · aplicacion/ · integracion/<br/>dobles.py · dobles_usuarios.py"]
     end
-    BD[("matera.sqlite<br/>fuera de Google Drive")]
+    BD[("matera.sqlite<br/>ruta en MATERA_RUTA_BD,<br/>fuera de Google Drive")]
 
     FRONT -->|"HTTP + JSON, token Bearer en lo privado"| PRES
     ESP -->|"HTTP + JSON, cabecera X-Clave-Sensor"| PRES
@@ -28,7 +28,7 @@ flowchart TB
     MAIN -.-> APP
     MAIN -.-> DOM
     MAIN -.-> INFRA
-    TESTS -.->|"dominio/, aplicacion/ y dobles.py"| DOM
+    TESTS -.->|"dominio/, aplicacion/ y dobles"| DOM
     TESTS -.->|"integracion/"| MAIN
 
     classDef presentacion fill:#f6ece2,stroke:#9a5b1e,stroke-width:1.5px,color:#16231b
