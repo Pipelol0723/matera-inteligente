@@ -3,25 +3,31 @@ import pytest
 
 from aplicacion.listar_especies import ListarEspecies
 from aplicacion.listar_parametros import ListarParametros
-from dominio.parametros import PARAMETROS
+from dominio.especie import Especie
+from dominio.parametros import HUMEDAD, LUZ, PARAMETROS, TEMPERATURA
+from dominio.rango import Rango
 from infraestructura.configuracion import Configuracion
 from infraestructura.servidor_web import crear_app
+from infraestructura.sqlite import BaseDatos, RepositorioEspeciesSqlite
 from main import construir_app
 from presentacion.rutas import crear_blueprint
 from tests.dobles import RepositorioEspeciesEnMemoria
 
 ORIGEN_FRONT = "http://localhost:5500"
-TABLA = (
-    "especie,nombre_cientifico,humedad_min,humedad_max,luz_min,luz_max,temperatura_min,temperatura_max\n"
-    "sansevieria,Dracaena trifasciata,20,45,200,1500,15,29\n"
-    "potos,Epipremnum aureum,40,70,270,2150,16,29\n"
+# Rangos propios de estas pruebas, independientes de carga.sql.
+ESPECIES = (
+    Especie("sansevieria", {HUMEDAD: Rango(20, 45), LUZ: Rango(200, 1500), TEMPERATURA: Rango(15, 29)}, "Dracaena trifasciata"),
+    Especie("potos", {HUMEDAD: Rango(40, 70), LUZ: Rango(270, 2150), TEMPERATURA: Rango(16, 29)}, "Epipremnum aureum"),
 )
 
 
 def _config(tmp_path):
-    ruta = tmp_path / "especies.csv"
-    ruta.write_text(TABLA, encoding="utf-8")
-    return Configuracion(puerto=5000, ruta_csv=ruta, origenes_cors=(ORIGEN_FRONT,))
+    """Una base temporal con solo estas especies: como ya tiene especies, al arrancar no se ejecuta carga.sql."""
+    ruta = tmp_path / "matera.sqlite"
+    especies = RepositorioEspeciesSqlite(BaseDatos(ruta).preparar(carga=None))
+    for especie in ESPECIES:
+        especies.agregar(especie)
+    return Configuracion(puerto=5000, ruta_bd=ruta, origenes_cors=(ORIGEN_FRONT,))
 
 
 @pytest.fixture

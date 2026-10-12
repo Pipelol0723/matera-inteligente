@@ -13,7 +13,9 @@ _ORIGENES_POR_DEFECTO = "http://localhost:5500,http://127.0.0.1:5500"
 @dataclass(frozen=True)
 class Configuracion:
     puerto: int
-    ruta_csv: Path
+    # Archivo SQLite. Git lo ignora; si el repositorio esta en una carpeta sincronizada
+    # (Google Drive, OneDrive), conviene apuntarlo afuera con MATERA_RUTA_BD.
+    ruta_bd: Path
     origenes_cors: tuple[str, ...]
 
     @classmethod
@@ -21,6 +23,6 @@ class Configuracion:
         origenes = os.environ.get("MATERA_ORIGENES_CORS", _ORIGENES_POR_DEFECTO)
         return cls(
             puerto=int(os.environ.get("MATERA_PUERTO", "5000")),
-            ruta_csv=Path(os.environ.get("MATERA_RUTA_CSV", _BACKEND / "datos" / "especies.csv")),
+            ruta_bd=Path(os.environ.get("MATERA_RUTA_BD", _BACKEND / "datos" / "matera.sqlite")),
             origenes_cors=tuple(origen.strip() for origen in origenes.split(",") if origen.strip()),
         )

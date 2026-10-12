@@ -10,6 +10,10 @@ venv/
 .vscode/
 .idea/
 
+# Base de datos de desarrollo (en una carpeta sincronizada, mejor apuntarla afuera con MATERA_RUTA_BD)
+backend/datos/*.sqlite
+backend/datos/*.sqlite-journal
+
 # Archivos que Windows y Google Drive crean en cada carpeta
 desktop.ini
 Thumbs.db

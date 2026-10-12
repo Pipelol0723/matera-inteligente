@@ -14,14 +14,14 @@ from dominio.recomendaciones import GeneradorRecomendaciones
 from dominio.reglas import ReglaHibrida
 from dominio.servicio_diagnostico import ServicioDiagnostico
 from infraestructura.configuracion import Configuracion
-from infraestructura.repositorio_especies_csv import RepositorioEspeciesCsv
 from infraestructura.servidor_web import crear_app
+from infraestructura.sqlite import BaseDatos, RepositorioEspeciesSqlite
 from presentacion.rutas import crear_blueprint
 
 
 def construir_app(config: Configuracion) -> Flask:
-    # Pasar a una base de datos: cambiar solo esta linea por otra clase que implemente los puertos.
-    especies = RepositorioEspeciesCsv(config.ruta_csv)
+    # Escenario 5.2: las especies salen de SQLite. Cambiar de base es cambiar solo esta linea.
+    especies = RepositorioEspeciesSqlite(BaseDatos(config.ruta_bd).preparar())
 
     # Cambiar la regla del estado global: cambiar solo esta linea.
     evaluador = EvaluadorPlanta(ReglaHibrida(umbral=0.5), GeneradorRecomendaciones())

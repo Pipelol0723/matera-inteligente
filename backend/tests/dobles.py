@@ -1,6 +1,6 @@
 """Datos y dobles de prueba.
 
-Solo importa el dominio: estas pruebas no leen el CSV ni levantan Flask, y
+Solo importa el dominio: estas pruebas no abren la base de datos ni levantan Flask, y
 siguen pasando aunque se borre la carpeta infraestructura (RA4).
 """
 from dominio.especie import Especie
@@ -30,7 +30,7 @@ class RepositorioEspeciesEnMemoria(ConsultaRangos, CatalogoEspecies):
 
 
 def sansevieria() -> Especie:
-    """Especie de ejemplo con rangos fijos, independientes del CSV real."""
+    """Especie de ejemplo con rangos fijos, independientes de carga.sql."""
     return Especie(
         "sansevieria",
         {HUMEDAD: Rango(20, 45), LUZ: Rango(200, 1500), TEMPERATURA: Rango(15, 29)},
