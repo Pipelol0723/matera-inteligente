@@ -10,7 +10,7 @@ from dominio.puertos import ConsultaRangos
 class ServicioDiagnostico:
     """Depende del puerto ConsultaRangos, nunca de un CSV o una base de datos concretos.
 
-    Cualquier implementacion del puerto sirve (LSP): la del CSV en produccion
+    Cualquier implementacion del puerto sirve (LSP): la de SQLite en produccion
     y un doble en memoria en las pruebas.
     """
 
