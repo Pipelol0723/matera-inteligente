@@ -8,12 +8,20 @@ from dataclasses import dataclass
 from typing import Any
 
 from aplicacion.cuentas import CuentaUsuario, SesionIniciada
+from aplicacion.diagnosticar_planta_de_usuario import ResultadoMedicion
+from aplicacion.historial import LIMITE_POR_DEFECTO, HistorialPlanta
+from aplicacion.plantas import PlantaConEstado
+from aplicacion.sensores import SensorVinculado
 from dominio.errores import RangoInvalido
 from dominio.especie import Especie
+from dominio.historial import RegistroMedicion
 from dominio.parametros import PARAMETROS
+from dominio.plantas import Planta
 from dominio.rango import Rango
 from dominio.usuarios import ResumenUsuario, Rol, Usuario
-from presentacion.esquemas import EntradaInvalida
+from presentacion.esquemas import EntradaInvalida, diagnostico_a_json
+
+LIMITE_MAXIMO = 200
 
 
 @dataclass(frozen=True)
@@ -76,6 +84,71 @@ def especie_desde_json(cuerpo: Any) -> Especie:
         except RangoInvalido as error:
             raise _invalido(campo, "minimo_no_menor_que_maximo", str(error)) from None
     return Especie(nombre, rangos, cientifico)
+
+
+def planta_desde_json(cuerpo: Any) -> tuple[str, str]:
+    cuerpo = _objeto(cuerpo)
+    return _texto(cuerpo, "apodo"), _texto(cuerpo, "especie")
+
+
+def codigo_desde_json(cuerpo: Any) -> str:
+    return _texto(_objeto(cuerpo), "codigo")
+
+
+def limite_desde_consulta(texto: str | None) -> int:
+    """?limite= del historial: un entero entre 1 y LIMITE_MAXIMO, o el valor por defecto."""
+    if texto is None:
+        return LIMITE_POR_DEFECTO
+    try:
+        limite = int(texto)
+    except ValueError:
+        limite = 0
+    if not 1 <= limite <= LIMITE_MAXIMO:
+        raise _invalido("limite", "fuera_de_rango", f"El límite debe ser un entero entre 1 y {LIMITE_MAXIMO}.")
+    return limite
+
+
+def planta_a_json(planta: Planta) -> dict[str, Any]:
+    return {"id": planta.id, "apodo": planta.apodo, "especie": planta.especie}
+
+
+def tarjeta_a_json(tarjeta: PlantaConEstado) -> dict[str, Any]:
+    return {
+        **planta_a_json(tarjeta.planta),
+        "sensor": {"codigo": tarjeta.sensor.codigo.valor} if tarjeta.sensor else None,
+        "ultimaMedicion": registro_a_json(tarjeta.ultima_medicion) if tarjeta.ultima_medicion else None,
+    }
+
+
+def registro_a_json(registro: RegistroMedicion) -> dict[str, Any]:
+    """Lo guardado en el historial: estados y valores. Las recomendaciones no se guardan."""
+    return {
+        "momento": registro.momento.isoformat(),
+        "estado": registro.estado.value,
+        "origen": registro.origen,
+        "lecturas": [
+            {"nombre": l.parametro.nombre, "valor": l.valor, "unidad": l.parametro.unidad, "estado": l.estado.value}
+            for l in registro.lecturas
+        ],
+    }
+
+
+def historial_a_json(historial: HistorialPlanta) -> dict[str, Any]:
+    return {"planta": planta_a_json(historial.planta), "registros": [registro_a_json(r) for r in historial.registros]}
+
+
+def sensor_vinculado_a_json(vinculado: SensorVinculado) -> dict[str, Any]:
+    """La unica respuesta que trae la clave del sensor."""
+    return {"planta": planta_a_json(vinculado.planta), "codigo": vinculado.codigo.valor, "clave": vinculado.clave}
+
+
+def resultado_medicion_a_json(resultado: ResultadoMedicion) -> dict[str, Any]:
+    return {
+        "planta": planta_a_json(resultado.planta),
+        "momento": resultado.registro.momento.isoformat(),
+        # El mismo formato de POST /diagnosticos, con sus recomendaciones.
+        "diagnostico": diagnostico_a_json(resultado.diagnostico),
+    }
 
 
 def usuario_a_json(usuario: Usuario) -> dict[str, Any]:

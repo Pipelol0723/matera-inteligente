@@ -26,9 +26,16 @@ def solicitud_desde_json(cuerpo: Any) -> SolicitudDiagnostico:
     if not isinstance(cuerpo, dict):
         raise EntradaInvalida("SOLICITUD_INVALIDA", "El cuerpo de la petición debe ser un objeto JSON.")
     especie = _texto(cuerpo, "especie")
+    return SolicitudDiagnostico(especie=especie, medicion=medicion_desde_json(cuerpo))
+
+
+def medicion_desde_json(cuerpo: Any) -> Medicion:
+    """Una lectura por cada parametro del catalogo. La usan el diagnostico, la medicion manual y el sensor."""
+    if not isinstance(cuerpo, dict):
+        raise EntradaInvalida("SOLICITUD_INVALIDA", "El cuerpo de la petición debe ser un objeto JSON.")
     # Desde esta linea el dato ya no sabe que llego por HTTP: son objetos del dominio.
     lecturas = tuple(Lectura(parametro, _numero(cuerpo, parametro.nombre)) for parametro in PARAMETROS)
-    return SolicitudDiagnostico(especie=especie, medicion=Medicion(lecturas))
+    return Medicion(lecturas)
 
 
 def diagnostico_a_json(diagnostico: Diagnostico) -> dict[str, Any]:
