@@ -64,6 +64,7 @@ La API queda en `http://127.0.0.1:5000/api/v1`. Se puede configurar con variable
 
 | Variable | Por defecto |
 |---|---|
+| `MATERA_HOST` | `127.0.0.1`: solo este PC. Con `0.0.0.0` la API queda abierta a la red, ver [Mediciones de un ESP32](#mediciones-de-un-esp32-en-la-red) |
 | `MATERA_PUERTO` | `5000` |
 | `MATERA_RUTA_BD` | `backend/datos/matera.sqlite` |
 | `MATERA_ORIGENES_CORS` | `http://localhost:5500,http://127.0.0.1:5500` |
@@ -85,6 +86,43 @@ El registro siempre crea usuarios comunes, y la API no tiene ninguna ruta que d�
 ```bash
 python crear_admin.py correo@ejemplo.com
 ```
+
+### Mediciones de un ESP32 en la red
+
+Por defecto la API solo responde en el mismo PC (`127.0.0.1`), así que un ESP32 conectado al WiFi no la alcanza. Para la demo con la placa, el PC y el ESP32 tienen que estar en la misma red, y se arranca así, desde `backend/`:
+
+```powershell
+$env:MATERA_HOST = "0.0.0.0"
+python main.py
+```
+
+Al arrancar, Flask muestra una línea `Running on http://192.168.x.x:5000` con la dirección del PC en la red. Si el PC tiene una VPN o varias redes, puede mostrar otra; en ese caso la que va en el ESP32 es la «Dirección IPv4» del adaptador WiFi que muestra `ipconfig`.
+
+El firewall de Windows bloquea el puerto para otros equipos. Se abre una vez, en una PowerShell como administrador, con la red WiFi marcada como privada:
+
+```powershell
+New-NetFirewallRule -DisplayName "Matera API 5000" -Direction Inbound -Protocol TCP -LocalPort 5000 -Action Allow -Profile Private
+```
+
+Para cerrarlo después de la demo:
+
+```powershell
+Remove-NetFirewallRule -DisplayName "Matera API 5000"
+```
+
+El ESP32 manda la medición así, con el código y la clave que entregó Vincular sensor:
+
+```http
+POST http://192.168.x.x:5000/api/v1/sensores/MT-0001-AA/mediciones
+Content-Type: application/json
+X-Clave-Sensor: <la clave del sensor>
+
+{"humedad": 34.5, "luz": 820, "temperatura": 22.1}
+```
+
+Sin la cabecera `Content-Type: application/json`, la API no lee el cuerpo y responde `400 SOLICITUD_INVALIDA`. Al ESP32 no le aplica CORS, porque no es un navegador.
+
+Con `0.0.0.0`, cualquiera en esa red puede llamar la API, y el token y la clave del sensor viajan sin cifrar, porque es HTTP. Además el servidor de Flask es de desarrollo. Sirve para la demo en una red de confianza; al terminar, cierre la terminal (la variable se borra con ella) y el puerto del firewall.
 
 ## Ejecutar el front
 

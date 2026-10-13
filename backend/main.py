@@ -107,4 +107,4 @@ def construir_app(config: Configuracion) -> Flask:
 
 if __name__ == "__main__":
     configuracion = Configuracion.desde_entorno()
-    construir_app(configuracion).run(host="127.0.0.1", port=configuracion.puerto, debug=False)
+    construir_app(configuracion).run(host=configuracion.host, port=configuracion.puerto, debug=False)

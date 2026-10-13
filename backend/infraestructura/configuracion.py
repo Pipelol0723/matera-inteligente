@@ -23,6 +23,9 @@ class Configuracion:
     duracion_sesion: timedelta = timedelta(days=7)
     # Las pruebas bajan este numero: con 600 000 iteraciones cada registro tarda casi un segundo.
     iteraciones_contrasena: int = ITERACIONES_RECOMENDADAS
+    # Por defecto la API solo responde en este PC. Para que un ESP32 del mismo WiFi la alcance,
+    # MATERA_HOST=0.0.0.0 la abre a la red (y hay que permitir el puerto en el firewall).
+    host: str = "127.0.0.1"
 
     @classmethod
     def desde_entorno(cls) -> "Configuracion":
@@ -32,4 +35,5 @@ class Configuracion:
             ruta_bd=Path(os.environ.get("MATERA_RUTA_BD", _BACKEND / "datos" / "matera.sqlite")),
             origenes_cors=tuple(origen.strip() for origen in origenes.split(",") if origen.strip()),
             duracion_sesion=timedelta(days=float(os.environ.get("MATERA_DIAS_SESION", "7"))),
+            host=os.environ.get("MATERA_HOST", "127.0.0.1").strip(),
         )
