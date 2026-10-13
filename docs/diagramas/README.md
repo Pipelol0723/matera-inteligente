@@ -262,7 +262,9 @@ La primera versión (commit `d00df35`) se apartaba del diseño aprobado en vario
 
 `websocket`, `mqtt_listener` y `NotificadorDiagnosticos` siguen en gris porque de verdad no entran en el corte 2 todavía (MQTT sigue siendo el escenario 5.1 del documento, sin código).
 
-Fuente: [`clases-backend-general.puml`](clases-backend-general.puml) (PlantUML, no Mermaid). Para regenerar la imagen: `java -jar plantuml.jar -tpng clases-backend-general.puml` (puede necesitar `-DPLANTUML_LIMIT_SIZE=20000` para que no recorte el diagrama).
+**Nivel de detalle:** el corte 2 agregó unas 20 clases de caso de uso y varios repositorios SQLite; dibujar cada una por separado hacía el diagrama ilegible. Por eso, igual que el corte 1 solo mostraba `RepositorioEspeciesCsv` como único repositorio, aquí varias clases con el mismo patrón se agrupan en una sola caja (por ejemplo, `ListarUsuarios, CambiarEstadoUsuario, CambiarRol, EliminarUsuario, AgregarEspecie` comparten caja porque todas empiezan con `actor.exigir_admin()`). Para el detalle clase por clase, use los diagramas por capa de la sección anterior.
+
+Fuente: [`clases-backend-general.puml`](clases-backend-general.puml) (PlantUML, no Mermaid). Para regenerar la imagen: `java -jar plantuml.jar -tpng clases-backend-general.puml` (si se recorta, agregar `-DPLANTUML_LIMIT_SIZE=8192`).
 
 ---
 

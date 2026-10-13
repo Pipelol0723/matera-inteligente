@@ -1,16 +1,10 @@
 @startuml diagrama-clases
 
-title Matera inteligente — Diagrama de clases (backend)\nDiagnostico (corte 1) + cuentas, plantas, sensores e historial (corte 2, implementado)\nGris punteado = todavia no implementado (tiempo real / MQTT)
+title Matera inteligente — Diagrama de clases (backend)\n(incluye cuentas, plantas, sensores e historial: implementado en el corte 2)
 
 skinparam classAttributeIconSize 0
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam linetype ortho
-skinparam nodesep 20
-skinparam ranksep 35
-hide circle
-hide empty members
-left to right direction
 skinparam class {
   BackgroundColor White
   ArrowColor #333333
@@ -30,44 +24,22 @@ skinparam enum {
 package "presentacion" #E1D5E7 {
   class "rutas" as RutasApiV1 <<modulo>> {
     + crear_blueprint(diagnosticar, listar, listarParametros): Blueprint
+    Diagnostico y Especies: publicas, sin tocar
   }
 
-  class "rutas_usuarios" as RutasUsuarios <<modulo>> {
-    + crear_blueprint_usuarios(registrar, iniciar, cerrar, consultar, autenticacion): Blueprint
-  }
-
-  class "rutas_admin" as RutasAdmin <<modulo>> {
-    + crear_blueprint_admin(listar, cambiarEstado, cambiarRol, eliminar, agregarEspecie, autenticacion): Blueprint
-  }
-
-  class "rutas_plantas" as RutasPlantas <<modulo>> {
-    + crear_blueprint_plantas(registrar, listar, eliminar, vincular, desvincular,\nconsultarHistorial, diagnosticar, autenticacion): Blueprint
-  }
-
-  class "rutas_sensores" as RutasSensores <<modulo>> {
-    + crear_blueprint_sensores(recibir): Blueprint
+  class "rutas_usuarios, rutas_admin,\nrutas_plantas, rutas_sensores" as RutasCuentas <<modulo>> {
+    + crear_blueprint_usuarios/_admin/_plantas/_sensores(...): Blueprint
+    cada una exige sesion con Autenticacion, menos sensores (clave propia)
   }
 
   class "esquemas" as EsquemasJson <<modulo>> {
     + solicitud_desde_json(cuerpo): SolicitudDiagnostico
-    + medicion_desde_json(cuerpo): Medicion
     + diagnostico_a_json(diagnostico): dict
-    + especie_a_json(especie): dict
-    + parametro_a_json(parametro): dict
   }
 
   class "esquemas_usuarios" as EsquemasUsuariosJson <<modulo>> {
-    + registro_desde_json(cuerpo): (nombre, correo, contrasena)
-    + credenciales_desde_json(cuerpo): (correo, contrasena)
-    + planta_desde_json(cuerpo): (apodo, especie)
-    + codigo_desde_json(cuerpo): string
-    + usuario_a_json(usuario): dict
-    + sesion_a_json(sesion): dict
-    + tarjeta_a_json(tarjeta): dict
-    + historial_a_json(historial): dict
-    + sensor_vinculado_a_json(vinculado): dict
-    + resultado_medicion_a_json(resultado): dict
-    + resumen_a_json(resumen): dict
+    + registro_desde_json / credenciales_desde_json / planta_desde_json(cuerpo)
+    + usuario_a_json / sesion_a_json / tarjeta_a_json / historial_a_json(...)
   }
 
   class EntradaInvalida {
@@ -76,12 +48,8 @@ package "presentacion" #E1D5E7 {
     + detalle: dict
   }
 
-  class "errores_http" as ErroresHttp <<modulo>> {
+  class "errores_http, errores_usuarios" as ErroresHttp <<modulo>> {
     + registrar_manejadores(bp): void
-  }
-
-  class "errores_usuarios" as ErroresUsuariosHttp <<modulo>> {
-    + registrar_manejadores_usuarios(bp): void
   }
 
   class Autenticacion {
@@ -117,92 +85,21 @@ package "aplicacion" #FFF2CC {
     + ejecutar(): Parametro[]
   }
 
-  ' ---- cuentas (aplicacion/cuentas.py) ----
-  class RegistrarUsuario {
-    - usuarios: RepositorioUsuarios
-    - cifrador: Cifrador
-    + ejecutar(nombre, correo, contrasena): Usuario
-  }
-
-  class SesionIniciada {
-    + token: string
-    + venceEn: datetime
-    + usuario: Usuario
-  }
-
   class IniciarSesion {
     - usuarios: RepositorioUsuarios
     - sesiones: RepositorioSesiones
     - cifrador: Cifrador
     - secretos: GeneradorSecretos
-    - reloj: Reloj
-    - duracion: timedelta
     + ejecutar(correo, contrasena): SesionIniciada
   }
 
-  class CerrarSesion {
-    - sesiones: RepositorioSesiones
-    - secretos: GeneradorSecretos
-    + ejecutar(token): void
+  class "RegistrarUsuario, CerrarSesion,\nIdentificarUsuario, ConsultarCuenta" as CasosDeCuenta {
+    mismas dependencias que IniciarSesion:\nsolo puertos, nunca Flask ni SQL
   }
 
-  class IdentificarUsuario {
-    - sesiones: RepositorioSesiones
-    - usuarios: RepositorioUsuarios
-    - secretos: GeneradorSecretos
-    - reloj: Reloj
-    + ejecutar(token): Usuario
-  }
-
-  class CuentaUsuario {
-    + usuario: Usuario
-    + cantidadPlantas: int
-  }
-
-  class ConsultarCuenta {
-    - plantas: RepositorioPlantas
-    + ejecutar(usuario): CuentaUsuario
-  }
-
-  ' ---- administracion (aplicacion/administracion.py) ----
-  class ListarUsuarios {
-    - usuarios: RepositorioUsuarios
-    + ejecutar(actor): ResumenUsuario[]
-  }
-
-  class CambiarEstadoUsuario {
-    - usuarios: RepositorioUsuarios
-    - sesiones: RepositorioSesiones
-    + ejecutar(actor, usuarioId, activo): Usuario
-  }
-
-  class CambiarRol {
-    - usuarios: RepositorioUsuarios
-    + ejecutar(actor, usuarioId, rol): Usuario
-  }
-
-  class EliminarUsuario {
-    - usuarios: RepositorioUsuarios
-    + ejecutar(actor, usuarioId): void
-  }
-
-  class AgregarEspecie {
-    - especies: ConsultaRangos
-    - registro: RegistroEspecies
-    - parametros: Parametro[]
-    + ejecutar(actor, especie): Especie
-  }
-
-  class ConvertirEnAdministrador {
-    - usuarios: RepositorioUsuarios
-    + ejecutar(correo): Usuario
-  }
-
-  ' ---- plantas (aplicacion/plantas.py) ----
-  class PlantaConEstado {
-    + planta: Planta
-    + sensor: Sensor
-    + ultimaMedicion: RegistroMedicion
+  class "ListarUsuarios, CambiarEstadoUsuario,\nCambiarRol, EliminarUsuario,\nAgregarEspecie" as CasosDeAdmin {
+    + ejecutar(actor, ...)
+    cada uno empieza con actor.exigir_admin()
   }
 
   class RegistrarPlanta {
@@ -211,23 +108,8 @@ package "aplicacion" #FFF2CC {
     + ejecutar(usuario, apodo, especie): Planta
   }
 
-  class ListarPlantas {
-    - plantas: RepositorioPlantas
-    - sensores: RepositorioSensores
-    - historial: HistorialMediciones
-    + ejecutar(usuario): PlantaConEstado[]
-  }
-
-  class EliminarPlanta {
-    - plantas: RepositorioPlantas
-    + ejecutar(usuario, plantaId): void
-  }
-
-  ' ---- sensores (aplicacion/sensores.py) ----
-  class SensorVinculado {
-    + planta: Planta
-    + codigo: CodigoSensor
-    + clave: string
+  class "ListarPlantas, EliminarPlanta,\nConsultarHistorial" as CasosDePlanta {
+    la planta siempre se busca junto con su dueno:\najena o inexistente dan el mismo error
   }
 
   class VincularSensor {
@@ -237,46 +119,25 @@ package "aplicacion" #FFF2CC {
     + ejecutar(usuario, plantaId, codigo): SensorVinculado
   }
 
-  class DesvincularSensor {
-    - plantas: RepositorioPlantas
-    - sensores: RepositorioSensores
-    + ejecutar(usuario, plantaId): void
-  }
-
-  class RecibirMedicionDeSensor {
-    - sensores: RepositorioSensores
-    - plantas: RepositorioPlantas
-    - secretos: GeneradorSecretos
-    - diagnosticar: DiagnosticarPlantaDeUsuario
-    + ejecutar(codigo, clave, medicion): ResultadoMedicion
-  }
-
-  ' ---- historial (aplicacion/historial.py) ----
-  class HistorialPlanta {
-    + planta: Planta
-    + registros: RegistroMedicion[]
-  }
-
-  class ConsultarHistorial {
-    - plantas: RepositorioPlantas
-    - historial: HistorialMediciones
-    + ejecutar(usuario, plantaId, limite): HistorialPlanta
-  }
-
-  ' ---- diagnosticar_planta_de_usuario.py: el puente entre el corte 1 y el corte 2 ----
-  class ResultadoMedicion {
-    + planta: Planta
-    + diagnostico: Diagnostico
-    + registro: RegistroMedicion
-  }
-
   class DiagnosticarPlantaDeUsuario {
     - plantas: RepositorioPlantas
     - servicio: ServicioDiagnostico
     - historial: HistorialMediciones
-    - reloj: Reloj
     + ejecutar(usuarioId, plantaId, medicion, origen): ResultadoMedicion
   }
+
+  class RecibirMedicionDeSensor {
+    - sensores: RepositorioSensores
+    - diagnosticar: DiagnosticarPlantaDeUsuario
+    + ejecutar(codigo, clave, medicion): ResultadoMedicion
+  }
+
+  note as NotaCasosDeUso
+    La manual (usuario con sesion) y la del sensor
+    (codigo + clave) terminan en el mismo
+    DiagnosticarPlantaDeUsuario, que reutiliza
+    ServicioDiagnostico del corte 1 sin tocarlo.
+  end note
 }
 
 package "dominio" #D5E8D4 {
@@ -387,50 +248,27 @@ package "dominio" #D5E8D4 {
     -> RangoInvalido
   end note
 
-  ' ================= corte 2: cuentas, plantas, sensores e historial =================
+  ' ---- corte 2: cuentas, plantas, sensores e historial ----
 
   enum Rol {
     USUARIO
     ADMIN
   }
 
-  class Correo {
-    + valor: string
-  }
-
-  class PoliticaContrasena {
-    + {static} MINIMO: int = 8
-    + {static} validar(texto: string): void
-  }
-
   class Usuario {
     + id: int
     + correo: Correo
     + nombre: string
-    - hashContrasena: string
     + rol: Rol = USUARIO
     + activo: bool = true
     + es_admin(): bool
     + exigir_admin(): void
-    + exigir_otro_usuario(usuarioId: int): void
-    + con_estado(activo: bool): Usuario
-    + con_rol(rol: Rol): Usuario
-  }
-
-  class ResumenUsuario {
-    + id: int
-    + correo: string
-    + nombre: string
-    + rol: Rol
-    + activo: bool
-    + cantidadPlantas: int
   }
 
   class Sesion {
     - hashToken: string
     + usuarioId: int
     + venceEn: datetime
-    + {static} abrir(hashToken, usuarioId, ahora, duracion): Sesion
     + vigente(ahora: datetime): bool
   }
 
@@ -440,11 +278,6 @@ package "dominio" #D5E8D4 {
     + apodo: string
     + especie: string
     + es_de(usuarioId: int): bool
-    + mismo_apodo(apodo: string): bool
-  }
-
-  class CodigoSensor {
-    + valor: string
   }
 
   class Sensor {
@@ -453,59 +286,16 @@ package "dominio" #D5E8D4 {
     - hashClave: string
   }
 
-  class LecturaRegistrada {
-    + parametro: Parametro
-    + valor: float
-    + estado: EstadoParametro
-  }
-
   class RegistroMedicion {
     + plantaId: int
     + momento: datetime
     + estado: EstadoGlobal
     + lecturas: LecturaRegistrada[]
     + origen: string
-    + {static} desde(diagnostico, plantaId, momento, origen): RegistroMedicion
   }
 
-  interface RegistroEspecies {
-    + agregar(especie: Especie): void
-  }
-
-  interface RepositorioUsuarios {
-    + por_correo(correo: Correo): Usuario
-    + por_id(usuarioId: int): Usuario
-    + guardar(usuario: Usuario): Usuario
-    + resumenes(): ResumenUsuario[]
-    + eliminar(usuarioId: int): void
-  }
-
-  interface RepositorioSesiones {
-    + guardar(sesion: Sesion): void
-    + por_huella(huella: string): Sesion
-    + eliminar(huella: string): void
-    + eliminar_de_usuario(usuarioId: int): void
-  }
-
-  interface RepositorioPlantas {
-    + guardar(planta: Planta): Planta
-    + de_usuario(usuarioId: int): Planta[]
-    + por_id(usuarioId: int, plantaId: int): Planta
-    + vinculada_a(codigo: CodigoSensor): Planta
-    + eliminar(usuarioId: int, plantaId: int): void
-  }
-
-  interface RepositorioSensores {
-    + por_codigo(codigo: CodigoSensor): Sensor
-    + de_planta(plantaId: int): Sensor
-    + guardar(sensor: Sensor): void
-    + eliminar(codigo: CodigoSensor): void
-  }
-
-  interface HistorialMediciones {
-    + agregar(registro: RegistroMedicion): void
-    + de_planta(plantaId: int, limite: int): RegistroMedicion[]
-    + ultimo_de(plantaId: int): RegistroMedicion
+  interface "RepositorioUsuarios, RepositorioSesiones,\nRepositorioPlantas, RepositorioSensores,\nHistorialMediciones, RegistroEspecies" as PuertosUsuarios {
+    un puerto por agregado (ISP):\nquien solo diagnostica no depende de cuentas
   }
 
   interface Cifrador {
@@ -524,16 +314,11 @@ package "dominio" #D5E8D4 {
   }
 
   note as ErroresUsuariosDominio
-    dominio.errores_usuarios.py
-    ErrorDominio (base)
-    -> CorreoInvalido, NombreInvalido, ContrasenaDebil
-    -> CorreoYaRegistrado, CredencialesInvalidas
-    -> CuentaDesactivada, SesionInvalida, PermisoDenegado
-    -> AccionSobreSiMismo, UsuarioNoEncontrado
-    -> EspecieYaExiste
-    -> PlantaNoEncontrada, ApodoInvalido, ApodoRepetido
-    -> CodigoSensorInvalido, SensorYaVinculado
-    -> PlantaConSensor, PlantaSinSensor, ClaveSensorInvalida
+    dominio.errores_usuarios.py (17 errores)
+    CorreoYaRegistrado, CredencialesInvalidas,
+    SesionInvalida, PermisoDenegado,
+    PlantaNoEncontrada (404: igual si es ajena),
+    SensorYaVinculado, ClaveSensorInvalida...
   end note
 }
 
@@ -543,12 +328,7 @@ package "infraestructura" #DAE8FC {
     + rutaBd: Path
     + origenesCors: string[]
     + duracionSesion: timedelta = 7 dias
-    + iteracionesContrasena: int
     + {static} desdeEntorno(): Configuracion
-  }
-
-  class "servidor_web" as ServidorWeb <<modulo>> {
-    + crear_app(blueprints, config): Flask
   }
 
   class BaseDatos {
@@ -557,64 +337,17 @@ package "infraestructura" #DAE8FC {
     + preparar(esquema, carga): BaseDatos
   }
 
-  class RepositorioEspeciesSqlite {
-    - bd: BaseDatos
-    + rangos_de(especie: string): Especie
-    + listar(): Especie[]
-    + agregar(especie: Especie): void
-  }
-
-  class RepositorioUsuariosSqlite {
-    - bd: BaseDatos
-    + por_correo(correo: Correo): Usuario
-    + por_id(usuarioId: int): Usuario
-    + guardar(usuario: Usuario): Usuario
-    + resumenes(): ResumenUsuario[]
-    + eliminar(usuarioId: int): void
-  }
-
-  class RepositorioSesionesSqlite {
-    - bd: BaseDatos
-    + guardar(sesion: Sesion): void
-    + por_huella(huella: string): Sesion
-    + eliminar(huella: string): void
-    + eliminar_de_usuario(usuarioId: int): void
-  }
-
-  class RepositorioPlantasSqlite {
-    - bd: BaseDatos
-    + guardar(planta: Planta): Planta
-    + de_usuario(usuarioId: int): Planta[]
-    + por_id(usuarioId: int, plantaId: int): Planta
-    + vinculada_a(codigo: CodigoSensor): Planta
-    + eliminar(usuarioId: int, plantaId: int): void
-  }
-
-  class RepositorioSensoresSqlite {
-    - bd: BaseDatos
-    + por_codigo(codigo: CodigoSensor): Sensor
-    + de_planta(plantaId: int): Sensor
-    + guardar(sensor: Sensor): void
-    + eliminar(codigo: CodigoSensor): void
-  }
-
-  class HistorialMedicionesSqlite {
-    - bd: BaseDatos
-    + agregar(registro: RegistroMedicion): void
-    + de_planta(plantaId: int, limite: int): RegistroMedicion[]
-    + ultimo_de(plantaId: int): RegistroMedicion
+  class "RepositorioEspeciesSqlite,\nRepositorioUsuariosSqlite, RepositorioSesionesSqlite,\nRepositorioPlantasSqlite, RepositorioSensoresSqlite,\nHistorialMedicionesSqlite" as ReposSqlite {
+    una conexion de SQLite por operacion,\nFlask atiende cada request en su propio hilo
   }
 
   class CifradorPbkdf2 {
-    - iteraciones: int
-    + cifrar(texto: string): string
-    + verificar(texto: string, cifrado: string): bool
+    - iteraciones: int = 600 000
+    + cifrar/verificar(...): ...
   }
 
   class GeneradorSecretosSeguro {
-    + nuevo(): string
-    + huella(secreto: string): string
-    + coincide(secreto: string, huella: string): bool
+    tokens y claves: 32 bytes aleatorios,\nguardados solo como SHA-256
   }
 
   class RelojSistema {
@@ -633,12 +366,7 @@ package "infraestructura" #DAE8FC {
   }
 }
 
-' ---- script de consola (fuera de las capas: no pasa por la API) ----
-class "crear_admin.py" as CrearAdmin <<script de consola>> {
-  python crear_admin.py correo
-}
-
-' ---- presentacion: rutas -> casos de uso, esquemas y manejo de errores (corte 1) ----
+' ---- presentacion: rutas -> casos de uso, esquemas y manejo de errores ----
 RutasApiV1 ..> DiagnosticarPlanta
 RutasApiV1 ..> ListarEspecies
 RutasApiV1 ..> ListarParametros
@@ -649,70 +377,38 @@ EsquemasJson ..> EntradaInvalida : lanza
 EsquemasJson ..> Diagnostico
 ErroresHttp ..> EntradaInvalida
 ErroresHttp ..> ErroresDominio : atrapa
+ErroresHttp ..> ErroresUsuariosDominio : atrapa
 
-' ---- presentacion: rutas del corte 2 -> casos de uso, esquemas, autenticacion ----
-RutasUsuarios ..> RegistrarUsuario
-RutasUsuarios ..> IniciarSesion
-RutasUsuarios ..> CerrarSesion
-RutasUsuarios ..> ConsultarCuenta
-RutasUsuarios ..> Autenticacion
-RutasUsuarios ..> EsquemasUsuariosJson
-RutasUsuarios ..> ErroresUsuariosHttp
+RutasCuentas ..> CasosDeCuenta
+RutasCuentas ..> IniciarSesion
+RutasCuentas ..> CasosDeAdmin
+RutasCuentas ..> RegistrarPlanta
+RutasCuentas ..> CasosDePlanta
+RutasCuentas ..> VincularSensor
+RutasCuentas ..> DiagnosticarPlantaDeUsuario
+RutasCuentas ..> RecibirMedicionDeSensor
+RutasCuentas ..> Autenticacion
+RutasCuentas ..> EsquemasUsuariosJson
+Autenticacion --> CasosDeCuenta : identificar
 
-RutasAdmin ..> ListarUsuarios
-RutasAdmin ..> CambiarEstadoUsuario
-RutasAdmin ..> CambiarRol
-RutasAdmin ..> EliminarUsuario
-RutasAdmin ..> AgregarEspecie
-RutasAdmin ..> Autenticacion
-RutasAdmin ..> ErroresUsuariosHttp
-
-RutasPlantas ..> RegistrarPlanta
-RutasPlantas ..> ListarPlantas
-RutasPlantas ..> EliminarPlanta
-RutasPlantas ..> VincularSensor
-RutasPlantas ..> DesvincularSensor
-RutasPlantas ..> ConsultarHistorial
-RutasPlantas ..> DiagnosticarPlantaDeUsuario
-RutasPlantas ..> Autenticacion
-RutasPlantas ..> ErroresUsuariosHttp
-
-RutasSensores ..> RecibirMedicionDeSensor
-RutasSensores ..> ErroresUsuariosHttp
-
-Autenticacion --> IdentificarUsuario : identificar
-ErroresUsuariosHttp ..> ErroresUsuariosDominio : atrapa
-
-ServidorWeb ..> Configuracion
-
-' ---- realizaciones (implementa la interfaz): corte 1 ----
+' ---- realizaciones (implementa la interfaz) ----
 ReglaHibrida ..|> ReglaAgregacion
 ReglaConteo ..|> ReglaAgregacion
-RepositorioEspeciesSqlite ..|> ConsultaRangos
-RepositorioEspeciesSqlite ..|> CatalogoEspecies
-RepositorioEspeciesSqlite ..|> RegistroEspecies
-
-' ---- realizaciones: corte 2 ----
-RepositorioUsuariosSqlite ..|> RepositorioUsuarios
-RepositorioSesionesSqlite ..|> RepositorioSesiones
-RepositorioPlantasSqlite ..|> RepositorioPlantas
-RepositorioSensoresSqlite ..|> RepositorioSensores
-HistorialMedicionesSqlite ..|> HistorialMediciones
+ReposSqlite ..|> ConsultaRangos
+ReposSqlite ..|> CatalogoEspecies
+ReposSqlite ..|> PuertosUsuarios
 CifradorPbkdf2 ..|> Cifrador
 GeneradorSecretosSeguro ..|> GeneradorSecretos
 RelojSistema ..|> Reloj
-RepositorioEspeciesSqlite --> BaseDatos : bd
-RepositorioUsuariosSqlite --> BaseDatos : bd
-RepositorioSesionesSqlite --> BaseDatos : bd
-RepositorioPlantasSqlite --> BaseDatos : bd
-RepositorioSensoresSqlite --> BaseDatos : bd
-HistorialMedicionesSqlite --> BaseDatos : bd
+ReposSqlite --> BaseDatos : bd
+NotificadorWebSocket ..|> NotificadorDiagnosticos
 
-' ---- composicion / agregacion (corte 1) ----
+' ---- composicion / agregacion ----
 Medicion "1" *-- "1..3" Lectura
 Diagnostico "1" *-- "1..*" ResultadoParametro
 Especie "1" o-- "0..*" Rango : rangos
 ListarParametros o-- "0..*" Parametro
+RegistroMedicion "1" *-- "1..*" Lectura
 
 ' ---- asociaciones (dependencia por constructor): corte 1 ----
 EvaluadorPlanta --> ReglaAgregacion : regla
@@ -728,93 +424,30 @@ Diagnostico --> EstadoGlobal : estado
 SolicitudDiagnostico --> Medicion : medicion
 DiagnosticarPlanta ..> SolicitudDiagnostico
 
-' ---- cuentas: dominio y dependencias ----
-Usuario --> Correo : correo
+' ---- corte 2: dominio y dependencias por constructor ----
 Usuario --> Rol : rol
-RegistrarUsuario --> RepositorioUsuarios : usuarios
-RegistrarUsuario --> Cifrador : cifrador
-RegistrarUsuario ..> PoliticaContrasena
-IniciarSesion --> RepositorioUsuarios : usuarios
-IniciarSesion --> RepositorioSesiones : sesiones
+IniciarSesion --> PuertosUsuarios : usuarios, sesiones
 IniciarSesion --> Cifrador : cifrador
 IniciarSesion --> GeneradorSecretos : secretos
-IniciarSesion --> Reloj : reloj
-IniciarSesion ..> SesionIniciada : crea
 IniciarSesion ..> Sesion : abre
-CerrarSesion --> RepositorioSesiones : sesiones
-CerrarSesion --> GeneradorSecretos : secretos
-IdentificarUsuario --> RepositorioSesiones : sesiones
-IdentificarUsuario --> RepositorioUsuarios : usuarios
-IdentificarUsuario --> GeneradorSecretos : secretos
-IdentificarUsuario --> Reloj : reloj
-ConsultarCuenta --> RepositorioPlantas : plantas
-ConsultarCuenta ..> CuentaUsuario : crea
-SesionIniciada --> Usuario : usuario
-CuentaUsuario --> Usuario : usuario
-Sesion --> Usuario : usuarioId (ref)
-CrearAdmin ..> ConvertirEnAdministrador
-ConvertirEnAdministrador --> RepositorioUsuarios : usuarios
-
-' ---- administracion: dependencias y la regla de permisos ----
-ListarUsuarios --> RepositorioUsuarios : usuarios
-ListarUsuarios ..> Usuario : actor.exigir_admin()
-CambiarEstadoUsuario --> RepositorioUsuarios : usuarios
-CambiarEstadoUsuario --> RepositorioSesiones : sesiones
-CambiarEstadoUsuario ..> Usuario : actor.exigir_admin()
-CambiarRol --> RepositorioUsuarios : usuarios
-CambiarRol ..> Usuario : actor.exigir_admin()
-EliminarUsuario --> RepositorioUsuarios : usuarios
-EliminarUsuario ..> Usuario : actor.exigir_admin()
-AgregarEspecie --> ConsultaRangos : especies
-AgregarEspecie --> RegistroEspecies : registro
-AgregarEspecie ..> Usuario : actor.exigir_admin()
-
-' ---- plantas: dominio y dependencias ----
-Planta --> Usuario : usuarioId (ref)
-RegistrarPlanta --> RepositorioPlantas : plantas
+CasosDeCuenta --> PuertosUsuarios
+CasosDeAdmin --> PuertosUsuarios
+CasosDeAdmin ..> Usuario : actor.exigir_admin()
+RegistrarPlanta --> PuertosUsuarios : plantas
 RegistrarPlanta --> ConsultaRangos : especies
-ListarPlantas --> RepositorioPlantas : plantas
-ListarPlantas --> RepositorioSensores : sensores
-ListarPlantas --> HistorialMediciones : historial
-ListarPlantas ..> PlantaConEstado : crea
-PlantaConEstado --> Planta : planta
-PlantaConEstado --> Sensor : sensor
-PlantaConEstado --> RegistroMedicion : ultimaMedicion
-EliminarPlanta --> RepositorioPlantas : plantas
-
-' ---- sensores: dominio y dependencias ----
-Sensor --> CodigoSensor : codigo
-Sensor --> Planta : plantaId (ref)
-VincularSensor --> RepositorioPlantas : plantas
-VincularSensor --> RepositorioSensores : sensores
+CasosDePlanta --> PuertosUsuarios
+VincularSensor --> PuertosUsuarios : plantas, sensores
 VincularSensor --> GeneradorSecretos : secretos
-VincularSensor ..> SensorVinculado : crea
-DesvincularSensor --> RepositorioPlantas : plantas
-DesvincularSensor --> RepositorioSensores : sensores
-RecibirMedicionDeSensor --> RepositorioSensores : sensores
-RecibirMedicionDeSensor --> RepositorioPlantas : plantas
-RecibirMedicionDeSensor --> GeneradorSecretos : secretos
+RecibirMedicionDeSensor --> PuertosUsuarios : sensores
 RecibirMedicionDeSensor --> DiagnosticarPlantaDeUsuario : diagnosticar
 
-' ---- historial: dominio y dependencias ----
-RegistroMedicion "1" *-- "1..*" LecturaRegistrada
+' ---- el puente entre el corte 1 y el corte 2: la unica conexion real -------
+DiagnosticarPlantaDeUsuario --> PuertosUsuarios : plantas, historial
+DiagnosticarPlantaDeUsuario -[#B85450,bold]-> ServicioDiagnostico : servicio\n(compone el nucleo, no lo modifica)
+Planta --> Usuario : usuarioId (ref)
+Sensor --> Planta : plantaId (ref)
 RegistroMedicion --> Planta : plantaId (ref)
 RegistroMedicion --> EstadoGlobal : estado
-LecturaRegistrada --> Parametro : parametro
-LecturaRegistrada --> EstadoParametro : estado
-ConsultarHistorial --> RepositorioPlantas : plantas
-ConsultarHistorial --> HistorialMediciones : historial
-ConsultarHistorial ..> HistorialPlanta : crea
-HistorialPlanta --> Planta : planta
-
-' ---- el puente entre el corte 1 y el corte 2: la unica conexion real -------
-DiagnosticarPlantaDeUsuario --> RepositorioPlantas : plantas
-DiagnosticarPlantaDeUsuario -[#B85450,bold]-> ServicioDiagnostico : servicio\n(compone el nucleo, no lo modifica)
-DiagnosticarPlantaDeUsuario --> HistorialMediciones : historial
-DiagnosticarPlantaDeUsuario --> Reloj : reloj
-DiagnosticarPlantaDeUsuario ..> ResultadoMedicion : crea
-ResultadoMedicion --> Diagnostico : diagnostico
-ResultadoMedicion --> RegistroMedicion : registro
 
 ' =========================================================================
 ' TIEMPO REAL — websocket y MQTT (futuro, todavia no implementado).
@@ -823,11 +456,8 @@ ResultadoMedicion --> RegistroMedicion : registro
 ' =========================================================================
 WebSocketPlantas ..> Autenticacion : (futuro) reutilizaria el token
 WebSocketPlantas -[#B85450,bold]-> DiagnosticarPlantaDeUsuario : mismo caso de uso\nque la ruta REST
-
 MqttListener -[#B85450,bold]-> DiagnosticarPlantaDeUsuario : mismo caso de uso\n(escenario MQTT del enunciado)
-
 DiagnosticarPlantaDeUsuario --> NotificadorDiagnosticos : notificador (futuro)
-NotificadorWebSocket ..|> NotificadorDiagnosticos
 NotificadorWebSocket ..> WebSocketPlantas : empuja por el socket
 
 @enduml
