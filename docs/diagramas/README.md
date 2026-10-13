@@ -244,24 +244,25 @@ Fuente: [`secuencia-admin-especie.mmd`](secuencia-admin-especie.mmd). Corte 2.
 
 ---
 
-## Propuesta no adoptada: diagrama general del backend
+## Vista general: diagrama de clases del backend
 
 ![Diagrama de clases del backend](clases-backend-general.png)
 
-Propuesta de Roger del 1 de octubre: las cuatro capas del backend y un módulo de usuarios en una sola imagen. **No es el diseño aprobado del corte 2** y se conserva solo como registro. Si contradice a otro diagrama de esta carpeta, vale el otro.
+Propuesta de Roger del 1 de octubre, **revisada el 12 de octubre de 2026** para corregir las diferencias que tenía con el diseño aprobado del corte 2. Combina en una sola imagen las cuatro capas del backend más websocket y MQTT (todavía no implementados, en gris punteado). **No reemplaza los diagramas por capa de la sección anterior**: si contradice a alguno de ellos, vale el otro.
 
-En qué se aparta del diseño aprobado:
+La primera versión (commit `d00df35`) se apartaba del diseño aprobado en varios puntos; esta revisión ya los corrige:
 
-| La propuesta | El diseño aprobado |
+| Tenía la propuesta original | Tiene esta revisión, igual que el diseño aprobado |
 |---|---|
-| `VerificadorJwt`: token JWT | Token opaco: la base guarda su huella SHA-256 y su vencimiento. JWT fue la alternativa descartada, porque cerrar sesión o desactivar una cuenta no lo invalida. |
-| `websocket`, `mqtt_listener`, `NotificadorDiagnosticos` | No entran en el corte 2. MQTT sigue siendo el escenario 5.1 del documento. |
-| `RepositorioEspeciesCsv` | Las especies pasan a SQLite y el CSV se elimina. |
-| `rutas` usa el decorador de autenticación | `rutas.py` no se toca: Diagnóstico y Especies siguen siendo públicas. |
-| Paquete «usuarios» aparte | Cada clase nueva va en su capa: dominio, aplicación, presentación o infraestructura. |
-| `PlantaNoPertenece` (403) | Una planta ajena responde 404, porque un 403 confirmaría que existe. |
+| `VerificadorJwt`: token JWT | Token opaco: la base guarda su huella SHA-256 y su vencimiento, como `RepositorioSesiones` en el código. |
+| `RepositorioEspeciesCsv` | `RepositorioEspeciesSqlite`, igual que el código. |
+| `rutas` usaba el decorador de autenticación | `rutas.py` sigue sin tocarse: Diagnóstico y Especies siguen siendo públicas. |
+| Paquete «usuarios» aparte | Cada clase va en su capa real: dominio, aplicación, presentación o infraestructura. |
+| `PlantaNoPertenece` (403) | `PlantaNoEncontrada` (404): una planta ajena responde igual que una inexistente. |
 
-Tampoco tiene fuente `.mmd`, así que no se puede regenerar cuando cambie el código.
+`websocket`, `mqtt_listener` y `NotificadorDiagnosticos` siguen en gris porque de verdad no entran en el corte 2 todavía (MQTT sigue siendo el escenario 5.1 del documento, sin código).
+
+Fuente: [`clases-backend-general.puml`](clases-backend-general.puml) (PlantUML, no Mermaid). Para regenerar la imagen: `java -jar plantuml.jar -tpng clases-backend-general.puml` (puede necesitar `-DPLANTUML_LIMIT_SIZE=20000` para que no recorte el diagrama).
 
 ---
 
