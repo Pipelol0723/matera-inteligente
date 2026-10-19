@@ -10,6 +10,9 @@ venv/
 .vscode/
 .idea/
 
+# Configuracion del firmware: lleva la clave del WiFi y la del sensor (la plantilla es config.example.h)
+firmware/**/config.h
+
 # Base de datos de desarrollo (en una carpeta sincronizada, mejor apuntarla afuera con MATERA_RUTA_BD)
 backend/datos/*.sqlite
 backend/datos/*.sqlite-journal
