@@ -7,59 +7,139 @@ tiempo o no sirve, el servidor responde un error y cierra.
 
 Despues de eso solo habla el servidor: {"tipo": "listo"} y luego un mensaje
 {"tipo": "medicion"} por cada medicion nueva de las plantas del usuario. Todo
-mensaje es JSON (RA1). CORS no aplica a los WebSocket, asi que el Origin se
-revisa aqui, contra los mismos origenes del front.
+mensaje es JSON (RA1), tambien los errores inesperados. CORS no aplica a los
+WebSocket, asi que el Origin se revisa aqui, contra los mismos origenes del front.
 """
 import json
+import logging
+import queue
+import socket
 import threading
 import time
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from contextlib import AbstractContextManager
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from flask import Blueprint, request
 from flask_sock import Sock
+from simple_websocket import ConnectionClosed
 from werkzeug.routing.exceptions import WebsocketMismatch
+from wsproto.utilities import RemoteProtocolError
 
 from aplicacion.cuentas import IdentificarUsuario
 from dominio.errores_usuarios import SesionInvalida
 from presentacion.errores_http import respuesta_error
 
+_log = logging.getLogger(__name__)
+
 RUTA = "/api/v1/tiempo-real"
 # Segundos que se espera el mensaje con el token.
 ESPERA_AUTENTICACION = 5
-# Cada cuantos segundos se revisa que la sesion siga valida (cerrada, vencida o cuenta desactivada).
+# Cada cuantos segundos se revisa la sesion de una conexion que no recibe nada.
 REVISION_SESION = 60
-# Codigo de cierre de WebSocket para "violacion de politica" (RFC 6455).
-_CIERRE_POR_POLITICA = 1008
+# Mensajes que pueden esperar en la cola de una pestana. Si se llena, la pestana no esta leyendo.
+COLA_MAXIMA = 32
+# Cuanto se espera a que salga el ultimo mensaje antes de cerrar.
+ESPERA_CIERRE = 5
+# Codigos de cierre de WebSocket (RFC 6455): violacion de politica y error del servidor.
+CIERRE_POR_POLITICA = 1008
+CIERRE_POR_ERROR = 1011
+
+
+@dataclass(frozen=True)
+class _Cierre:
+    codigo: int
+    motivo: str
 
 
 class CanalWebSocket:
-    """Una conexion abierta.
+    """Una conexion abierta, con su propia cola de mensajes y su hilo emisor.
 
-    Dos mediciones pueden llegar al mismo tiempo, cada una en su hilo: el candado
-    evita que sus mensajes se mezclen en el socket.
+    El hilo que trae una medicion (el POST del sensor) nunca escribe en el
+    socket: deja el mensaje en la cola y sigue. El emisor los manda en orden. Si
+    la pestana deja de leer y la cola se llena, se corta la conexion: asi un
+    cliente lento no traba el POST del sensor ni a las otras pestanas del usuario.
     """
 
     def __init__(self, ws: Any):
         self._ws = ws
-        self._candado = threading.Lock()
+        self._cola: queue.Queue = queue.Queue(maxsize=COLA_MAXIMA)
+        self._revisar_sesion: Callable[[], object] | None = None
+        self._emisor = threading.Thread(target=self._enviar_en_orden, name="tiempo-real", daemon=True)
+        self._emisor.start()
+
+    def autenticado(self, revisar_sesion: Callable[[], object]) -> None:
+        """Desde aqui, antes de cada medicion se revisa la sesion.
+
+        Asi una cuenta borrada o desactivada no recibe nada mas, aunque falten
+        segundos para la revision periodica, y aunque una cuenta nueva herede su id.
+        """
+        self._revisar_sesion = revisar_sesion
 
     def enviar(self, texto: str) -> None:
-        with self._candado:
-            self._ws.send(texto)
+        """Lo llama CanalesTiempoReal desde el hilo de la medicion. Si el canal ya no sirve, lanza ConnectionError."""
+        if self._revisar_sesion is not None:
+            try:
+                self._revisar_sesion()
+            except SesionInvalida as error:
+                self._encolar_cierre("SESION_INVALIDA", str(error), CIERRE_POR_POLITICA)
+                raise ConnectionError("La sesion de esta conexion ya no es valida.") from None
+        self._encolar(texto)
 
     def enviar_json(self, mensaje: dict[str, Any]) -> None:
-        self.enviar(json.dumps(mensaje, ensure_ascii=False))
+        self._encolar(json.dumps(mensaje, ensure_ascii=False))
 
     def recibir(self, espera: float) -> str | bytes | None:
         """None si no llega nada en `espera` segundos. Si el cliente cerro, lanza ConnectionClosed."""
         return self._ws.receive(timeout=espera)
 
-    def cerrar_con_error(self, error: str, mensaje: str) -> None:
-        self.enviar_json({"tipo": "error", "error": error, "mensaje": mensaje})
-        with self._candado:
-            self._ws.close(reason=_CIERRE_POR_POLITICA, message=error)
+    def cerrar_con_error(self, error: str, mensaje: str, codigo: int = CIERRE_POR_POLITICA) -> None:
+        """Manda el error en JSON y cierra. Espera a que salga: despues flask-sock cierra el socket."""
+        self._encolar_cierre(error, mensaje, codigo)
+        self._emisor.join(timeout=ESPERA_CIERRE)
+
+    def terminar(self) -> None:
+        """La conexion termino: el emisor se detiene."""
+        try:
+            self._cola.put_nowait(None)
+        except queue.Full:
+            self._cortar()
+
+    def _encolar(self, elemento: str | _Cierre) -> None:
+        try:
+            self._cola.put_nowait(elemento)
+        except queue.Full:
+            self._cortar()
+            raise ConnectionError("La pestana no esta leyendo los mensajes.") from None
+
+    def _encolar_cierre(self, error: str, mensaje: str, codigo: int) -> None:
+        try:
+            self._encolar(json.dumps({"tipo": "error", "error": error, "mensaje": mensaje}, ensure_ascii=False))
+            self._encolar(_Cierre(codigo, error))
+        except ConnectionError:
+            pass  # la cola estaba llena y la conexion ya se corto
+
+    def _enviar_en_orden(self) -> None:
+        while True:
+            elemento = self._cola.get()
+            if elemento is None:
+                return
+            try:
+                if isinstance(elemento, _Cierre):
+                    self._ws.close(reason=elemento.codigo, message=elemento.motivo)
+                    return
+                self._ws.send(elemento)
+            except Exception:  # ConnectionClosed u OSError: la pestana ya no esta
+                self._cortar()
+                return
+
+    def _cortar(self) -> None:
+        # Cortar el socket destraba el envio que este esperando y la espera del hilo de la conexion.
+        try:
+            self._ws.sock.shutdown(socket.SHUT_RDWR)
+        except (AttributeError, OSError):
+            pass
 
 
 class Suscripciones(Protocol):
@@ -95,18 +175,16 @@ def crear_blueprint_tiempo_real(
     @Sock().route(RUTA, bp=bp)
     def tiempo_real(ws):
         canal = CanalWebSocket(ws)
-        token = _token_del_primer_mensaje(canal)
-        if token is None:
-            return
         try:
-            usuario = identificar.ejecutar(token)
-        except SesionInvalida as error:
-            canal.cerrar_con_error("SESION_INVALIDA", str(error))
-            return
-
-        canal.enviar_json({"tipo": "listo", "usuario": {"id": usuario.id, "nombre": usuario.nombre}})
-        with suscripciones.conectado(usuario.id, canal):
-            _esperar_hasta_que_cierre(canal, identificar, token)
+            _atender(canal, identificar, suscripciones)
+        except ConnectionClosed:
+            raise  # el cliente cerro: flask-sock termina la conexion
+        except Exception:
+            # Ya no se puede responder un 500 por HTTP: el socket habla WebSocket. El error va en JSON.
+            _log.exception("Error inesperado en la conexion en vivo.")
+            canal.cerrar_con_error("ERROR_INTERNO", "Ocurrió un error inesperado en el servidor.", CIERRE_POR_ERROR)
+        finally:
+            canal.terminar()
 
     @bp.app_errorhandler(WebsocketMismatch)
     def websocket_equivocado(error: WebsocketMismatch):
@@ -117,7 +195,34 @@ def crear_blueprint_tiempo_real(
             mensaje = f"{request.path} no es un WebSocket: pídala por HTTP."
         return respuesta_error(400, "SOLICITUD_INVALIDA", mensaje, {"ruta": request.path})
 
+    @bp.app_errorhandler(RemoteProtocolError)
+    def apertura_invalida(error: RemoteProtocolError):
+        # Un pedido de apertura sin Sec-WebSocket-Key o con otra version: es un error del cliente, no un 500.
+        return respuesta_error(
+            400,
+            "SOLICITUD_INVALIDA",
+            "El pedido para abrir el WebSocket no es válido: faltan Sec-WebSocket-Key o Sec-WebSocket-Version: 13.",
+            {"ruta": request.path},
+        )
+
     return bp
+
+
+def _atender(canal: CanalWebSocket, identificar: IdentificarUsuario, suscripciones: Suscripciones) -> None:
+    token = _token_del_primer_mensaje(canal)
+    if token is None:
+        return
+    try:
+        usuario = identificar.ejecutar(token)
+    except SesionInvalida as error:
+        canal.cerrar_con_error("SESION_INVALIDA", str(error))
+        return
+
+    canal.autenticado(lambda: identificar.ejecutar(token))
+    # Primero se registra y despues se dice "listo": desde ese mensaje no se pierde ninguna medicion.
+    with suscripciones.conectado(usuario.id, canal):
+        canal.enviar_json({"tipo": "listo", "usuario": {"id": usuario.id, "nombre": usuario.nombre}})
+        _esperar_hasta_que_cierre(canal, identificar, token)
 
 
 def _token_del_primer_mensaje(canal: CanalWebSocket) -> str | None:
@@ -127,13 +232,17 @@ def _token_del_primer_mensaje(canal: CanalWebSocket) -> str | None:
         return None
     try:
         mensaje = json.loads(texto)
-    except ValueError:
+    except (ValueError, RecursionError):  # RecursionError: un JSON anidado miles de veces
         mensaje = None
     token = mensaje.get("token") if isinstance(mensaje, dict) and mensaje.get("tipo") == "autenticar" else None
     if not isinstance(token, str) or not token.strip():
         canal.cerrar_con_error(
             "SOLICITUD_INVALIDA", 'El primer mensaje debe ser {"tipo": "autenticar", "token": "..."}.'
         )
+        return None
+    if not token.isascii():
+        # Los tokens que entrega la API son ASCII; uno con otros caracteres no puede ser valido.
+        canal.cerrar_con_error("SESION_INVALIDA", str(SesionInvalida()))
         return None
     return token.strip()
 
@@ -142,9 +251,8 @@ def _esperar_hasta_que_cierre(canal: CanalWebSocket, identificar: IdentificarUsu
     """El front no manda nada mas: cualquier otro mensaje se ignora.
 
     Cada REVISION_SESION segundos se revisa la sesion, aunque el cliente mande
-    mensajes. Si se cerro, vencio o un admin desactivo la cuenta, el canal se
-    cierra. Cuando el cliente cierra, recibir() lanza ConnectionClosed y
-    flask-sock termina la conexion.
+    mensajes, para cerrar tambien las conexiones que no reciben mediciones. Cuando
+    el cliente cierra, recibir() lanza ConnectionClosed y flask-sock termina la conexion.
     """
     revisada = time.monotonic()
     while True:

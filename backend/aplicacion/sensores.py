@@ -29,7 +29,7 @@ class ReemplazarSensor:
             raise SensorYaVinculado(codigo_valido.valor)
 
         clave = self._secretos.nuevo()
-        self._sensores.reemplazar(Sensor(codigo_valido, planta.id, self._secretos.huella(clave)))
+        self._sensores.reemplazar(usuario.id, Sensor(codigo_valido, planta.id, self._secretos.huella(clave)))
         return SensorVinculado(planta, codigo_valido, clave)
 
 
@@ -61,7 +61,8 @@ class RecibirMedicionDeSensor:
         sensor = self._sensores.por_codigo(codigo_valido)
         if sensor is None or not self._secretos.coincide(clave, sensor.hash_clave):
             raise ClaveSensorInvalida()
-        planta = self._plantas.vinculada_a(codigo_valido)
+        # La planta de ese mismo sensor: si cambio desde que se verifico la clave, no se acepta.
+        planta = self._plantas.vinculada_a(sensor)
         if planta is None:
             raise ClaveSensorInvalida()
         return self._diagnosticar.ejecutar(planta.usuario_id, planta.id, medicion, origen=codigo_valido.valor)

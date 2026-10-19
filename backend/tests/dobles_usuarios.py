@@ -11,7 +11,13 @@ from dataclasses import replace
 from datetime import datetime, timedelta
 
 from dominio.diagnostico import Diagnostico
-from dominio.errores_usuarios import ApodoRepetido, CorreoYaRegistrado, EspecieYaExiste, SensorYaVinculado
+from dominio.errores_usuarios import (
+    ApodoRepetido,
+    CorreoYaRegistrado,
+    EspecieYaExiste,
+    PlantaNoEncontrada,
+    SensorYaVinculado,
+)
 from dominio.especie import Especie
 from dominio.historial import RegistroMedicion
 from dominio.plantas import Planta
@@ -44,6 +50,8 @@ class EspeciesEditablesEnMemoria(RepositorioEspeciesEnMemoria, RegistroEspecies)
 class RepositorioSensoresEnMemoria(RepositorioSensores):
     def __init__(self):
         self._sensores: dict[str, Sensor] = {}
+        # Lo conecta RepositorioPlantasEnMemoria: el dueno de una planta, como el JOIN de la base.
+        self.dueno_de = lambda planta_id: None
 
     def por_codigo(self, codigo: CodigoSensor) -> Sensor | None:
         return self._sensores.get(codigo.valor)
@@ -51,7 +59,9 @@ class RepositorioSensoresEnMemoria(RepositorioSensores):
     def de_planta(self, planta_id: int) -> Sensor | None:
         return next((s for s in self._sensores.values() if s.planta_id == planta_id), None)
 
-    def reemplazar(self, sensor: Sensor) -> None:
+    def reemplazar(self, usuario_id: int, sensor: Sensor) -> None:
+        if self.dueno_de(sensor.planta_id) != usuario_id:
+            raise PlantaNoEncontrada(sensor.planta_id)
         en_uso = self._sensores.get(sensor.codigo.valor)
         if en_uso is not None and en_uso.planta_id != sensor.planta_id:
             raise SensorYaVinculado(sensor.codigo.valor)
@@ -68,6 +78,7 @@ class RepositorioPlantasEnMemoria(RepositorioPlantas):
         self._plantas: dict[int, Planta] = {}
         self._siguiente_id = 1
         self._sensores = sensores or RepositorioSensoresEnMemoria()
+        self._sensores.dueno_de = lambda planta_id: getattr(self._plantas.get(planta_id), "usuario_id", None)
 
     def guardar_con_sensor(self, planta: Planta, codigo: CodigoSensor, hash_clave: str) -> Planta:
         # Revisa todo antes de guardar nada, como la transaccion de la base.
@@ -78,7 +89,7 @@ class RepositorioPlantasEnMemoria(RepositorioPlantas):
         guardada = replace(planta, id=self._siguiente_id)
         self._plantas[guardada.id] = guardada
         self._siguiente_id += 1
-        self._sensores.reemplazar(Sensor(codigo, guardada.id, hash_clave))
+        self._sensores.reemplazar(guardada.usuario_id, Sensor(codigo, guardada.id, hash_clave))
         return guardada
 
     def de_usuario(self, usuario_id: int) -> list[Planta]:
@@ -88,9 +99,11 @@ class RepositorioPlantasEnMemoria(RepositorioPlantas):
         planta = self._plantas.get(planta_id)
         return planta if planta is not None and planta.es_de(usuario_id) else None
 
-    def vinculada_a(self, codigo: CodigoSensor) -> Planta | None:
-        sensor = self._sensores.por_codigo(codigo)
-        return self._plantas.get(sensor.planta_id) if sensor else None
+    def vinculada_a(self, sensor: Sensor) -> Planta | None:
+        # Solo si el sensor guardado sigue siendo ese mismo (codigo, planta y huella). Lee lo guardado
+        # y no por_codigo(), que una prueba puede reemplazar para simular una lectura vieja.
+        guardado = self._sensores._sensores.get(sensor.codigo.valor)
+        return self._plantas.get(sensor.planta_id) if guardado == sensor else None
 
     def eliminar(self, usuario_id: int, planta_id: int) -> None:
         if self.por_id(usuario_id, planta_id) is not None:

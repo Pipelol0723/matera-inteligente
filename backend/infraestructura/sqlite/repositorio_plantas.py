@@ -1,13 +1,17 @@
 """Plantas y sensores en SQLite.
 
 Toda consulta de plantas filtra por usuario_id, salvo vinculada_a(), que solo
-se usa despues de verificar la clave del sensor.
+se usa despues de verificar la clave del sensor y exige que el sensor sea el mismo.
+
+SQLite no dice que restriccion fallo en un error de llave foranea, y reutiliza
+el id mas alto despues de borrarlo. Por eso las escrituras que dependen de otra
+fila la revisan dentro de la misma operacion.
 """
 import sqlite3
 from dataclasses import replace
 
 from dominio.errores import EspecieNoSoportada
-from dominio.errores_usuarios import ApodoRepetido, SensorYaVinculado
+from dominio.errores_usuarios import ApodoRepetido, PlantaNoEncontrada, SensorYaVinculado, SesionInvalida
 from dominio.plantas import Planta
 from dominio.puertos_usuarios import RepositorioPlantas, RepositorioSensores
 from dominio.sensores import CodigoSensor, Sensor
@@ -36,14 +40,23 @@ class RepositorioPlantasSqlite(RepositorioPlantas):
                 conexion.execute(_INSERTAR_SENSOR, (codigo.valor, cursor.lastrowid, hash_clave))
         except sqlite3.IntegrityError as error:
             # La base respalda las tres reglas que ya revisa RegistrarPlanta.
-            if "sensor.codigo" in str(error):
+            mensaje = str(error)
+            if "sensor.codigo" in mensaje:
                 raise SensorYaVinculado(codigo.valor) from None
-            if "UNIQUE" in str(error):
+            if "planta.usuario_id, planta.apodo" in mensaje:
                 raise ApodoRepetido(planta.apodo) from None
-            if "FOREIGN KEY" in str(error):
+            if "FOREIGN KEY" in mensaje:
+                # Fallo la especie o el usuario: si la especie existe, a la cuenta la borraron
+                # mientras se atendia la peticion.
+                if self._especie_existe(planta.especie):
+                    raise SesionInvalida() from None
                 raise EspecieNoSoportada(planta.especie) from None
             raise
         return replace(planta, id=cursor.lastrowid)
+
+    def _especie_existe(self, nombre: str) -> bool:
+        with self._bd.conexion() as conexion:
+            return conexion.execute("SELECT 1 FROM especie WHERE nombre = ?", (nombre,)).fetchone() is not None
 
     def de_usuario(self, usuario_id: int) -> list[Planta]:
         with self._bd.conexion() as conexion:
@@ -59,11 +72,13 @@ class RepositorioPlantasSqlite(RepositorioPlantas):
             ).fetchone()
         return _planta(fila) if fila else None
 
-    def vinculada_a(self, codigo: CodigoSensor) -> Planta | None:
+    def vinculada_a(self, sensor: Sensor) -> Planta | None:
+        # Codigo, planta y huella: si entre tanto se cambio el sensor, la fila ya no coincide.
         with self._bd.conexion() as conexion:
             fila = conexion.execute(
-                f"SELECT {_COLUMNAS_PLANTA} FROM planta p JOIN sensor s ON s.planta_id = p.id WHERE s.codigo = ?",
-                (codigo.valor,),
+                f"SELECT {_COLUMNAS_PLANTA} FROM planta p JOIN sensor s ON s.planta_id = p.id"
+                " WHERE s.codigo = ? AND s.planta_id = ? AND s.hash_clave = ?",
+                (sensor.codigo.valor, sensor.planta_id, sensor.hash_clave),
             ).fetchone()
         return _planta(fila) if fila else None
 
@@ -83,12 +98,20 @@ class RepositorioSensoresSqlite(RepositorioSensores):
     def de_planta(self, planta_id: int) -> Sensor | None:
         return self._uno("SELECT codigo, planta_id, hash_clave FROM sensor WHERE planta_id = ?", (planta_id,))
 
-    def reemplazar(self, sensor: Sensor) -> None:
+    def reemplazar(self, usuario_id: int, sensor: Sensor) -> None:
+        # Una sola transaccion: si el codigo nuevo es de otra planta, esta conserva su sensor. Las dos
+        # sentencias exigen que la planta siga siendo del usuario: otra pestana pudo borrarla, y su id
+        # pudo pasar a la planta nueva de otro usuario.
+        propia = "SELECT id FROM planta WHERE id = ? AND usuario_id = ?"
         try:
-            # Una sola transaccion: si el codigo nuevo es de otra planta, esta conserva su sensor.
             with self._bd.conexion() as conexion:
-                conexion.execute("DELETE FROM sensor WHERE planta_id = ?", (sensor.planta_id,))
-                conexion.execute(_INSERTAR_SENSOR, (sensor.codigo.valor, sensor.planta_id, sensor.hash_clave))
+                conexion.execute(f"DELETE FROM sensor WHERE planta_id IN ({propia})", (sensor.planta_id, usuario_id))
+                insertado = conexion.execute(
+                    f"INSERT INTO sensor (codigo, planta_id, hash_clave) SELECT ?, id, ? FROM ({propia})",
+                    (sensor.codigo.valor, sensor.hash_clave, sensor.planta_id, usuario_id),
+                )
+                if insertado.rowcount == 0:
+                    raise PlantaNoEncontrada(sensor.planta_id)  # deshace el DELETE
         except sqlite3.IntegrityError as error:
             if "sensor.codigo" in str(error):
                 raise SensorYaVinculado(sensor.codigo.valor) from None

@@ -22,7 +22,7 @@ from dominio.parametros import HUMEDAD, LUZ, TEMPERATURA
 from dominio.rango import Rango
 from dominio.recomendaciones import GeneradorRecomendaciones
 from dominio.reglas import ReglaHibrida
-from dominio.sensores import CodigoSensor
+from dominio.sensores import CodigoSensor, Sensor
 from dominio.servicio_diagnostico import ServicioDiagnostico
 from dominio.usuarios import Correo, Usuario
 from tests.dobles import medicion, sansevieria
@@ -239,6 +239,30 @@ def test_el_sensor_recibe_el_mismo_error_sin_importar_que_fallo_y_no_se_guarda_n
     with pytest.raises(ClaveSensorInvalida):
         sistema.recibir.ejecutar(codigo, clave, medicion(30, 800, 22))
     assert sistema.historial.registros == []
+
+
+def test_una_clave_revocada_mientras_llegaba_la_medicion_no_escribe_en_la_planta_que_tomo_el_codigo(
+    sistema, matera_de_ana, monkeypatch
+):
+    viejo = sistema.sensores.por_codigo(CodigoSensor("MT-0001-AA"))
+    # Ana cambia de sensor y Beto toma el codigo libre justo despues de que se verifico la clave vieja.
+    sistema.reemplazar.ejecutar(ANA, matera_de_ana.planta.id, "MT-0002-BB")
+    sistema.registrar.ejecutar(BETO, "Patio", "potos", "MT-0001-AA")
+    monkeypatch.setattr(sistema.sensores, "por_codigo", lambda codigo: viejo)
+
+    with pytest.raises(ClaveSensorInvalida):
+        sistema.recibir.ejecutar("MT-0001-AA", matera_de_ana.clave, medicion(30, 800, 22))
+
+    assert sistema.historial.registros == []
+    assert sistema.notificador.avisos == []
+
+
+def test_no_se_cambia_el_sensor_de_una_planta_que_se_borro_mientras_tanto(sistema, matera_de_ana):
+    # buscar_planta_propia ya la encontro, pero otra pestana la borra antes de guardar el sensor.
+    sistema.plantas.eliminar(ANA.id, matera_de_ana.planta.id)
+
+    with pytest.raises(PlantaNoEncontrada):
+        sistema.sensores.reemplazar(ANA.id, Sensor(CodigoSensor("MT-0002-BB"), matera_de_ana.planta.id, "h"))
 
 
 def test_el_historial_trae_lo_mas_reciente_primero_y_respeta_el_limite(sistema, matera_de_ana):

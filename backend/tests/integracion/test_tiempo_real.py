@@ -1,15 +1,21 @@
-"""Tiempo real: las conexiones abiertas de cada usuario y el mensaje de cada medicion nueva."""
+"""Tiempo real: las conexiones abiertas de cada usuario, la cola de cada pestana y el mensaje de cada medicion."""
 import json
+import sys
 import threading
 from datetime import datetime, timezone
 
+import pytest
+
+from dominio.errores_usuarios import SesionInvalida
 from dominio.evaluador import EvaluadorPlanta
 from dominio.historial import RegistroMedicion
 from dominio.plantas import Planta
 from dominio.recomendaciones import GeneradorRecomendaciones
 from dominio.reglas import ReglaHibrida
 from infraestructura.tiempo_real import CanalesTiempoReal, NotificadorWebSocket
+from presentacion import tiempo_real
 from presentacion.esquemas_usuarios import medicion_en_vivo_a_json
+from presentacion.tiempo_real import CanalWebSocket
 from tests.dobles import medicion, sansevieria
 
 ANA, BETO = 1, 2
@@ -59,30 +65,35 @@ def test_una_conexion_que_falla_se_quita_y_las_demas_igual_reciben():
     assert abierta.recibidos == ["medicion"]
 
 
-def test_los_canales_aguantan_hilos_que_se_conectan_y_envian_a_la_vez():
+def test_los_canales_aguantan_hilos_que_se_conectan_desconectan_y_envian_a_la_vez():
+    # Cada hilo abre y cierra pestanas sin parar, y manda mientras otras se van. Con el cambio de
+    # hilo forzado a cada microsegundo, sin el candado se pierden pestanas o falla _quitar.
     canales = CanalesTiempoReal()
-    pestanas = [CanalFalso() for _ in range(20)]
-    listos, salir = threading.Barrier(len(pestanas) + 1), threading.Event()
+    fallas = []
 
-    def pestana_abierta(canal):
-        with canales.conectado(ANA, canal):
-            listos.wait()
-            salir.wait()
+    def pestana_que_va_y_viene():
+        try:
+            for _ in range(1000):
+                propia = CanalFalso()
+                with canales.conectado(ANA, propia):
+                    assert canales.enviar(ANA, "m") >= 1
+                    assert "m" in propia.recibidos
+        except Exception as error:  # se junta y se revisa en el hilo de la prueba
+            fallas.append(error)
 
-    hilos = [threading.Thread(target=pestana_abierta, args=(canal,)) for canal in pestanas]
-    for hilo in hilos:
-        hilo.start()
-    listos.wait()
-    envios = [threading.Thread(target=canales.enviar, args=(ANA, f"m{i}")) for i in range(10)]
-    for hilo in envios:
-        hilo.start()
-    for hilo in envios:
-        hilo.join()
-    salir.set()
-    for hilo in hilos:
-        hilo.join()
+    anterior = sys.getswitchinterval()
+    sys.setswitchinterval(1e-6)
+    try:
+        hilos = [threading.Thread(target=pestana_que_va_y_viene) for _ in range(8)]
+        for hilo in hilos:
+            hilo.start()
+        for hilo in hilos:
+            hilo.join(timeout=60)
+    finally:
+        sys.setswitchinterval(anterior)
 
-    assert all(sorted(p.recibidos) == sorted(f"m{i}" for i in range(10)) for p in pestanas)
+    assert not any(hilo.is_alive() for hilo in hilos)
+    assert fallas == []
     assert canales.conectados(ANA) == 0
 
 
@@ -113,3 +124,99 @@ def test_sin_pantallas_abiertas_el_notificador_no_hace_nada():
         raise AssertionError("no hay a quien avisar")
 
     NotificadorWebSocket(canales, formato_que_no_deberia_usarse).publicar(ANA, *_medicion_de_ana())
+
+
+# ---- CanalWebSocket: la cola y el hilo emisor de cada pestana (presentacion/tiempo_real.py) ----
+
+
+class WebSocketFalso:
+    """Lo que CanalWebSocket usa del WebSocket de flask-sock. `trabado` imita una pestana que no lee."""
+
+    def __init__(self, trabado: threading.Event | None = None):
+        self.enviados: list[str] = []
+        self.cierre = None
+        self.cortado = threading.Event()
+        self._trabado = trabado
+        self.sock = self  # CanalWebSocket corta el socket con ws.sock.shutdown()
+
+    def send(self, texto):
+        if self._trabado is not None:
+            self._trabado.wait(10)
+        if self.cortado.is_set():
+            raise OSError("el socket se corto")
+        self.enviados.append(texto)
+
+    def close(self, reason=None, message=None):
+        self.cierre = (reason, message)
+
+    def shutdown(self, como):
+        self.cortado.set()
+
+
+def _terminar(canal):
+    canal.terminar()
+    canal._emisor.join(timeout=5)
+    assert not canal._emisor.is_alive()
+
+
+def test_el_canal_manda_los_mensajes_en_el_orden_en_que_llegaron():
+    ws = WebSocketFalso()
+    canal = CanalWebSocket(ws)
+
+    for texto in ("a", "b", "c"):
+        canal.enviar(texto)
+    _terminar(canal)
+
+    assert ws.enviados == ["a", "b", "c"]
+
+
+def test_una_pestana_que_no_lee_no_traba_al_que_avisa_y_se_corta_cuando_se_llena_su_cola():
+    trabado = threading.Event()
+    ws = WebSocketFalso(trabado)
+    canal = CanalWebSocket(ws)
+    resultado = []
+
+    def avisar_muchas_veces():
+        try:
+            for i in range(tiempo_real.COLA_MAXIMA + 2):
+                canal.enviar(f"m{i}")
+        except ConnectionError:
+            resultado.append("se corto")
+
+    avisos = threading.Thread(target=avisar_muchas_veces, daemon=True)
+    avisos.start()
+    avisos.join(timeout=2)
+    quedo_esperando = avisos.is_alive()
+    trabado.set()
+
+    assert not quedo_esperando, "el hilo que avisa quedo esperando al socket"
+    assert resultado == ["se corto"]
+    assert ws.cortado.is_set()
+    _terminar(canal)
+
+
+def test_si_la_sesion_ya_no_sirve_el_canal_manda_el_error_cierra_y_avisa_que_no_sirve():
+    ws = WebSocketFalso()
+    canal = CanalWebSocket(ws)
+
+    def sesion_borrada():
+        raise SesionInvalida()
+
+    canal.autenticado(sesion_borrada)
+    with pytest.raises(ConnectionError):
+        canal.enviar("medicion de otra cuenta")
+    canal._emisor.join(timeout=5)
+
+    [error] = [json.loads(texto) for texto in ws.enviados]
+    assert (error["tipo"], error["error"]) == ("error", "SESION_INVALIDA")
+    assert ws.cierre == (tiempo_real.CIERRE_POR_POLITICA, "SESION_INVALIDA")
+
+
+def test_cerrar_con_error_espera_a_que_salga_el_mensaje_antes_de_volver():
+    ws = WebSocketFalso()
+    canal = CanalWebSocket(ws)
+
+    canal.cerrar_con_error("ERROR_INTERNO", "algo fallo", tiempo_real.CIERRE_POR_ERROR)
+
+    assert json.loads(ws.enviados[0])["error"] == "ERROR_INTERNO"
+    assert ws.cierre == (tiempo_real.CIERRE_POR_ERROR, "ERROR_INTERNO")

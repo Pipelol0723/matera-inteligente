@@ -80,8 +80,12 @@ class RepositorioPlantas(ABC):
         """None si la planta no existe o si es de otro usuario."""
 
     @abstractmethod
-    def vinculada_a(self, codigo: CodigoSensor) -> Planta | None:
-        """La planta del sensor. Solo se usa despues de verificar la clave del sensor."""
+    def vinculada_a(self, sensor: Sensor) -> Planta | None:
+        """La planta de este sensor, que ya se autentico con su clave.
+
+        None si el sensor cambio desde que se leyo (otra clave u otra planta): asi
+        una clave recien revocada no puede escribir en la planta que tomo su codigo.
+        """
 
     @abstractmethod
     def eliminar(self, usuario_id: int, planta_id: int) -> None:
@@ -96,11 +100,13 @@ class RepositorioSensores(ABC):
     def de_planta(self, planta_id: int) -> Sensor | None: ...
 
     @abstractmethod
-    def reemplazar(self, sensor: Sensor) -> None:
+    def reemplazar(self, usuario_id: int, sensor: Sensor) -> None:
         """Deja este sensor como el unico de su planta: quita el anterior, si habia, y guarda este.
 
-        Es una sola operacion: si falla, la planta conserva el sensor que tenia. El
-        historial no se toca. Lanza SensorYaVinculado si el codigo es de otra planta.
+        Es una sola operacion, y solo si la planta sigue siendo de ese usuario: si
+        mientras tanto se borro, lanza PlantaNoEncontrada. Si algo falla, la planta
+        conserva el sensor que tenia. El historial no se toca. Lanza
+        SensorYaVinculado si el codigo es de otra planta.
         """
 
 

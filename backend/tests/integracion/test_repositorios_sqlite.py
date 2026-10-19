@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from dominio.errores import EspecieNoSoportada
-from dominio.errores_usuarios import ApodoRepetido, CorreoYaRegistrado, SensorYaVinculado
+from dominio.errores_usuarios import ApodoRepetido, CorreoYaRegistrado, PlantaNoEncontrada, SensorYaVinculado, SesionInvalida
 from dominio.estados import EstadoGlobal, EstadoParametro
 from dominio.historial import LecturaRegistrada, RegistroMedicion
 from dominio.parametros import HUMEDAD, LUZ, TEMPERATURA
@@ -138,7 +138,7 @@ def test_la_planta_y_su_sensor_se_guardan_juntos(repos):
 
     assert repos.sensores.por_codigo(CODIGO) == Sensor(CODIGO, planta.id, "huella-clave")
     assert repos.sensores.de_planta(planta.id) == Sensor(CODIGO, planta.id, "huella-clave")
-    assert repos.plantas.vinculada_a(CODIGO) == planta
+    assert repos.plantas.vinculada_a(Sensor(CODIGO, planta.id, "huella-clave")) == planta
 
 
 @pytest.mark.parametrize(
@@ -172,7 +172,7 @@ def test_reemplazar_el_sensor_deja_uno_solo_libera_el_codigo_y_conserva_el_histo
     planta = repos.planta(repos.registrar().id, codigo=CODIGO)
     repos.historial.agregar(repos.registro(planta.id))
 
-    repos.sensores.reemplazar(Sensor(OTRO_CODIGO, planta.id, "huella-nueva"))
+    repos.sensores.reemplazar(planta.usuario_id, Sensor(OTRO_CODIGO, planta.id, "huella-nueva"))
 
     assert repos.sensores.de_planta(planta.id) == Sensor(OTRO_CODIGO, planta.id, "huella-nueva")
     assert repos.sensores.por_codigo(CODIGO) is None
@@ -182,7 +182,7 @@ def test_reemplazar_el_sensor_deja_uno_solo_libera_el_codigo_y_conserva_el_histo
 def test_reemplazar_por_el_mismo_codigo_cambia_la_huella_de_la_clave(repos):
     planta = repos.planta(repos.registrar().id, codigo=CODIGO)
 
-    repos.sensores.reemplazar(Sensor(CODIGO, planta.id, "huella-nueva"))
+    repos.sensores.reemplazar(planta.usuario_id, Sensor(CODIGO, planta.id, "huella-nueva"))
 
     assert repos.sensores.por_codigo(CODIGO).hash_clave == "huella-nueva"
 
@@ -193,7 +193,7 @@ def test_reemplazar_por_un_codigo_de_otra_planta_no_le_quita_el_sensor_a_ninguna
     patio = repos.planta(ana.id, "Patio", codigo=OTRO_CODIGO)
 
     with pytest.raises(SensorYaVinculado):
-        repos.sensores.reemplazar(Sensor(OTRO_CODIGO, sala.id, "h"))
+        repos.sensores.reemplazar(ana.id, Sensor(OTRO_CODIGO, sala.id, "h"))
 
     assert repos.sensores.de_planta(sala.id).codigo == CODIGO
     assert repos.sensores.de_planta(patio.id).codigo == OTRO_CODIGO
@@ -207,9 +207,42 @@ def test_una_planta_vieja_sin_sensor_recibe_uno(repos):
             "INSERT INTO planta (usuario_id, especie, apodo) VALUES (?, 'potos', 'Sala')", (ana.id,)
         ).lastrowid
 
-    repos.sensores.reemplazar(Sensor(CODIGO, planta_id, "h"))
+    repos.sensores.reemplazar(ana.id, Sensor(CODIGO, planta_id, "h"))
 
-    assert repos.plantas.vinculada_a(CODIGO).id == planta_id
+    assert repos.plantas.vinculada_a(Sensor(CODIGO, planta_id, "h")).id == planta_id
+
+
+def test_vinculada_a_no_devuelve_la_planta_si_el_sensor_cambio_despues_de_leerlo(repos):
+    ana, beto = repos.registrar(), repos.registrar("beto@correo.co", "Beto")
+    sala = repos.planta(ana.id, codigo=CODIGO)
+    leido = repos.sensores.por_codigo(CODIGO)  # el sensor con el que se verifico la clave
+
+    # Mientras tanto Ana cambia de sensor y Beto crea una matera con el codigo que quedo libre.
+    repos.sensores.reemplazar(ana.id, Sensor(OTRO_CODIGO, sala.id, "huella-nueva"))
+    repos.planta(beto.id, "Patio", codigo=CODIGO)
+
+    assert repos.plantas.vinculada_a(leido) is None
+
+
+def test_no_se_reemplaza_el_sensor_de_una_planta_ajena_ni_de_una_que_ya_no_existe(repos):
+    ana, beto = repos.registrar(), repos.registrar("beto@correo.co", "Beto")
+    de_beto = repos.planta(beto.id, codigo=CODIGO)
+
+    with pytest.raises(PlantaNoEncontrada):
+        repos.sensores.reemplazar(ana.id, Sensor(OTRO_CODIGO, de_beto.id, "h"))
+    with pytest.raises(PlantaNoEncontrada):
+        repos.sensores.reemplazar(ana.id, Sensor(OTRO_CODIGO, 999, "h"))
+
+    assert repos.sensores.de_planta(de_beto.id) == Sensor(CODIGO, de_beto.id, "huella-clave")
+    assert repos.contar("sensor") == 1
+
+
+def test_una_planta_de_una_cuenta_que_ya_no_existe_no_se_guarda_y_no_culpa_a_la_especie(repos):
+    # La cuenta se borro entre la autenticacion y el INSERT: la especie si existe.
+    with pytest.raises(SesionInvalida):
+        repos.plantas.guardar_con_sensor(Planta(None, 999, "Sala", "potos"), CODIGO, "h")
+
+    assert (repos.contar("planta"), repos.contar("sensor")) == (0, 0)
 
 
 def test_el_historial_se_lee_igual_mas_reciente_primero_y_con_limite(repos):
