@@ -1,32 +1,76 @@
-// Mis materas: las plantas del usuario con su última medición, que viene de GET /plantas.
-// El estado de cada tarjeta lo calculó la API; aquí solo se ubica en pantalla.
-import { eliminarPlanta, obtenerPlantas, registrarMedicion, registrarPlanta } from "./api.js";
+// Mis materas: cada matera nace con su sensor y muestra su última medición, que viene de GET /plantas
+// y se actualiza sola cuando el sensor envía una nueva (tiempo-real.js). El estado de cada tarjeta
+// lo calculó la API; aquí solo se ubica en pantalla. Desde el front no se escriben mediciones.
+import { cambiarSensor, eliminarPlanta, obtenerPlantas, registrarPlanta } from "./api.js";
 import { dominioVisual, fraccion, porcentaje } from "./escala.js";
 import { capitalizar, colorDeEstado, crear, etiqueta, numero, pastillaEstado, tono, unidad } from "./formato.js";
 import { botonDe, datosDe, fechaCorta, mostrarError, ocupado } from "./formularios.js";
-import { crearCamposMedicion, especieDe } from "./lecturas.js";
-
-const ORIGENES = { MANUAL: "a mano" };
+import { especieDe, textoOrigen } from "./lecturas.js";
 
 export function crearPantallaMateras(contexto) {
   const $ = (id) => document.getElementById(id);
   const formulario = $("form-planta");
   let plantas = [];
-  let abierta = null; // la tarjeta con el formulario de medición abierto
-  let respuesta = null; // la última medición manual: { plantaId, diagnostico }
+  let abierta = null; // la tarjeta con el formulario para cambiar el sensor
+  let borrador = ""; // lo escrito en ese formulario, para no perderlo si la tarjeta se vuelve a pintar
+  // Lo que GET /plantas no trae: las recomendaciones de la última medición que llegó en vivo.
+  const diagnosticos = new Map();
 
   formulario.addEventListener("submit", async (evento) => {
     evento.preventDefault();
+    let nueva;
     try {
-      await ocupado(botonDe(evento), () => registrarPlanta(datosDe(formulario)));
+      nueva = await ocupado(botonDe(evento), () => registrarPlanta(datosDe(formulario)));
     } catch (error) {
       mostrarError($("error-planta"), error);
       return;
     }
     mostrarError($("error-planta"), null);
     formulario.reset();
+    mostrarClave(nueva, "Matera creada");
     cargar();
   });
+
+  $("copiar-clave").addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText($("clave-texto").textContent);
+      $("copiar-clave").textContent = "Copiada";
+    } catch {
+      $("copiar-clave").textContent = "Selecciónela y cópiela a mano";
+    }
+  });
+  $("cerrar-clave").addEventListener("click", ocultarClave);
+
+  contexto.tiempoReal.alRecibir((mensaje) => {
+    if ($("pantalla-materas").hidden) return; // al volver a la pantalla se recarga todo
+    if (mensaje.tipo === "reconectado") {
+      cargar();
+      return;
+    }
+    if (mensaje.tipo !== "medicion") return;
+    const planta = plantas.find((p) => p.id === mensaje.planta.id);
+    if (!planta) {
+      cargar(); // una matera creada en otra pestaña
+      return;
+    }
+    planta.ultimaMedicion = mensaje.medicion;
+    diagnosticos.set(planta.id, mensaje.diagnostico);
+    repintarTarjeta(planta);
+    pintarBajada();
+  });
+
+  // La clave sale una sola vez: al crear la matera o al cambiarle el sensor.
+  function mostrarClave({ planta, codigo, clave }, accion) {
+    $("clave-rotulo").textContent = `${accion}: «${planta.apodo}» con el sensor ${codigo} · la clave se muestra una sola vez`;
+    $("clave-texto").textContent = clave;
+    $("copiar-clave").textContent = "Copiar";
+    $("clave-nueva").hidden = false;
+  }
+
+  function ocultarClave() {
+    $("clave-nueva").hidden = true;
+    $("clave-texto").textContent = "";
+  }
 
   function alCargarCatalogos() {
     const elegida = $("planta-especie").value;
@@ -46,13 +90,28 @@ export function crearPantallaMateras(contexto) {
     pintar();
   }
 
-  function pintar() {
+  function pintarBajada() {
     const conAtencion = plantas.filter((p) => p.ultimaMedicion && p.ultimaMedicion.estado !== "SALUDABLE").length;
     $("materas-bajada").textContent = plantas.length
-      ? `${plantas.length} ${plantas.length === 1 ? "planta" : "plantas"} · ` +
+      ? `${plantas.length} ${plantas.length === 1 ? "matera" : "materas"} · ` +
         `${conAtencion} ${conAtencion === 1 ? "necesita" : "necesitan"} atención según su última medición`
-      : "Todavía no tiene plantas. Agregue la primera con el formulario.";
-    $("materas").replaceChildren(...plantas.map(tarjeta));
+      : "Todavía no tiene materas. Agregue la primera con el código de su sensor.";
+  }
+
+  function pintar() {
+    pintarBajada();
+    $("materas").replaceChildren(...plantas.map((planta) => tarjeta(planta)));
+  }
+
+  // Solo la tarjeta que cambió, marcada un momento para que se note la medición nueva.
+  function repintarTarjeta(planta) {
+    const vieja = $("materas").querySelector(`[data-planta="${planta.id}"]`);
+    if (!vieja) return;
+    const escribiendo = vieja.contains(document.activeElement) && document.activeElement.tagName === "INPUT";
+    const nueva = tarjeta(planta);
+    nueva.classList.add("matera--nueva");
+    vieja.replaceWith(nueva);
+    if (escribiendo) nueva.querySelector("input")?.focus();
   }
 
   function tarjeta(planta) {
@@ -70,10 +129,12 @@ export function crearPantallaMateras(contexto) {
       pastillaEstado(medicion?.estado),
       crear("div", { clase: "matera__barras" }, ...barras(medicion, especie)),
       crear("p", { clase: "matera__nota", texto: nota(planta) }));
+    nodo.dataset.planta = planta.id;
     if (medicion?.estado === "CRITICO") nodo.classList.add("matera--critica");
 
-    if (respuesta?.plantaId === planta.id) nodo.append(recomendaciones(respuesta.diagnostico));
-    if (abierta === planta.id) nodo.append(formularioMedicion(planta, especie));
+    const diagnostico = diagnosticos.get(planta.id);
+    if (diagnostico) nodo.append(recomendaciones(diagnostico));
+    if (abierta === planta.id) nodo.append(formularioSensor(planta));
     nodo.append(acciones(planta));
     return nodo;
   }
@@ -108,11 +169,16 @@ export function crearPantallaMateras(contexto) {
   }
 
   function nota(planta) {
-    const sensor = planta.sensor ? `Sensor ${planta.sensor.codigo}` : "Sin sensor";
+    // Solo una matera creada antes de que el sensor fuera obligatorio puede no tenerlo.
+    const sensor = planta.sensor ? `Sensor ${planta.sensor.codigo}` : "Sin sensor: agréguele uno";
     const medicion = planta.ultimaMedicion;
-    if (!medicion) return `${sensor} · todavía no tiene mediciones.`;
-    const origen = ORIGENES[medicion.origen] ?? `por el sensor ${medicion.origen}`;
-    return `${sensor} · última medición ${fechaCorta(medicion.momento)}, ${origen}.`;
+    if (!medicion) return `${sensor} · todavía no llega ninguna medición`;
+    // El origen solo se dice si no es el sensor actual: una medición vieja a mano o de un sensor anterior.
+    // Sin punto final: la hora ya termina en «p. m.».
+    const origen = medicion.origen === planta.sensor?.codigo
+      ? ""
+      : medicion.origen === "MANUAL" ? `, ${textoOrigen(medicion.origen)}` : `, del sensor anterior ${medicion.origen}`;
+    return `${sensor} · última medición ${fechaCorta(medicion.momento)}${origen}`;
   }
 
   function recomendaciones(diagnostico) {
@@ -120,29 +186,44 @@ export function crearPantallaMateras(contexto) {
       ? diagnostico.recomendaciones
       : ["Todos los parámetros están en su rango óptimo."];
     return crear("div", { clase: "matera__respuesta" },
-      crear("p", { clase: "rotulo", texto: "Respuesta de la API a la medición" }),
+      crear("p", { clase: "rotulo", texto: "Recomendaciones de la medición que llegó en vivo" }),
       ...textos.map((texto) => crear("p", { clase: "matera__recomendacion", texto })));
   }
 
-  function formularioMedicion(planta, especie) {
-    const campos = crearCamposMedicion(contexto.parametros, `medir-${planta.id}`);
-    campos.proponer(especie);
+  // Cambiar el sensor (o pedir otra clave con el mismo código) conserva la planta y su historial.
+  function formularioSensor(planta) {
+    const id = `sensor-${planta.id}`;
+    const entrada = crear("input", { clase: "formulario__campo formulario__campo--codigo" });
+    Object.assign(entrada, { id, name: "codigo", autocomplete: "off", placeholder: "MT-0000-XX", value: borrador });
+    entrada.addEventListener("input", () => {
+      borrador = entrada.value;
+    });
+    const rotulo = crear("label", { clase: "formulario__etiqueta", texto: "Código del sensor nuevo" });
+    rotulo.htmlFor = id;
     const error = crear("div", { clase: "tarjeta-error" });
     error.hidden = true;
-    const enviar = crear("button", { clase: "boton-primario", texto: "Guardar medición" });
-    const forma = crear("form", { clase: "matera__medicion" },
-      crear("p", { clase: "rotulo", texto: "Medición a mano" }), campos.nodo, error, enviar);
+    const enviar = crear("button", { clase: "boton-primario", texto: planta.sensor ? "Cambiar sensor" : "Agregar sensor" });
+    const forma = crear("form", { clase: "matera__sensor" },
+      rotulo,
+      crear("p", {
+        clase: "formulario__ayuda",
+        texto: "El historial se conserva. Con el mismo código, la API da una clave nueva y la anterior deja de servir.",
+      }),
+      crear("div", { clase: "matera__sensor-fila" }, entrada, enviar),
+      error);
     forma.noValidate = true;
     forma.addEventListener("submit", async (evento) => {
       evento.preventDefault();
+      let cambio;
       try {
-        const resultado = await ocupado(enviar, () => registrarMedicion(planta.id, campos.leer()));
-        respuesta = { plantaId: planta.id, diagnostico: resultado.diagnostico };
+        cambio = await ocupado(enviar, () => cambiarSensor(planta.id, entrada.value));
       } catch (fallo) {
         mostrarError(error, fallo);
         return;
       }
       abierta = null;
+      borrador = "";
+      mostrarClave(cambio, planta.sensor ? "Sensor cambiado" : "Sensor agregado");
       cargar();
     });
     return forma;
@@ -155,13 +236,15 @@ export function crearPantallaMateras(contexto) {
       nodo.addEventListener("click", accion);
       return nodo;
     };
+    const textoSensor = abierta === planta.id ? "Cancelar" : planta.sensor ? "Cambiar sensor" : "Agregar sensor";
     return crear("div", { clase: "matera__acciones" },
-      boton(abierta === planta.id ? "Cancelar" : "Registrar medición", "boton-contorno", () => {
+      boton(textoSensor, "boton-contorno", () => {
         abierta = abierta === planta.id ? null : planta.id;
+        borrador = abierta === null ? "" : planta.sensor?.codigo ?? "";
         pintar();
+        if (abierta !== null) $(`sensor-${planta.id}`)?.focus();
       }),
       boton("Historial", "boton-contorno", () => contexto.verPlanta("historial", planta.id)),
-      boton(planta.sensor ? "Sensor" : "Vincular sensor", "boton-contorno", () => contexto.verPlanta("vincular", planta.id)),
       boton("Eliminar", "boton-contorno boton-contorno--peligro", () => eliminar(planta)));
   }
 
@@ -174,9 +257,16 @@ export function crearPantallaMateras(contexto) {
       mostrarError($("error-materas"), error);
       return;
     }
-    if (respuesta?.plantaId === planta.id) respuesta = null;
+    diagnosticos.delete(planta.id);
+    if (abierta === planta.id) abierta = null;
     cargar();
   }
 
-  return { mostrar: cargar, alCargarCatalogos };
+  return {
+    mostrar() {
+      ocultarClave();
+      cargar();
+    },
+    alCargarCatalogos,
+  };
 }

@@ -22,13 +22,16 @@
         <button type="button" class="pestana" data-pantalla="diagnostico">Diagnóstico</button>
         <button type="button" class="pestana" data-pantalla="especies">Especies</button>
         <button type="button" class="pestana" data-pantalla="materas">Mis materas</button>
-        <button type="button" class="pestana" data-pantalla="vincular">Vincular sensor</button>
         <button type="button" class="pestana" data-pantalla="historial">Historial</button>
         <button type="button" class="pestana" data-pantalla="admin" hidden>Administración</button>
       </div>
       <div id="conexion" class="conexion conexion--pendiente" role="status">
         <span class="conexion__punto" aria-hidden="true"></span>
         <span id="conexion-texto" class="conexion__texto">Conectando con la API…</span>
+      </div>
+      <div id="en-vivo" class="en-vivo" role="status" hidden>
+        <span class="en-vivo__punto" aria-hidden="true"></span>
+        <span id="en-vivo-texto" class="en-vivo__texto"></span>
       </div>
       <button id="boton-cuenta" type="button" class="boton-cuenta" data-pantalla="acceso">Ingresar</button>
     </div>
@@ -101,9 +104,9 @@
   </main>
 
   <main id="pantalla-acceso" class="pantalla acceso" hidden>
-    <p class="ceja">Mis materas, sensores e historial</p>
+    <p class="ceja">Mis materas, sus sensores y su historial</p>
     <h1 class="titulo titulo--grande">Ingrese a su cuenta</h1>
-    <p class="bajada bajada--angosta">Diagnóstico y Especies son públicas. Para registrar sus plantas, vincularles un sensor y ver su historial necesita una cuenta.</p>
+    <p class="bajada bajada--angosta">Diagnóstico y Especies son públicas. Para crear sus materas con su sensor y ver sus mediciones en vivo necesita una cuenta.</p>
     <div class="acceso__formularios">
       <form id="form-ingresar" class="tarjeta formulario" novalidate>
         <h2 class="formulario__titulo">Ingresar</h2>
@@ -157,51 +160,24 @@
           <label class="formulario__etiqueta" for="planta-especie">Especie</label>
           <select id="planta-especie" name="especie" class="selector"></select>
         </div>
-        <button type="submit" class="boton-primario">Agregar planta</button>
+        <div class="formulario__grupo">
+          <label class="formulario__etiqueta" for="planta-codigo">Código del sensor</label>
+          <input id="planta-codigo" name="codigo" class="formulario__campo formulario__campo--codigo" autocomplete="off" placeholder="MT-0000-XX">
+        </div>
+        <button type="submit" class="boton-primario">Agregar matera</button>
       </div>
+      <p class="formulario__ayuda">Cada matera nace con su sensor: escriba el código del dispositivo, el mismo que va en <code>config.h</code> del ESP32.</p>
       <div id="error-planta" class="tarjeta-error" role="alert" hidden></div>
     </form>
+    <div id="clave-nueva" class="clave clave--matera" role="status" hidden>
+      <p id="clave-rotulo" class="rotulo"></p>
+      <code id="clave-texto" class="clave__texto"></code>
+      <button id="copiar-clave" type="button" class="boton-contorno">Copiar</button>
+      <button id="cerrar-clave" type="button" class="boton-contorno">Ya la guardé</button>
+      <p class="clave__ayuda">Cópiela en <code>CLAVE_SENSOR</code> de <code>config.h</code> y vuelva a subir el firmware. La API solo guarda su huella: si la pierde, use «Cambiar sensor» con el mismo código y recibirá otra.</p>
+    </div>
     <div id="error-materas" class="tarjeta-error" role="alert" hidden></div>
     <div id="materas" class="materas"></div>
-  </main>
-
-  <main id="pantalla-vincular" class="pantalla vincular" hidden>
-    <p class="ceja">Sensor de la matera</p>
-    <h1 class="titulo titulo--grande">Vincule un sensor a una planta</h1>
-    <p class="bajada bajada--vincular">Clave el sensor en el sustrato, a media profundidad y lejos del borde, y escriba el código impreso en su base. La API entrega una clave que se muestra una sola vez: guárdela en el ESP32.</p>
-    <div class="vincular__cuerpo">
-      <form id="form-vincular" class="tarjeta vincular__formulario" novalidate>
-        <label class="vincular__etiqueta" for="vincular-planta">Planta</label>
-        <select id="vincular-planta" class="selector"></select>
-        <p id="vincular-estado" class="vincular__ayuda"></p>
-        <label class="vincular__etiqueta" for="codigo-sensor">Código del sensor</label>
-        <input id="codigo-sensor" class="codigo-sensor" autocomplete="off" placeholder="MT-0000-XX">
-        <div id="error-vincular" class="tarjeta-error vincular__error" role="alert" hidden></div>
-        <div id="clave-sensor" class="clave" hidden>
-          <p class="rotulo">Clave del sensor · se muestra una sola vez</p>
-          <code id="clave-texto" class="clave__texto"></code>
-          <button id="copiar-clave" type="button" class="boton-contorno">Copiar</button>
-        </div>
-        <div class="acciones">
-          <button id="boton-vincular" type="submit" class="boton-primario boton-primario--grande">Vincular</button>
-          <button id="boton-desvincular" type="button" class="boton-secundario" hidden>Desvincular</button>
-        </div>
-      </form>
-      <section class="tarjeta tarjeta--punteada simulador">
-        <p class="rotulo">Simular sensor</p>
-        <p class="pruebas__texto">Manda una medición como lo haría el ESP32: con el código del sensor y su clave, sin sesión.</p>
-        <form id="form-simulador" class="simulador__formulario" novalidate>
-          <label class="formulario__etiqueta" for="sim-codigo">Código</label>
-          <input id="sim-codigo" class="formulario__campo" autocomplete="off">
-          <label class="formulario__etiqueta" for="sim-clave">Clave</label>
-          <input id="sim-clave" class="formulario__campo" autocomplete="off">
-          <div id="sim-campos"></div>
-          <div id="error-simulador" class="tarjeta-error" role="alert" hidden></div>
-          <p id="resultado-simulador" class="mensaje-exito" role="status" hidden></p>
-          <button type="submit" class="boton-primario">Enviar como el sensor</button>
-        </form>
-      </section>
-    </div>
   </main>
 
   <main id="pantalla-historial" class="pantalla historial" hidden>

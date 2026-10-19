@@ -1,5 +1,5 @@
 // Arranque del front: carga los catálogos de la API, navega entre pantallas y muestra
-// el estado de la conexión y de la sesión. Las reglas de negocio viven en el backend.
+// el estado de la conexión, de la sesión y de la conexión en vivo. Las reglas de negocio viven en el backend.
 import { avisarAlVencerSesion, obtenerEspecies, obtenerMiCuenta, obtenerParametros } from "./api.js";
 import { crearPantallaAcceso } from "./acceso.js";
 import { crearPantallaAdmin } from "./admin.js";
@@ -9,13 +9,12 @@ import { crearPantallaEspecies } from "./especies.js";
 import { crearPantallaHistorial } from "./historial.js";
 import { crearPantallaMateras } from "./materas.js";
 import { sesion } from "./sesion.js";
-import { crearSimulador } from "./simulador.js";
-import { crearPantallaVincular } from "./vincular.js";
+import { crearTiempoReal } from "./tiempo-real.js";
 
 const PUBLICAS = ["diagnostico", "especies", "acceso"];
 // Exigen sesión. Ocultarlas no protege nada: la API responde 401 sin token, y 403 en
 // administración si el usuario no es ADMIN.
-const PRIVADAS = ["materas", "vincular", "historial", "cuenta", "admin"];
+const PRIVADAS = ["materas", "historial", "cuenta", "admin"];
 const PANTALLAS = [...PUBLICAS, ...PRIVADAS];
 const PANTALLA_INICIAL = "diagnostico";
 const DESPUES_DE_INGRESAR = "materas";
@@ -24,9 +23,19 @@ const REINTENTO_MS = 5000;
 // La pantalla privada que se pidió antes de ingresar: se vuelve a ella después.
 let destino = null;
 
+// Mientras haya sesión, un WebSocket trae cada medición nueva de las plantas del usuario.
+const tiempoReal = crearTiempoReal({
+  alCambiarEstado: pintarEnVivo,
+  alSesionInvalida: () => {
+    sesion.cerrar();
+    sesionVencida();
+  },
+});
+
 const contexto = {
   especies: [],
   parametros: [],
+  tiempoReal,
   // La planta que se eligió en una pantalla, para abrir otra con esa misma planta.
   plantaElegida: null,
   navegar: (pantalla) => {
@@ -57,12 +66,10 @@ const contexto = {
 
 const diagnostico = crearPantallaDiagnostico(contexto);
 const especies = crearPantallaEspecies(contexto);
-const simulador = crearSimulador(contexto);
 const pantallas = {
   acceso: crearPantallaAcceso(contexto),
   cuenta: crearPantallaCuenta(contexto),
   materas: crearPantallaMateras(contexto),
-  vincular: crearPantallaVincular(contexto, simulador),
   historial: crearPantallaHistorial(contexto),
   admin: crearPantallaAdmin(contexto),
 };
@@ -103,6 +110,28 @@ function pintarSesion() {
   boton.dataset.pantalla = usuario ? "cuenta" : "acceso";
   boton.classList.toggle("boton-cuenta--activa", Boolean(usuario));
   document.querySelector('.pestana[data-pantalla="admin"]').hidden = !sesion.esAdmin();
+  if (sesion.activa()) tiempoReal.conectar();
+  else tiempoReal.desconectar();
+}
+
+const TEXTOS_EN_VIVO = {
+  conectando: "Conectando en vivo…",
+  "en-vivo": "En vivo",
+  caido: "En vivo: reconectando…",
+};
+
+function pintarEnVivo(estado) {
+  const indicador = document.getElementById("en-vivo");
+  indicador.hidden = estado === "apagado";
+  indicador.classList.toggle("en-vivo--activo", estado === "en-vivo");
+  indicador.classList.toggle("en-vivo--caido", estado === "caido");
+  document.getElementById("en-vivo-texto").textContent = TEXTOS_EN_VIVO[estado] ?? "";
+}
+
+function sesionVencida() {
+  pintarSesion();
+  destino = pantallaPedida();
+  location.replace("#acceso");
 }
 
 function marcarConexion(conectada) {
@@ -128,7 +157,6 @@ async function cargarCatalogos() {
   especies.pintar();
   pantallas.materas.alCargarCatalogos();
   pantallas.admin.alCargarCatalogos();
-  simulador.alCargarCatalogos();
 }
 
 // Si había una sesión guardada, se pregunta a la API quién es: el rol pudo cambiar.
@@ -148,11 +176,7 @@ document.querySelector(".navegacion").addEventListener("click", (evento) => {
   if (destinoClic) contexto.navegar(destinoClic.dataset.pantalla);
 });
 window.addEventListener("hashchange", mostrarPantalla);
-avisarAlVencerSesion(() => {
-  pintarSesion();
-  destino = pantallaPedida();
-  location.replace("#acceso");
-});
+avisarAlVencerSesion(sesionVencida);
 
 pintarSesion();
 mostrarPantalla();

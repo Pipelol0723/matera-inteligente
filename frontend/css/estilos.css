@@ -180,6 +180,46 @@ a:hover {
   color: var(--tenue);
 }
 
+.en-vivo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.en-vivo__punto {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #b7c2b9;
+}
+
+.en-vivo--activo .en-vivo__punto {
+  background: #2b7a4b;
+  animation: latido 2.4s ease-in-out infinite;
+}
+
+.en-vivo--caido .en-vivo__punto {
+  background: #c7862f;
+}
+
+.en-vivo__texto {
+  font-size: 0.78rem;
+  white-space: nowrap;
+  color: var(--tenue);
+}
+
+@keyframes latido {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(43, 122, 75, 0.35);
+  }
+
+  50% {
+    box-shadow: 0 0 0 5px rgba(43, 122, 75, 0);
+  }
+}
+
 /* ---- piezas comunes ---- */
 
 .pantalla {
@@ -999,12 +1039,8 @@ a:hover {
   color: var(--tenue);
 }
 
-/* ---- vincular sensor ---- */
+/* ---- piezas del corte 2: ceja y fila de acciones ---- */
 
-.vincular {
-  max-width: 1040px;
-  padding: 44px 28px 56px;
-}
 
 .ceja {
   margin: 0 0 8px;
@@ -1015,48 +1051,11 @@ a:hover {
   color: var(--acento);
 }
 
-.bajada--vincular {
-  max-width: 520px;
-  margin-bottom: 28px;
-  text-wrap: pretty;
-}
 
-.vincular__cuerpo {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 380px);
-  gap: 24px;
-  align-items: start;
-}
 
-.vincular__formulario {
-  padding: 24px;
-}
 
-.vincular__etiqueta {
-  display: block;
-  margin: 0 0 8px;
-  font-size: 0.88rem;
-  font-weight: 600;
-}
 
-.codigo-sensor {
-  width: 100%;
-  padding: 13px 15px;
-  border: 1px solid var(--borde);
-  border-radius: 10px;
-  background: var(--superficie-suave);
-  font: inherit;
-  font-family: var(--mono);
-  font-size: 1.15rem;
-  letter-spacing: 0.12em;
-  color: inherit;
-}
 
-.vincular__ayuda {
-  margin: 8px 0 22px;
-  font-size: 0.8rem;
-  color: var(--tenue);
-}
 
 .acciones {
   display: flex;
@@ -1246,46 +1245,71 @@ a:hover {
   text-wrap: pretty;
 }
 
-.matera__medicion {
+.formulario__campo--codigo {
+  font-family: var(--mono);
+  letter-spacing: 0.08em;
+}
+
+.formulario--linea .formulario__ayuda {
+  margin: 10px 0 0;
+}
+
+.clave--matera {
+  margin: 0 0 22px;
+}
+
+.clave__ayuda {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.8rem;
+  color: #22523b;
+  text-wrap: pretty;
+}
+
+.matera__sensor {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   padding-top: 12px;
   border-top: 1px solid var(--borde-suave);
 }
 
-.matera__medicion .rotulo {
+.matera__sensor .formulario__etiqueta,
+.matera__sensor .formulario__ayuda {
   margin: 0;
 }
 
-.matera__medicion .boton-primario {
-  align-self: flex-start;
-}
-
-.medicion {
+.matera__sensor-fila {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
-.medicion__campo {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+.matera__sensor-fila .formulario__campo {
+  flex: 1 1 150px;
 }
 
-.medicion__etiqueta {
-  font-size: 0.84rem;
+.matera__sensor-fila .boton-primario {
+  margin-top: 0;
 }
 
-.vincular__formulario--vacio .codigo-sensor {
-  opacity: 0.5;
+.matera--nueva {
+  animation: destello 1.8s ease-out;
 }
 
-.vincular__error {
-  margin-top: 14px;
+@keyframes destello {
+  from {
+    box-shadow: 0 0 0 3px var(--acento);
+  }
 }
+
+
+
+
+
+
+
+
 
 .clave {
   display: flex;
@@ -1312,24 +1336,9 @@ a:hover {
   overflow-wrap: anywhere;
 }
 
-.vincular__formulario .acciones {
-  margin-top: 20px;
-}
 
-.simulador__formulario {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
 
-.simulador__formulario .medicion {
-  margin-top: 8px;
-}
 
-.simulador__formulario .boton-primario {
-  align-self: flex-start;
-  margin-top: 6px;
-}
 
 .historial__selector {
   display: flex;
@@ -1463,18 +1472,17 @@ a:hover {
     padding: 0 16px;
   }
 
-  .conexion__texto {
+  .conexion__texto,
+  .en-vivo__texto {
     display: none;
   }
 
-  .pantalla,
-  .vincular {
+  .pantalla {
     padding: 24px 16px 40px;
   }
 
   .diagnostico,
   .historial,
-  .vincular__cuerpo,
   .catalogo,
   .acceso__formularios {
     grid-template-columns: minmax(0, 1fr);
@@ -1512,6 +1520,11 @@ a:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .en-vivo--activo .en-vivo__punto,
+  .matera--nueva {
+    animation: none;
+  }
+
   .terrario__pulso {
     animation: none;
     opacity: 0.35;

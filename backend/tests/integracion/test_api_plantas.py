@@ -245,3 +245,17 @@ def test_cors_deja_al_front_cambiar_el_sensor_con_put(api):
 
     assert respuesta.headers["Access-Control-Allow-Origin"] == ORIGEN_FRONT
     assert "PUT" in respuesta.headers["Access-Control-Allow-Methods"]
+
+
+def test_cors_no_deja_que_una_pagina_mande_la_clave_de_un_sensor(api):
+    # Sin el simulador del front, la clave solo la manda el ESP32, que no pasa por CORS.
+    respuesta = api.http.options(
+        "/api/v1/sensores/MT-0001-AA/mediciones",
+        headers={
+            "Origin": ORIGEN_FRONT,
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Content-Type, X-Clave-Sensor",
+        },
+    )
+
+    assert "x-clave-sensor" not in respuesta.headers.get("Access-Control-Allow-Headers", "").lower()

@@ -101,19 +101,14 @@ export const obtenerMiCuenta = () => privada("/usuarios/yo");
 
 // ---- plantas, sensores e historial ----
 
+// Una matera nace con su sensor: POST /plantas lleva apodo, especie y código, y responde la clave una vez.
 export const obtenerPlantas = () => privada("/plantas");
 export const registrarPlanta = (datos) => privada("/plantas", conJson("POST", datos));
 export const eliminarPlanta = (id) => privada(`/plantas/${id}`, { method: "DELETE" });
-export const vincularSensor = (id, codigo) => privada(`/plantas/${id}/sensor`, conJson("POST", { codigo }));
-export const desvincularSensor = (id) => privada(`/plantas/${id}/sensor`, { method: "DELETE" });
-export const obtenerHistorial = (id, limite) => privada(`/plantas/${id}/historial?limite=${limite}`);
-export const registrarMedicion = (id, datos) => privada(`/plantas/${id}/mediciones`, conJson("POST", datos));
+export const cambiarSensor = (id, codigo) => privada(`/plantas/${id}/sensor`, conJson("PUT", { codigo }));
 
-// El sensor no tiene sesión: se identifica con su código y su clave, como lo haría el ESP32.
-export function enviarComoSensor(codigo, clave, datos) {
-  const ruta = `/sensores/${encodeURIComponent(codigo.trim())}/mediciones`;
-  return pedir(API_BASE, ruta, conJson("POST", datos, { "X-Clave-Sensor": clave.trim() }));
-}
+// Las mediciones no se escriben desde el front: llegan del sensor y se ven aquí en vivo (tiempo-real.js).
+export const obtenerHistorial = (id, limite) => privada(`/plantas/${id}/historial?limite=${limite}`);
 
 // ---- administración ----
 

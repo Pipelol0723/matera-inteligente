@@ -1,10 +1,11 @@
 // Historial de una planta: la lista y la gráfica con los registros de GET /plantas/{id}/historial.
 // Cada registro trae el estado que la API calculó en ese momento; aquí no se recalcula nada.
+// Una medición que llega en vivo (tiempo-real.js) se agrega arriba sin volver a pedir el historial.
 import { obtenerHistorial, obtenerPlantas } from "./api.js";
 import { dominioVisual, fraccion } from "./escala.js";
 import { capitalizar, crear, crearSvg, etiqueta, nombreDeEstado, pastillaEstado, tono } from "./formato.js";
 import { fechaCorta, mostrarError } from "./formularios.js";
-import { especieDe, textoLecturas } from "./lecturas.js";
+import { especieDe, textoLecturas, textoOrigen } from "./lecturas.js";
 
 const LIMITE = 30;
 const ANCHO = 640;
@@ -16,10 +17,21 @@ export function crearPantallaHistorial(contexto) {
   const $ = (id) => document.getElementById(id);
   const selector = $("historial-planta");
   let plantas = [];
+  let actual = null; // { planta, registros } de la planta elegida
 
   selector.addEventListener("change", () => {
     contexto.plantaElegida = Number(selector.value);
     cargarHistorial();
+  });
+
+  contexto.tiempoReal.alRecibir((mensaje) => {
+    if ($("pantalla-historial").hidden || !actual) return;
+    if (mensaje.tipo === "reconectado") {
+      cargarHistorial();
+    } else if (mensaje.tipo === "medicion" && mensaje.planta.id === actual.planta.id) {
+      actual.registros = [mensaje.medicion, ...actual.registros].slice(0, LIMITE);
+      pintar(actual.planta, actual.registros);
+    }
   });
 
   async function mostrar() {
@@ -35,8 +47,9 @@ export function crearPantallaHistorial(contexto) {
     if (plantas.length) {
       cargarHistorial();
     } else {
+      actual = null;
       pintar(null, []);
-      $("historial-bajada").textContent = "Todavía no tiene plantas. Agréguelas en Mis materas.";
+      $("historial-bajada").textContent = "Todavía no tiene materas. Agréguelas en Mis materas.";
     }
   }
 
@@ -49,6 +62,7 @@ export function crearPantallaHistorial(contexto) {
       return;
     }
     mostrarError($("error-historial"), null);
+    actual = { planta: historial.planta, registros: historial.registros };
     pintar(historial.planta, historial.registros);
   }
 
@@ -57,7 +71,7 @@ export function crearPantallaHistorial(contexto) {
     const cronologicos = [...registros].reverse();
     $("historial-bajada").textContent = registros.length
       ? `Últimas ${registros.length} mediciones de ${planta.apodo}, la más reciente arriba.`
-      : planta ? `${planta.apodo} todavía no tiene mediciones: registre una en Mis materas o con el sensor.` : "";
+      : planta ? `${planta.apodo} todavía no tiene mediciones: aparecen aquí apenas el sensor envía una.` : "";
     pintarGrafica(planta, cronologicos);
     pintarRegistros(registros);
     pintarResumen(registros);
@@ -107,7 +121,7 @@ export function crearPantallaHistorial(contexto) {
       crear("div", { clase: "registro registro--origen" },
         crear("span", { clase: "registro__fecha", texto: fechaCorta(registro.momento) }),
         crear("span", { clase: "registro__lectura", texto: textoLecturas(registro.lecturas, contexto.parametros) }),
-        crear("span", { clase: "registro__origen", texto: registro.origen === "MANUAL" ? "a mano" : registro.origen }),
+        crear("span", { clase: "registro__origen", texto: textoOrigen(registro.origen) }),
         pastillaEstado(registro.estado))));
     $("registros").hidden = registros.length === 0;
   }
