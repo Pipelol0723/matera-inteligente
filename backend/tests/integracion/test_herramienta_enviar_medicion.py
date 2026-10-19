@@ -21,7 +21,8 @@ def _registros(base_url, token, planta_id):
 def test_la_medicion_de_la_herramienta_queda_en_el_historial_con_el_codigo_del_sensor(base_url, matera, capsys):
     token, nueva = matera
 
-    estado = enviar_medicion.main(["mt-0001-aa", "--api", base_url, "--clave", nueva["clave"], "--humedad", "30"])
+    # Con el signo igual: una de cada 64 claves empieza con guion y argparse la tomaria por una opcion.
+    estado = enviar_medicion.main(["mt-0001-aa", "--api", base_url, f"--clave={nueva['clave']}", "--humedad", "30"])
 
     assert estado == 0
     assert "201 · Sala (potos): EN_RIESGO" in capsys.readouterr().out
@@ -41,7 +42,7 @@ def test_la_clave_puede_venir_de_la_variable_de_entorno_y_se_repite_las_veces_pe
 def test_con_una_clave_mala_muestra_el_error_de_la_api_y_no_se_guarda_nada(base_url, matera, capsys):
     token, nueva = matera
 
-    estado = enviar_medicion.main(["MT-0001-AA", "--api", base_url, "--clave", "inventada"])
+    estado = enviar_medicion.main(["MT-0001-AA", "--api", base_url, "--clave=inventada"])
 
     assert estado == 1
     assert "401 CLAVE_SENSOR_INVALIDA" in capsys.readouterr().err
@@ -49,4 +50,21 @@ def test_con_una_clave_mala_muestra_el_error_de_la_api_y_no_se_guarda_nada(base_
 
 
 def test_sin_api_dice_que_no_la_encontro():
-    assert enviar_medicion.main(["MT-0001-AA", "--api", "http://127.0.0.1:9/api/v1", "--clave", "x"]) == 2
+    assert enviar_medicion.main(["MT-0001-AA", "--api", "http://127.0.0.1:9/api/v1", "--clave=x"]) == 2
+
+
+def test_una_clave_que_empieza_con_guion_tambien_sirve_con_el_signo_igual():
+    # Una clave asi sale una vez de cada 64: se escribe a mano para no depender del azar.
+    argumentos = enviar_medicion._argumentos(["MT-0001-AA", "--clave=-Zx3abc_def"])
+
+    assert argumentos.clave == "-Zx3abc_def"
+
+
+def test_con_cada_los_valores_varian_cerca_de_los_pedidos_y_nunca_pasan_los_limites_fisicos():
+    pedidas = {"humedad": 0.0, "luz": 149990.0, "temperatura": 22.0}
+
+    for _ in range(500):
+        variadas = enviar_medicion.variar(pedidas)
+        assert 0 <= variadas["humedad"] <= 3
+        assert 149930 <= variadas["luz"] <= 150000
+        assert 21.5 <= variadas["temperatura"] <= 22.5

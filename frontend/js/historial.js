@@ -21,14 +21,15 @@ export function crearPantallaHistorial(contexto) {
 
   selector.addEventListener("change", () => {
     contexto.plantaElegida = Number(selector.value);
+    actual = null; // hasta que llegue el historial de la nueva, no se agrega nada en vivo
     cargarHistorial();
   });
 
   contexto.tiempoReal.alRecibir((mensaje) => {
-    if ($("pantalla-historial").hidden || !actual) return;
+    if ($("pantalla-historial").hidden) return;
     if (mensaje.tipo === "reconectado") {
-      cargarHistorial();
-    } else if (mensaje.tipo === "medicion" && mensaje.planta.id === actual.planta.id) {
+      if (plantas.length) cargarHistorial();
+    } else if (mensaje.tipo === "medicion" && actual && mensaje.planta.id === actual.planta.id) {
       actual.registros = [mensaje.medicion, ...actual.registros].slice(0, LIMITE);
       pintar(actual.planta, actual.registros);
     }
@@ -54,13 +55,16 @@ export function crearPantallaHistorial(contexto) {
   }
 
   async function cargarHistorial() {
+    const pedida = Number(selector.value);
     let historial;
     try {
-      historial = await obtenerHistorial(Number(selector.value), LIMITE);
+      historial = await obtenerHistorial(pedida, LIMITE);
     } catch (error) {
-      mostrarError($("error-historial"), error);
+      if (pedida === Number(selector.value)) mostrarError($("error-historial"), error);
       return;
     }
+    // Si mientras tanto se eligió otra planta, esta respuesta ya no sirve.
+    if (pedida !== Number(selector.value)) return;
     mostrarError($("error-historial"), null);
     actual = { planta: historial.planta, registros: historial.registros };
     pintar(historial.planta, historial.registros);

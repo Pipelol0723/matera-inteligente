@@ -9,8 +9,10 @@ Uso, desde la carpeta backend/:
     python herramientas/enviar_medicion.py MT-0001-AA --humedad 30 --luz 900 --temperatura 21
     python herramientas/enviar_medicion.py MT-0001-AA --cada 15      (una cada 15 s, hasta Ctrl+C)
 
-La clave del sensor se lee de la variable MATERA_CLAVE_SENSOR o se pide en la
-consola, para que no quede en el historial de la terminal.
+Si no se le da la clave del sensor, la pide en la consola sin mostrarla: asi
+no queda en el historial de la terminal. Para un script se puede usar la
+variable MATERA_CLAVE_SENSOR o --clave=<clave>, con el signo igual, porque
+una clave puede empezar con guion.
 """
 import argparse
 import getpass
@@ -23,8 +25,10 @@ import urllib.error
 import urllib.request
 
 API_POR_DEFECTO = "http://127.0.0.1:5000/api/v1"
-# Cuanto puede cambiar cada valor entre una medicion y la siguiente con --cada.
+# Con --cada, cuanto puede alejarse cada valor del que se pidio.
 _VARIACION = {"humedad": 3.0, "luz": 60.0, "temperatura": 0.5}
+# Los limites fisicos que acepta la API: una variacion nunca los pasa.
+_LIMITES = {"humedad": (0.0, 100.0), "luz": (0.0, 150000.0), "temperatura": (-50.0, 60.0)}
 
 
 def _argumentos(argv: list[str] | None) -> argparse.Namespace:
@@ -34,7 +38,7 @@ def _argumentos(argv: list[str] | None) -> argparse.Namespace:
     lector.add_argument("--luz", type=float, default=800.0, help="lux (por defecto 800)")
     lector.add_argument("--temperatura", type=float, default=22.0, help="grados Celsius (por defecto 22)")
     lector.add_argument("--api", default=os.environ.get("MATERA_API", API_POR_DEFECTO), help="URL base de la API")
-    lector.add_argument("--clave", help="clave del sensor (mejor usar MATERA_CLAVE_SENSOR)")
+    lector.add_argument("--clave", help="clave del sensor, como --clave=<clave> (si falta, se pide en la consola)")
     lector.add_argument("--cada", type=float, help="segundos entre mediciones; los valores varian un poco")
     lector.add_argument("--veces", type=int, help="cuantas mediciones mandar (por defecto 1, o sin fin con --cada)")
     return lector.parse_args(argv)
@@ -55,8 +59,14 @@ def enviar(api: str, codigo: str, clave: str, lecturas: dict[str, float]) -> tup
         return error.code, json.load(error)
 
 
-def _variar(lecturas: dict[str, float]) -> dict[str, float]:
-    return {nombre: round(valor + random.uniform(-_VARIACION[nombre], _VARIACION[nombre]), 1) for nombre, valor in lecturas.items()}
+def variar(base: dict[str, float]) -> dict[str, float]:
+    """Un poco alrededor de los valores pedidos, sin alejarse de ellos ni pasar los limites fisicos."""
+    variadas = {}
+    for nombre, valor in base.items():
+        minimo, maximo = _LIMITES[nombre]
+        cambio = random.uniform(-_VARIACION[nombre], _VARIACION[nombre])
+        variadas[nombre] = round(min(max(valor + cambio, minimo), maximo), 1)
+    return variadas
 
 
 def _texto(lecturas: dict[str, float]) -> str:
@@ -67,14 +77,15 @@ def main(argv: list[str] | None = None) -> int:
     args = _argumentos(argv)
     clave = args.clave or os.environ.get("MATERA_CLAVE_SENSOR") or getpass.getpass("Clave del sensor: ")
     veces = args.veces if args.veces is not None else (1 if args.cada is None else None)
-    lecturas = {"humedad": args.humedad, "luz": args.luz, "temperatura": args.temperatura}
+    pedidas = {"humedad": args.humedad, "luz": args.luz, "temperatura": args.temperatura}
+    lecturas = pedidas
 
     enviadas = 0
     try:
         while veces is None or enviadas < veces:
             if enviadas:
                 time.sleep(args.cada or 0)
-                lecturas = _variar(lecturas)
+                lecturas = variar(pedidas)
             try:
                 estado, cuerpo = enviar(args.api, args.codigo, clave, lecturas)
             except urllib.error.URLError as error:

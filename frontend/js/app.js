@@ -110,8 +110,12 @@ function pintarSesion() {
   boton.dataset.pantalla = usuario ? "cuenta" : "acceso";
   boton.classList.toggle("boton-cuenta--activa", Boolean(usuario));
   document.querySelector('.pestana[data-pantalla="admin"]').hidden = !sesion.esAdmin();
-  if (sesion.activa()) tiempoReal.conectar();
-  else tiempoReal.desconectar();
+  if (sesion.activa()) {
+    tiempoReal.conectar();
+  } else {
+    tiempoReal.desconectar();
+    pantallas.materas.reiniciar();
+  }
 }
 
 const TEXTOS_EN_VIVO = {

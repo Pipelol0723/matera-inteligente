@@ -18,14 +18,14 @@ ESP32 clásica de doble núcleo (DevKit WROOM-32, con puente USB CP2102). Todo v
 
 | Sensor | Pin del sensor | Pin de la ESP32 | Nota |
 |---|---|---|---|
-| Humedad capacitivo v1.2 | AOUT · VCC · GND | GPIO34 · 3V3 · GND | GPIO34 es del ADC1, que sigue funcionando con el WiFi encendido. |
+| Humedad capacitivo v1.2 | AOUT · VCC · GND | GPIO34 · 3V3 · GND | GPIO34 es del ADC1, que sigue funcionando con el WiFi encendido. Conviene una resistencia de 1 MΩ entre GPIO34 y GND (ver abajo). |
 | AHT20 (temperatura) | SDA · SCL · VCC · GND | GPIO21 · GPIO22 · 3V3 · GND | Bus I2C, dirección 0x38. |
-| BH1750 (luz) | SDA · SCL · VCC · GND · ADDR | GPIO21 · GPIO22 · 3V3 · GND · GND | El mismo bus I2C, dirección 0x23. Mide hasta 65 535 lux. |
+| BH1750 (luz) | SDA · SCL · VCC · GND · ADDR | GPIO21 · GPIO22 · 3V3 · GND · GND | El mismo bus I2C, dirección 0x23. En el modo que usa el programa mide hasta unos 54 600 lux: a pleno sol se satura. |
 | LED de estado | — | GPIO2 | El LED azul de la placa. |
 
 ## Instalación en el Arduino IDE 2
 
-1. **Placa:** el soporte de Espressif para ESP32 (probado con la versión 2.0.14). En *Herramientas → Placa* se elige **ESP32 Dev Module**, y el puerto que aparezca al conectar la placa (en este PC, COM3).
+1. **Placa:** el soporte de Espressif para ESP32, versión 2.0.14. Con esa versión el programa compila para ESP32 Dev Module; falta probarlo en la placa con las librerías reales. En *Herramientas → Placa* se elige **ESP32 Dev Module**, y el puerto que aparezca al conectar la placa (en este PC, COM3).
 2. **Librerías**, desde el gestor de librerías:
    - **Adafruit AHTX0**. El gestor ofrece instalar también Adafruit BusIO y Adafruit Unified Sensor: hay que aceptarlo.
    - **BH1750**, de Christopher Laws.
@@ -59,19 +59,22 @@ El monitor serie va a **115 200 baudios**.
 |---|---|
 | Parpadeo lento | Conectándose al WiFi. |
 | Fijo | Conectada al WiFi. |
+| Apagado | Sin WiFi: espera 30 segundos y vuelve a intentar. |
 | Cinco parpadeos rápidos | Algo falló: sin WiFi, la API no responde, la clave fue rechazada o falta un sensor. El monitor serie dice qué. |
+
+Si algo traba el programa más de un minuto (por ejemplo, un sensor que se suelta justo mientras mide), la placa se reinicia sola y vuelve a empezar.
 
 Al arrancar, la placa muestra su código y la dirección de la API, revisa los sensores, se conecta al WiFi y pide `GET /parametros` para comprobar que llega al backend. **Sin los sensores ya se puede probar todo esto**: el hotspot, la IP del PC, el firewall y que la API responda. Después, en cada vuelta, muestra la lectura cruda de la humedad, lo que envió y lo que respondió la API (`201, la planta está SALUDABLE`, o el error).
 
 ## Calibración de la humedad
 
-El sensor capacitivo entrega un número crudo, de 0 a 4095: más alto cuanto más seco. El monitor serie lo muestra en cada vuelta (`Humedad: lectura cruda 2795`).
+El sensor capacitivo entrega un número crudo, de 0 a 4095: más alto cuanto más seco. El monitor serie lo muestra en cada vuelta (`Humedad: lectura cruda 2795, salto 12 …`).
 
 1. Con el sensor al aire, se anota la lectura: es `HUMEDAD_SECO`.
 2. Con el sensor en un vaso de agua hasta la línea que marca la placa (sin mojar los componentes), se anota la lectura: es `HUMEDAD_MOJADO`.
-3. Se ponen los dos números en `config.h` y se vuelve a subir el programa. La placa convierte a porcentaje entre esos dos puntos.
+3. Se ponen los dos números en `config.h` y se vuelve a subir el programa. La placa convierte a porcentaje entre esos dos puntos. Si `HUMEDAD_SECO` no es mayor que `HUMEDAD_MOJADO`, el programa no compila y lo dice.
 
-Una lectura cruda menor que 200 o mayor que 3900 se toma como «sensor de humedad desconectado».
+**Sensor de humedad desconectado.** GPIO34 no tiene resistencia interna: con el cable suelto, el pin «flota» y lee cualquier cosa. La placa lo da por desconectado si la lectura cruda es menor que 200 o mayor que 3900, o si salta más de 300 entre la muestra mayor y la menor. Eso detecta casi siempre un pin flotante, pero no siempre. Para que se detecte siempre, se pone una resistencia de 1 MΩ entre GPIO34 y GND: con el cable suelto el pin lee casi 0, y con el sensor conectado la lectura no cambia. Después se vuelve a calibrar.
 
 ## Para probar sin la placa
 

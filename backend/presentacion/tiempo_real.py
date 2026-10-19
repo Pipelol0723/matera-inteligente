@@ -42,6 +42,8 @@ REVISION_SESION = 60
 COLA_MAXIMA = 32
 # Cuanto se espera a que salga el ultimo mensaje antes de cerrar.
 ESPERA_CIERRE = 5
+# Cada cuanto el hilo de la conexion mira si el canal se corto.
+ESPERA_MAXIMA = 1
 # Codigos de cierre de WebSocket (RFC 6455): violacion de politica y error del servidor.
 CIERRE_POR_POLITICA = 1008
 CIERRE_POR_ERROR = 1011
@@ -66,8 +68,14 @@ class CanalWebSocket:
         self._ws = ws
         self._cola: queue.Queue = queue.Queue(maxsize=COLA_MAXIMA)
         self._revisar_sesion: Callable[[], object] | None = None
+        self._cortado = threading.Event()
         self._emisor = threading.Thread(target=self._enviar_en_orden, name="tiempo-real", daemon=True)
         self._emisor.start()
+
+    @property
+    def cortado(self) -> bool:
+        """La conexion se corto: el hilo de la conexion tiene que terminar para que se cierre el socket."""
+        return self._cortado.is_set()
 
     def autenticado(self, revisar_sesion: Callable[[], object]) -> None:
         """Desde aqui, antes de cada medicion se revisa la sesion.
@@ -85,6 +93,12 @@ class CanalWebSocket:
             except SesionInvalida as error:
                 self._encolar_cierre("SESION_INVALIDA", str(error), CIERRE_POR_POLITICA)
                 raise ConnectionError("La sesion de esta conexion ya no es valida.") from None
+            except Exception:
+                # Por ejemplo, la base bloqueada. Sin cerrar, la pestana quedaria "en vivo" sin recibir
+                # nada; cerrada con 1011, el front se reconecta y vuelve a pedir sus datos.
+                _log.exception("No se pudo revisar la sesion antes de mandar una medicion en vivo.")
+                self._encolar_cierre("ERROR_INTERNO", "Ocurrió un error inesperado en el servidor.", CIERRE_POR_ERROR)
+                raise ConnectionError("No se pudo revisar la sesion de esta conexion.") from None
         self._encolar(texto)
 
     def enviar_json(self, mensaje: dict[str, Any]) -> None:
@@ -98,13 +112,28 @@ class CanalWebSocket:
         """Manda el error en JSON y cierra. Espera a que salga: despues flask-sock cierra el socket."""
         self._encolar_cierre(error, mensaje, codigo)
         self._emisor.join(timeout=ESPERA_CIERRE)
+        if self._emisor.is_alive():
+            # El emisor quedo trabado en una pestana que no lee: si no se corta, el cierre de
+            # flask-sock tambien se trabaria escribiendo en ese socket.
+            self._cortar()
 
     def terminar(self) -> None:
-        """La conexion termino: el emisor se detiene."""
+        """La conexion termino: se detiene el emisor y se apaga el socket.
+
+        Hay que apagarlo antes de devolverle el control a flask-sock. Si no, el
+        servidor de Werkzeug escribe una respuesta HTTP en el mismo socket (el
+        close() de simple-websocket no lo cierra mientras Werkzeug lo tenga
+        abierto), y el navegador la lee como una trama invalida.
+        """
         try:
             self._cola.put_nowait(None)
         except queue.Full:
             self._cortar()
+        self._emisor.join(timeout=ESPERA_CIERRE)
+        hilo_lector = getattr(self._ws, "thread", None)  # el de simple-websocket: termina el cierre
+        if hilo_lector is not None:
+            hilo_lector.join(timeout=ESPERA_CIERRE)
+        self._apagar_socket()
 
     def _encolar(self, elemento: str | _Cierre) -> None:
         try:
@@ -135,7 +164,13 @@ class CanalWebSocket:
                 return
 
     def _cortar(self) -> None:
-        # Cortar el socket destraba el envio que este esperando y la espera del hilo de la conexion.
+        # shutdown() hace fallar enseguida los envios que vengan despues. En Windows no destraba un
+        # envio que ya esta esperando: por eso tambien se avisa al hilo de la conexion, que termina,
+        # y al terminar Werkzeug cierra el socket de verdad.
+        self._cortado.set()
+        self._apagar_socket()
+
+    def _apagar_socket(self) -> None:
         try:
             self._ws.sock.shutdown(socket.SHUT_RDWR)
         except (AttributeError, OSError):
@@ -253,10 +288,14 @@ def _esperar_hasta_que_cierre(canal: CanalWebSocket, identificar: IdentificarUsu
     Cada REVISION_SESION segundos se revisa la sesion, aunque el cliente mande
     mensajes, para cerrar tambien las conexiones que no reciben mediciones. Cuando
     el cliente cierra, recibir() lanza ConnectionClosed y flask-sock termina la conexion.
+    Se espera de a ESPERA_MAXIMA segundos para notar pronto un canal cortado.
     """
     revisada = time.monotonic()
     while True:
-        canal.recibir(max(0.0, revisada + REVISION_SESION - time.monotonic()))
+        if canal.cortado:
+            return
+        restante = revisada + REVISION_SESION - time.monotonic()
+        canal.recibir(min(ESPERA_MAXIMA, max(0.0, restante)))
         if time.monotonic() - revisada < REVISION_SESION:
             continue
         try:

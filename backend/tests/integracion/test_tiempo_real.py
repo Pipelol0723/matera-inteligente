@@ -152,6 +152,10 @@ class WebSocketFalso:
     def shutdown(self, como):
         self.cortado.set()
 
+    def receive(self, timeout=None):
+        threading.Event().wait(min(timeout or 0, 0.05))
+        return None
+
 
 def _terminar(canal):
     canal.terminar()
@@ -210,6 +214,48 @@ def test_si_la_sesion_ya_no_sirve_el_canal_manda_el_error_cierra_y_avisa_que_no_
     [error] = [json.loads(texto) for texto in ws.enviados]
     assert (error["tipo"], error["error"]) == ("error", "SESION_INVALIDA")
     assert ws.cierre == (tiempo_real.CIERRE_POR_POLITICA, "SESION_INVALIDA")
+
+
+def test_si_no_se_puede_revisar_la_sesion_el_canal_cierra_con_error_interno_en_vez_de_quedar_sordo():
+    ws = WebSocketFalso()
+    canal = CanalWebSocket(ws)
+
+    def base_bloqueada():
+        raise RuntimeError("database is locked")
+
+    canal.autenticado(base_bloqueada)
+    with pytest.raises(ConnectionError):
+        canal.enviar("medicion")
+    canal._emisor.join(timeout=5)
+
+    assert json.loads(ws.enviados[0])["error"] == "ERROR_INTERNO"
+    assert ws.cierre == (tiempo_real.CIERRE_POR_ERROR, "ERROR_INTERNO")
+
+
+def test_si_el_cierre_no_sale_a_tiempo_se_corta_el_socket(monkeypatch):
+    monkeypatch.setattr(tiempo_real, "ESPERA_CIERRE", 0.2)
+    trabado = threading.Event()
+    ws = WebSocketFalso(trabado)
+    canal = CanalWebSocket(ws)
+    canal.enviar("una medicion que la pestana nunca lee")
+
+    canal.cerrar_con_error("SESION_INVALIDA", "la sesion vencio")
+
+    assert ws.cortado.is_set() and canal.cortado
+    trabado.set()
+    _terminar(canal)
+
+
+def test_un_canal_cortado_hace_terminar_la_espera_de_la_conexion():
+    canal = CanalWebSocket(WebSocketFalso())
+    canal._cortar()
+    hilo = threading.Thread(target=tiempo_real._esperar_hasta_que_cierre, args=(canal, None, "token"))
+
+    hilo.start()
+    hilo.join(timeout=3)
+
+    assert not hilo.is_alive()
+    _terminar(canal)
 
 
 def test_cerrar_con_error_espera_a_que_salga_el_mensaje_antes_de_volver():

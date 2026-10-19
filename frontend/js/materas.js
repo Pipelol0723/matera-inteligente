@@ -13,7 +13,8 @@ export function crearPantallaMateras(contexto) {
   let plantas = [];
   let abierta = null; // la tarjeta con el formulario para cambiar el sensor
   let borrador = ""; // lo escrito en ese formulario, para no perderlo si la tarjeta se vuelve a pintar
-  // Lo que GET /plantas no trae: las recomendaciones de la última medición que llegó en vivo.
+  // Lo que GET /plantas no trae: las recomendaciones de la medición que llegó en vivo, con su momento.
+  // Solo se muestran mientras esa siga siendo la última medición de la tarjeta.
   const diagnosticos = new Map();
 
   formulario.addEventListener("submit", async (evento) => {
@@ -54,17 +55,20 @@ export function crearPantallaMateras(contexto) {
       return;
     }
     planta.ultimaMedicion = mensaje.medicion;
-    diagnosticos.set(planta.id, mensaje.diagnostico);
+    diagnosticos.set(planta.id, { momento: mensaje.medicion.momento, diagnostico: mensaje.diagnostico });
     repintarTarjeta(planta);
     pintarBajada();
   });
 
-  // La clave sale una sola vez: al crear la matera o al cambiarle el sensor.
+  // La clave sale una sola vez: al crear la matera o al cambiarle el sensor. El panel está arriba de
+  // la lista, así que se lleva la vista hasta él: si no se ve, la clave se pierde al cambiar de pantalla.
   function mostrarClave({ planta, codigo, clave }, accion) {
     $("clave-rotulo").textContent = `${accion}: «${planta.apodo}» con el sensor ${codigo} · la clave se muestra una sola vez`;
     $("clave-texto").textContent = clave;
     $("copiar-clave").textContent = "Copiar";
     $("clave-nueva").hidden = false;
+    $("clave-nueva").scrollIntoView({ block: "center" });
+    $("copiar-clave").focus({ preventScroll: true });
   }
 
   function ocultarClave() {
@@ -103,12 +107,15 @@ export function crearPantallaMateras(contexto) {
     $("materas").replaceChildren(...plantas.map((planta) => tarjeta(planta)));
   }
 
-  // Solo la tarjeta que cambió, marcada un momento para que se note la medición nueva.
+  // Solo la tarjeta que cambió, marcada un momento para que se note la medición nueva. Si tenía abierto
+  // el formulario del sensor, se conserva el mismo: con lo escrito, su error y su botón ocupado.
   function repintarTarjeta(planta) {
     const vieja = $("materas").querySelector(`[data-planta="${planta.id}"]`);
     if (!vieja) return;
     const escribiendo = vieja.contains(document.activeElement) && document.activeElement.tagName === "INPUT";
     const nueva = tarjeta(planta);
+    const formularioAbierto = vieja.querySelector(".matera__sensor");
+    if (formularioAbierto) nueva.querySelector(".matera__sensor")?.replaceWith(formularioAbierto);
     nueva.classList.add("matera--nueva");
     vieja.replaceWith(nueva);
     if (escribiendo) nueva.querySelector("input")?.focus();
@@ -132,8 +139,8 @@ export function crearPantallaMateras(contexto) {
     nodo.dataset.planta = planta.id;
     if (medicion?.estado === "CRITICO") nodo.classList.add("matera--critica");
 
-    const diagnostico = diagnosticos.get(planta.id);
-    if (diagnostico) nodo.append(recomendaciones(diagnostico));
+    const enVivo = diagnosticos.get(planta.id);
+    if (enVivo && enVivo.momento === medicion?.momento) nodo.append(recomendaciones(enVivo.diagnostico));
     if (abierta === planta.id) nodo.append(formularioSensor(planta));
     nodo.append(acciones(planta));
     return nodo;
@@ -268,5 +275,14 @@ export function crearPantallaMateras(contexto) {
       cargar();
     },
     alCargarCatalogos,
+    // Al cerrar la sesión: nada de esta cuenta queda para la que entre después en la misma pestaña.
+    reiniciar() {
+      plantas = [];
+      abierta = null;
+      borrador = "";
+      diagnosticos.clear();
+      ocultarClave();
+      pintar();
+    },
   };
 }

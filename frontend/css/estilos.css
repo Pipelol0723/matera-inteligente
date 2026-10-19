@@ -307,10 +307,6 @@ a:hover {
   background: var(--acento-oscuro);
 }
 
-.boton-primario--grande {
-  padding: 12px 18px;
-}
-
 .boton-secundario {
   padding: 12px 18px;
   border: 1px solid var(--borde);
@@ -1041,7 +1037,6 @@ a:hover {
 
 /* ---- piezas del corte 2: ceja y fila de acciones ---- */
 
-
 .ceja {
   margin: 0 0 8px;
   font-size: 0.66rem;
@@ -1050,12 +1045,6 @@ a:hover {
   text-transform: uppercase;
   color: var(--acento);
 }
-
-
-
-
-
-
 
 .acciones {
   display: flex;
@@ -1303,14 +1292,6 @@ a:hover {
   }
 }
 
-
-
-
-
-
-
-
-
 .clave {
   display: flex;
   flex-wrap: wrap;
@@ -1335,10 +1316,6 @@ a:hover {
   font-size: 0.86rem;
   overflow-wrap: anywhere;
 }
-
-
-
-
 
 .historial__selector {
   display: flex;

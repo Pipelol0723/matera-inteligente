@@ -37,7 +37,7 @@ class Pantalla:
     def cerrar(self):
         try:
             self.ws.close()
-        except ConnectionClosed:
+        except (ConnectionClosed, OSError):  # el servidor ya pudo haber cerrado el socket
             pass
 
 

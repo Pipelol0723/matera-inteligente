@@ -16,6 +16,7 @@
 #include <HTTPClient.h>
 #include <WiFi.h>
 #include <Wire.h>
+#include <esp_task_wdt.h>
 
 #include <Adafruit_AHTX0.h>  // Adafruit AHTX0 (el gestor instala también Adafruit BusIO y Unified Sensor)
 #include <BH1750.h>          // BH1750, de Christopher Laws
@@ -24,6 +25,10 @@
 #include "config.h"
 #else
 #error "Falta config.h: copie config.example.h como config.h, en esta misma carpeta, y complete sus datos."
+#endif
+
+#if HUMEDAD_SECO <= HUMEDAD_MOJADO
+#error "En config.h, HUMEDAD_SECO (la lectura al aire) tiene que ser mayor que HUMEDAD_MOJADO (en agua)."
 #endif
 
 // ---- pines de la ESP32 DevKit ----
@@ -36,11 +41,17 @@ const int PIN_LED = 2;       // el LED azul de la placa
 const unsigned long ESPERA_WIFI_MS = 20000;  // cuánto se intenta conectar antes de rendirse un rato
 const unsigned long REINTENTO_MS = 30000;    // si falta un sensor, no hay WiFi o falló el envío
 const int MUESTRAS_HUMEDAD = 16;             // se promedian para bajar el ruido del ADC
-// Una lectura cruda casi en 0 o casi en 4095 es un pin sin sensor (o un sensor mal conectado).
+// Un sensor conectado da lecturas parejas. Un pin suelto da cualquier cosa: casi 0, casi 4095 o
+// lecturas que saltan de una muestra a otra. Con una resistencia de 1 MΩ entre GPIO34 y GND, un
+// cable suelto lee casi 0 y se detecta siempre (ver firmware/README.md).
 const int CRUDO_MINIMO = 200;
 const int CRUDO_MAXIMO = 3900;
-// El BH1750 no mide más de esto: a pleno sol se satura.
-const float LUZ_MAXIMA = 65535.0;
+const int SALTO_MAXIMO = 300;                // diferencia entre la muestra mayor y la menor
+// Con el modo de alta resolucion, el BH1750 entrega como mucho 65535 / 1,2 = 54 612 lux: ahi se satura.
+const float LUZ_MAXIMA = 54600.0;
+// Si algo traba el programa mas de este tiempo (un sensor que se suelta justo mientras mide), la placa
+// se reinicia sola. Tiene margen sobre las esperas normales: el WiFi (20 s) y una peticion HTTP (15 s).
+const int SEGUNDOS_VIGILANCIA = 60;
 
 Adafruit_AHTX0 aht;
 BH1750 medidorLuz(0x23);
@@ -74,6 +85,7 @@ bool conectarWifi() {
   bool encendido = false;
   unsigned long inicio = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - inicio < ESPERA_WIFI_MS) {
+    esp_task_wdt_reset();
     encendido = !encendido;
     led(encendido);
     delay(500);
@@ -123,7 +135,7 @@ void iniciarSensores() {
     Serial.println(ahtListo ? "AHT20 listo (temperatura)." : "No responde el AHT20 en el bus I2C (0x38).");
   }
   if (!luzListo) {
-    luzListo = medidorLuz.begin(BH1750::CONTINUOUS_HIGH_RES_MODE, 0x23, &Wire);
+    luzListo = medidorLuz.begin(BH1750::ONE_TIME_HIGH_RES_MODE, 0x23, &Wire);
     Serial.println(luzListo ? "BH1750 listo (luz)." : "No responde el BH1750 en el bus I2C (0x23).");
   }
 }
@@ -132,13 +144,19 @@ void iniciarSensores() {
 // Siempre muestra la lectura cruda: con ella se calibra HUMEDAD_SECO y HUMEDAD_MOJADO.
 float leerHumedad() {
   long suma = 0;
+  int menor = 4095;
+  int mayor = 0;
   for (int i = 0; i < MUESTRAS_HUMEDAD; i++) {
-    suma += analogRead(PIN_HUMEDAD);
+    int muestra = analogRead(PIN_HUMEDAD);
+    suma += muestra;
+    menor = min(menor, muestra);
+    mayor = max(mayor, muestra);
     delay(5);
   }
   int crudo = suma / MUESTRAS_HUMEDAD;
-  Serial.printf("Humedad: lectura cruda %d (seco %d, mojado %d).\n", crudo, HUMEDAD_SECO, HUMEDAD_MOJADO);
-  if (crudo < CRUDO_MINIMO || crudo > CRUDO_MAXIMO) return -1;
+  Serial.printf("Humedad: lectura cruda %d, salto %d (seco %d, mojado %d).\n", crudo, mayor - menor, HUMEDAD_SECO,
+                HUMEDAD_MOJADO);
+  if (crudo < CRUDO_MINIMO || crudo > CRUDO_MAXIMO || mayor - menor > SALTO_MAXIMO) return -1;
   float porcentaje = 100.0 * (HUMEDAD_SECO - crudo) / (HUMEDAD_SECO - HUMEDAD_MOJADO);
   return constrain(porcentaje, 0.0, 100.0);
 }
@@ -154,8 +172,15 @@ bool leerTemperatura(float &temperatura) {
   return true;
 }
 
+// Una medicion por lectura: se le pide al BH1750 cada vez. Si se reinicio por un falso contacto,
+// queda apagado y en modo continuo devolveria 0 lux para siempre; asi vuelve a medir.
 bool leerLuz(float &lux) {
   if (!luzListo) return false;
+  if (!medidorLuz.configure(BH1750::ONE_TIME_HIGH_RES_MODE)) {
+    luzListo = false;
+    return false;
+  }
+  medidorLuz.measurementReady(true);  // espera lo que tarda una medicion (hasta 180 ms)
   float valor = medidorLuz.readLightLevel();
   if (valor < 0) {
     luzListo = false;
@@ -215,6 +240,8 @@ void setup() {
   analogReadResolution(12);
   analogSetPinAttenuation(PIN_HUMEDAD, ADC_11db);  // lee de 0 a casi 3,3 V
   Wire.begin(PIN_SDA, PIN_SCL);
+  esp_task_wdt_init(SEGUNDOS_VIGILANCIA, true);  // reinicia la placa si loop() queda trabado
+  esp_task_wdt_add(NULL);
 
   Serial.println();
   Serial.println("Matera inteligente · sensor " CODIGO_SENSOR);
@@ -224,8 +251,10 @@ void setup() {
 }
 
 void loop() {
+  esp_task_wdt_reset();
   // Resta con signo: sigue funcionando cuando millis() da la vuelta, a los 49 días.
   if ((long)(millis() - proximoEnvio) < 0) {
+    led(WiFi.status() == WL_CONNECTED);  // el LED sigue al WiFi también entre envíos
     delay(50);
     return;
   }
