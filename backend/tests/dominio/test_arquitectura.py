@@ -5,8 +5,8 @@ from pathlib import Path
 BACKEND = Path(__file__).resolve().parents[2]
 
 PROHIBIDOS_EN_DOMINIO = {
-    # framework web y HTTP
-    "flask", "flask_cors", "werkzeug", "http", "urllib", "requests", "json",
+    # framework web, HTTP y WebSocket
+    "flask", "flask_cors", "flask_sock", "simple_websocket", "werkzeug", "http", "urllib", "requests", "json",
     # persistencia
     "csv", "pandas", "sqlite3", "sqlalchemy", "psycopg2",
     # criptografia: el dominio la pide por los puertos Cifrador y GeneradorSecretos
@@ -50,6 +50,14 @@ def test_la_aplicacion_no_importa_framework_persistencia_criptografia_ni_capas_d
     assert _violaciones(archivos, PROHIBIDOS_EN_APLICACION) == {}
 
 
+def test_presentacion_no_importa_infraestructura():
+    """El WebSocket recibe los canales de main.py: la ruta no conoce la clase que guarda las conexiones."""
+    archivos = sorted((BACKEND / "presentacion").glob("*.py"))
+    assert archivos, "no se encontraron archivos de presentacion"
+
+    assert _violaciones(archivos, {"infraestructura", "main"}) == {}
+
+
 def test_las_pruebas_de_dominio_y_aplicacion_no_dependen_de_infraestructura_ni_de_flask():
     """Si se borra la carpeta infraestructura, estas pruebas tienen que seguir pasando."""
     archivos = (
@@ -58,4 +66,4 @@ def test_las_pruebas_de_dominio_y_aplicacion_no_dependen_de_infraestructura_ni_d
         + [BACKEND / "tests" / "dobles.py", BACKEND / "tests" / "dobles_usuarios.py"]
     )
 
-    assert _violaciones(archivos, {"flask", "infraestructura", "presentacion", "main"}) == {}
+    assert _violaciones(archivos, {"flask", "flask_sock", "infraestructura", "presentacion", "main"}) == {}

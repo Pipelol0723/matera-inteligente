@@ -1,5 +1,15 @@
-"""Un cliente de la API armado con main.construir_app sobre una base temporal, para las pruebas del corte 2."""
+"""Un cliente de la API armado con main.construir_app sobre una base temporal, para las pruebas del corte 2.
+
+Tambien levanta el servidor real, con hilos, para las pruebas que necesitan
+hablarle por la red: el recorrido completo, el WebSocket y el script de desarrollo.
+"""
+import json
+import threading
+import urllib.error
+import urllib.request
+
 import pytest
+from werkzeug.serving import make_server
 
 from crear_admin import main as crear_admin
 from infraestructura.configuracion import Configuracion
@@ -52,6 +62,33 @@ def config(tmp_path):
 @pytest.fixture
 def api(config):
     return ClienteApi(config)
+
+
+@pytest.fixture
+def base_url(config):
+    """El servidor de verdad, con threaded=True como app.run(), en un puerto libre."""
+    servidor = make_server("127.0.0.1", 0, construir_app(config), threaded=True)
+    hilo = threading.Thread(target=servidor.serve_forever, daemon=True)
+    hilo.start()
+    yield f"http://127.0.0.1:{servidor.server_port}/api/v1"
+    servidor.shutdown()
+    hilo.join()
+
+
+def pedir_http(base_url, metodo, ruta, cuerpo=None, token=None, clave_sensor=None):
+    """Una peticion de verdad por la red. Devuelve (estado, cuerpo JSON)."""
+    cabeceras = {"Content-Type": "application/json"}
+    if token:
+        cabeceras["Authorization"] = f"Bearer {token}"
+    if clave_sensor:
+        cabeceras["X-Clave-Sensor"] = clave_sensor
+    datos = json.dumps(cuerpo).encode() if cuerpo is not None else None
+    peticion = urllib.request.Request(f"{base_url}{ruta}", data=datos, headers=cabeceras, method=metodo)
+    try:
+        with urllib.request.urlopen(peticion, timeout=10) as respuesta:
+            return respuesta.status, json.load(respuesta)
+    except urllib.error.HTTPError as error:
+        return error.code, json.load(error)
 
 
 def es_error(respuesta, estado: int, codigo: str) -> bool:

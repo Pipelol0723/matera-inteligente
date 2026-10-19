@@ -46,6 +46,7 @@ from presentacion.rutas_admin import crear_blueprint_admin
 from presentacion.rutas_plantas import crear_blueprint_plantas
 from presentacion.rutas_sensores import crear_blueprint_sensores
 from presentacion.rutas_usuarios import crear_blueprint_usuarios
+from presentacion.tiempo_real import crear_blueprint_tiempo_real
 
 
 def construir_app(config: Configuracion) -> Flask:
@@ -72,7 +73,8 @@ def construir_app(config: Configuracion) -> Flask:
     cifrador = CifradorPbkdf2(config.iteraciones_contrasena)
     secretos = GeneradorSecretosSeguro()
     reloj = RelojSistema()
-    autenticacion = Autenticacion(IdentificarUsuario(sesiones, usuarios, secretos, reloj))
+    identificar = IdentificarUsuario(sesiones, usuarios, secretos, reloj)
+    autenticacion = Autenticacion(identificar)
 
     cuentas = crear_blueprint_usuarios(
         registrar=RegistrarUsuario(usuarios, cifrador),
@@ -105,8 +107,10 @@ def construir_app(config: Configuracion) -> Flask:
         autenticacion=autenticacion,
     )
     entrada_sensor = crear_blueprint_sensores(RecibirMedicionDeSensor(sensores, plantas, secretos, diagnosticar_planta))
+    # El WebSocket del front registra sus conexiones en los mismos canales que usa el notificador.
+    en_vivo = crear_blueprint_tiempo_real(identificar, canales, config.origenes_cors)
 
-    return crear_app([api, cuentas, administracion, mis_plantas, entrada_sensor], config)
+    return crear_app([api, cuentas, administracion, mis_plantas, entrada_sensor, en_vivo], config)
 
 
 if __name__ == "__main__":

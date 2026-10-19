@@ -3,43 +3,12 @@
 El test_client de Flask atiende todo en el mismo hilo, asi que no detecta un
 error que solo aparece en el servidor real: usar una conexion de sqlite3
 desde otro hilo. Esta prueba levanta el servidor con threaded=True (lo que
-hace app.run() por defecto) y le habla por HTTP.
+hace app.run() por defecto, con el fixture base_url de conftest.py) y le
+habla por HTTP.
 """
-import json
-import threading
-import urllib.error
-import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
-import pytest
-from werkzeug.serving import make_server
-
-from main import construir_app
-
-
-@pytest.fixture
-def base_url(config):
-    servidor = make_server("127.0.0.1", 0, construir_app(config), threaded=True)
-    hilo = threading.Thread(target=servidor.serve_forever, daemon=True)
-    hilo.start()
-    yield f"http://127.0.0.1:{servidor.server_port}/api/v1"
-    servidor.shutdown()
-    hilo.join()
-
-
-def _pedir(base_url, metodo, ruta, cuerpo=None, token=None, clave_sensor=None):
-    cabeceras = {"Content-Type": "application/json"}
-    if token:
-        cabeceras["Authorization"] = f"Bearer {token}"
-    if clave_sensor:
-        cabeceras["X-Clave-Sensor"] = clave_sensor
-    datos = json.dumps(cuerpo).encode() if cuerpo is not None else None
-    peticion = urllib.request.Request(f"{base_url}{ruta}", data=datos, headers=cabeceras, method=metodo)
-    try:
-        with urllib.request.urlopen(peticion, timeout=10) as respuesta:
-            return respuesta.status, json.load(respuesta)
-    except urllib.error.HTTPError as error:
-        return error.code, json.load(error)
+from tests.integracion.conftest import pedir_http as _pedir
 
 
 def test_el_servidor_real_atiende_un_recorrido_completo_con_la_misma_base(base_url):
