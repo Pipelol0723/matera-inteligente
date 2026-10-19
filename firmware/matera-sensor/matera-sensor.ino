@@ -77,6 +77,32 @@ void avisarFallo() {
 
 // ---- red ----
 
+const char *motivoWifi(wl_status_t estado) {
+  switch (estado) {
+    case WL_NO_SSID_AVAIL:
+      return "no ve la red: revise WIFI_SSID y que sea de 2,4 GHz";
+    case WL_CONNECT_FAILED:
+      return "la red rechazó la conexión: revise WIFI_CLAVE";
+    case WL_CONNECTION_LOST:
+      return "se perdió la conexión";
+    case WL_DISCONNECTED:
+      return "la red no la dejó entrar: suele ser WIFI_CLAVE o el límite de dispositivos del hotspot";
+    default:
+      return "estado desconocido";
+  }
+}
+
+// Las redes que ve la placa: sirve para saber si el hotspot está al alcance y en 2,4 GHz.
+void mostrarRedes() {
+  esp_task_wdt_reset();
+  int cuantas = WiFi.scanNetworks();
+  Serial.printf("La placa ve %d redes:\n", cuantas);
+  for (int i = 0; i < cuantas && i < 10; i++) {
+    Serial.printf("  «%s», canal %d, señal %d dBm\n", WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i));
+  }
+  WiFi.scanDelete();
+}
+
 bool conectarWifi() {
   if (WiFi.status() == WL_CONNECTED) return true;
   Serial.printf("Conectando al WiFi «%s»", WIFI_SSID);
@@ -93,7 +119,9 @@ bool conectarWifi() {
   }
   Serial.println();
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("No se pudo conectar. Revise WIFI_SSID y WIFI_CLAVE, y que la red sea de 2,4 GHz.");
+    Serial.printf("No se pudo conectar: %s.\n", motivoWifi(WiFi.status()));
+    WiFi.disconnect();
+    mostrarRedes();
     led(false);
     return false;
   }
@@ -271,9 +299,14 @@ void loop() {
   bool hayTemperatura = leerTemperatura(temperatura);
   bool hayLuz = leerLuz(lux);
   if (humedad < 0 || !hayTemperatura || !hayLuz) {
-    Serial.printf("No se envía: falta%s%s%s. Se reintenta en %lu s.\n",
-                  humedad < 0 ? " la humedad" : "", hayTemperatura ? "" : " la temperatura",
-                  hayLuz ? "" : " la luz", REINTENTO_MS / 1000);
+    String faltan[3];
+    int cuantos = 0;
+    if (humedad < 0) faltan[cuantos++] = "la humedad";
+    if (!hayTemperatura) faltan[cuantos++] = "la temperatura";
+    if (!hayLuz) faltan[cuantos++] = "la luz";
+    String lista = faltan[0];
+    for (int i = 1; i < cuantos; i++) lista += (i == cuantos - 1 ? " y " : ", ") + faltan[i];
+    Serial.printf("No se envía: falta %s. Se reintenta en %lu s.\n", lista.c_str(), REINTENTO_MS / 1000);
     avisarFallo();
     proximoEnvio = millis() + REINTENTO_MS;
     return;

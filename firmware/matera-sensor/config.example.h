@@ -4,7 +4,9 @@
 #pragma once
 
 // Red WiFi de 2,4 GHz: la ESP32 no ve las redes de 5 GHz. Para la demo, el hotspot del celular
-// (en iPhone, con «Maximizar compatibilidad» encendido).
+// (en iPhone, con «Maximizar compatibilidad» encendido). El nombre va exacto, con sus espacios:
+// Windows puede mostrarlo sin un espacio del final. Si no conecta, el monitor serie lista las redes
+// que ve la placa, con el nombre entre «».
 #define WIFI_SSID "nombre-de-la-red"
 #define WIFI_CLAVE "clave-de-la-red"
 

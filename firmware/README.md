@@ -25,7 +25,7 @@ ESP32 clásica de doble núcleo (DevKit WROOM-32, con puente USB CP2102). Todo v
 
 ## Instalación en el Arduino IDE 2
 
-1. **Placa:** el soporte de Espressif para ESP32, versión 2.0.14. Con esa versión el programa compila para ESP32 Dev Module; falta probarlo en la placa con las librerías reales. En *Herramientas → Placa* se elige **ESP32 Dev Module**, y el puerto que aparezca al conectar la placa (en este PC, COM3).
+1. **Placa:** el soporte de Espressif para ESP32, versión 2.0.14. Con esa versión y las librerías de abajo, el programa se probó el 19 de octubre de 2026 en la placa, todavía sin sensores: se conecta al hotspot y llega a la API. En *Herramientas → Placa* se elige **ESP32 Dev Module**, y el puerto que aparezca al conectar la placa (en este PC, COM3).
 2. **Librerías**, desde el gestor de librerías:
    - **Adafruit AHTX0**. El gestor ofrece instalar también Adafruit BusIO y Adafruit Unified Sensor: hay que aceptarlo.
    - **BH1750**, de Christopher Laws.
@@ -42,7 +42,7 @@ ESP32 clásica de doble núcleo (DevKit WROOM-32, con puente USB CP2102). Todo v
 | `INTERVALO_MS` | Cada cuánto se envía: 60 000 (un minuto). Para la demo se puede bajar a 15 000. |
 | `HUMEDAD_SECO`, `HUMEDAD_MOJADO` | La calibración del sensor de humedad (ver abajo). |
 
-4. **Subir el programa:** *Subir* en el IDE. Si se queda en `Connecting...`, hay que mantener apretado el botón **BOOT** de la placa hasta que empiece a escribir. Con esta placa el reinicio automático al modo de descarga no siempre funciona. Subir el programa borra el que tenga la placa.
+4. **Subir el programa:** *Subir* en el IDE. Con esta placa el reinicio automático al modo de descarga no funciona: cuando aparezca `Connecting...`, hay que mantener apretado el botón **BOOT** (y, si la placa lo tiene, presionar **EN** una vez) hasta que empiece a escribir. Subir el programa borra el que tenga la placa.
 
 ## El backend para la demo
 
@@ -65,6 +65,8 @@ El monitor serie va a **115 200 baudios**.
 Si algo traba el programa más de un minuto (por ejemplo, un sensor que se suelta justo mientras mide), la placa se reinicia sola y vuelve a empezar.
 
 Al arrancar, la placa muestra su código y la dirección de la API, revisa los sensores, se conecta al WiFi y pide `GET /parametros` para comprobar que llega al backend. **Sin los sensores ya se puede probar todo esto**: el hotspot, la IP del PC, el firewall y que la API responda. Después, en cada vuelta, muestra la lectura cruda de la humedad, lo que envió y lo que respondió la API (`201, la planta está SALUDABLE`, o el error).
+
+Si no se conecta al WiFi, el monitor serie dice el motivo y lista las redes que ve la placa, con el nombre entre «». El nombre de `WIFI_SSID` tiene que ser exacto, con sus espacios: Windows puede mostrar el del hotspot sin un espacio del final.
 
 ## Calibración de la humedad
 
