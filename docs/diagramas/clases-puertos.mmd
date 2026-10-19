@@ -34,18 +34,17 @@ classDiagram
         }
         class RepositorioPlantas {
             <<interface>>
-            +guardar(planta: Planta) Planta
+            +guardar_con_sensor(planta, codigo, hash_clave) Planta
             +de_usuario(usuario_id: int) list~Planta~
             +por_id(usuario_id: int, planta_id: int) Planta o None
-            +vinculada_a(codigo: CodigoSensor) Planta o None
+            +vinculada_a(sensor: Sensor) Planta o None
             +eliminar(usuario_id: int, planta_id: int)
         }
         class RepositorioSensores {
             <<interface>>
             +por_codigo(codigo: CodigoSensor) Sensor o None
             +de_planta(planta_id: int) Sensor o None
-            +guardar(sensor: Sensor)
-            +eliminar(codigo: CodigoSensor)
+            +reemplazar(usuario_id: int, sensor: Sensor)
         }
         class HistorialMediciones {
             <<interface>>
@@ -67,6 +66,10 @@ classDiagram
         class Reloj {
             <<interface>>
             +ahora() datetime
+        }
+        class NotificadorDiagnosticos {
+            <<interface>>
+            +publicar(usuario_id, planta, registro, diagnostico)
         }
     }
 
@@ -103,6 +106,15 @@ classDiagram
             +conexion() Connection
             +preparar() BaseDatos
         }
+        class NotificadorWebSocket {
+            -canales: CanalesTiempoReal
+            -formato: medicion_en_vivo_a_json
+        }
+        class CanalesTiempoReal {
+            -por_usuario: canales de cada usuario
+            +conectado(usuario_id, canal)
+            +enviar(usuario_id, texto) int
+        }
     }
 
     RepositorioEspeciesSqlite ..|> ConsultaRangos
@@ -116,8 +128,10 @@ classDiagram
     CifradorPbkdf2 ..|> Cifrador
     GeneradorSecretosSeguro ..|> GeneradorSecretos
     RelojSistema ..|> Reloj
+    NotificadorWebSocket ..|> NotificadorDiagnosticos
 
     note for BaseDatos "Abre una conexión por operación y activa<br>PRAGMA foreign_keys: Flask atiende cada petición<br>en un hilo y sqlite3 no comparte conexiones<br>entre hilos. La usan los seis repositorios SQLite."
+    note for CanalesTiempoReal "Las conexiones abiertas de cada usuario,<br>con un candado: se usa desde varios hilos.<br>La ruta del WebSocket (presentación) registra<br>cada pestaña; main.py le pasa estos mismos canales."
 
     style ConsultaRangos fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
     style CatalogoEspecies fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
@@ -140,3 +154,6 @@ classDiagram
     style GeneradorSecretosSeguro fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
     style RelojSistema fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
     style BaseDatos fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
+    style NotificadorDiagnosticos fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style NotificadorWebSocket fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
+    style CanalesTiempoReal fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b

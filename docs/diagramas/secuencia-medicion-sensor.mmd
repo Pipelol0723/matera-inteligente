@@ -1,8 +1,8 @@
-%% Secuencia del corte 2 (implementada): una medición que llega del ESP32 o del simulador, con la clave del sensor,
-%% hasta que se diagnostica con el ServicioDiagnostico del corte 1 y se guarda en el historial.
+%% Secuencia del corte 2 (implementada): una medición que llega del ESP32, con la clave del sensor,
+%% hasta que se diagnostica con el ServicioDiagnostico del corte 1, se guarda en el historial y se avisa en vivo.
 sequenceDiagram
     autonumber
-    participant ESP as ESP32 o simulador
+    participant ESP as ESP32<br/>(o enviar_medicion.py)
     participant RS as rutas_sensores.py<br/>(presentación)
     participant E as esquemas.py<br/>(presentación)
     participant RM as RecibirMedicionDeSensor<br/>(aplicación)
@@ -11,6 +11,7 @@ sequenceDiagram
     participant DU as DiagnosticarPlantaDeUsuario<br/>(aplicación)
     participant S as ServicioDiagnostico<br/>(dominio, corte 1)
     participant H as HistorialMediciones<br/>(puerto)
+    participant N as NotificadorDiagnosticos<br/>(puerto)
 
     ESP ->> RS: POST /api/v1/sensores/{código}/mediciones<br/>cabecera X-Clave-Sensor
     RS ->> E: medicion_desde_json(cuerpo)
@@ -23,16 +24,24 @@ sequenceDiagram
         RM --x RS: ClaveSensorInvalida
         RS -->> ESP: 401 CLAVE_SENSOR_INVALIDA
     else clave correcta
-        RM ->> PS: vinculada_a(código)
-        PS -->> RM: Planta, con su dueño
-        RM ->> DU: ejecutar(planta.usuario_id, planta.id, medicion, código)
-        DU ->> PS: por_id(usuario_id, planta_id)
-        PS -->> DU: Planta
-        DU ->> S: diagnosticar(planta.especie, medicion)
-        Note over S: el mismo recorrido del corte 1<br/>ConsultaRangos, EvaluadorPlanta, ReglaHibrida
-        S -->> DU: Diagnostico
-        DU ->> H: agregar(RegistroMedicion.desde(diagnostico, origen = código))
-        DU -->> RM: ResultadoMedicion
-        RM -->> RS: ResultadoMedicion: planta, diagnóstico y momento
-        RS -->> ESP: 201 JSON con la planta y el diagnóstico
+        RM ->> PS: vinculada_a(sensor verificado)
+        alt el sensor cambió entre tanto (otra clave u otra planta)
+            PS -->> RM: None
+            RM --x RS: ClaveSensorInvalida
+            RS -->> ESP: 401 CLAVE_SENSOR_INVALIDA
+        else sigue siendo el mismo sensor
+            PS -->> RM: Planta, con su dueño
+            RM ->> DU: ejecutar(planta.usuario_id, planta.id, medicion, código)
+            DU ->> PS: por_id(usuario_id, planta_id)
+            PS -->> DU: Planta
+            DU ->> S: diagnosticar(planta.especie, medicion)
+            Note over S: el mismo recorrido del corte 1<br/>ConsultaRangos, EvaluadorPlanta, ReglaHibrida
+            S -->> DU: Diagnostico
+            DU ->> H: agregar(RegistroMedicion.desde(diagnostico, origen = código))
+            DU ->> N: publicar(dueño, planta, registro, diagnostico)
+            Note over N: NotificadorWebSocket lo manda solo a las<br/>pestañas abiertas del dueño. Si falla, la<br/>medición ya quedó guardada: solo se registra en el log.
+            DU -->> RM: ResultadoMedicion
+            RM -->> RS: ResultadoMedicion: planta, diagnóstico y momento
+            RS -->> ESP: 201 JSON con la planta y el diagnóstico
+        end
     end

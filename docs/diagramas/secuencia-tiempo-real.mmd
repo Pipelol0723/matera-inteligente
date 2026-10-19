@@ -1,0 +1,42 @@
+%% Secuencia del corte 2 (implementada el 18 de octubre de 2026): el front abre el WebSocket,
+%% se autentica con el primer mensaje y recibe en vivo la medición que manda el ESP32.
+sequenceDiagram
+    autonumber
+    participant F as Mis materas<br/>(js/tiempo-real.js)
+    participant TR as tiempo_real.py<br/>(presentación)
+    participant IU as IdentificarUsuario<br/>(aplicación)
+    participant C as CanalesTiempoReal<br/>(infraestructura)
+    participant DU as DiagnosticarPlantaDeUsuario<br/>(aplicación)
+    participant NW as NotificadorWebSocket<br/>(infraestructura)
+
+    F ->> TR: new WebSocket(ws://…/api/v1/tiempo-real), con Origin
+    alt el Origin no es el del front
+        TR -->> F: 403 ORIGEN_NO_PERMITIDO (JSON), sin abrir la conexión
+    else origen permitido
+        TR -->> F: 101: conexión abierta
+        F ->> TR: {"tipo": "autenticar", "token"}
+        Note over TR: si no llega en 5 s o no es "autenticar":<br/>error SESION_INVALIDA o SOLICITUD_INVALIDA y cierre 1008
+        TR ->> IU: ejecutar(token)
+        alt el token no sirve (no existe, venció o la cuenta está desactivada)
+            IU --x TR: SesionInvalida
+            TR -->> F: {"tipo": "error", "error": "SESION_INVALIDA"} y cierre 1008
+        else sesión válida
+            IU -->> TR: Usuario
+            TR ->> C: conectado(usuario.id, canal)
+            TR -->> F: {"tipo": "listo", "usuario"}
+            Note over TR,C: primero se registra y después dice "listo":<br/>desde ahí no se pierde ninguna medición.<br/>Cada 60 s la ruta vuelve a revisar la sesión
+            Note over DU: llega una medición del sensor<br/>(secuencia-medicion-sensor) y ya se guardó
+            DU ->> NW: publicar(dueño, planta, registro, diagnostico)
+            NW ->> C: enviar(dueño, JSON de medicion_en_vivo_a_json)
+            C ->> TR: canal.enviar(texto), en cada pestaña del dueño
+            TR ->> IU: ejecutar(token): ¿la sesión sigue valiendo?
+            alt la cuenta se borró, se desactivó o cerró sesión
+                TR -->> F: {"tipo": "error", "error": "SESION_INVALIDA"} y cierre 1008
+            else sesión válida
+                TR -->> F: {"tipo": "medicion", planta, medicion, diagnostico}
+                Note over F: actualiza la tarjeta y el Historial<br/>sin pedir nada más
+            end
+            Note over TR: el mensaje queda en la cola de la pestaña y lo<br/>manda su propio hilo: una pestaña que no lee<br/>no traba el POST del sensor (si la cola se llena, se corta)
+        end
+    end
+    Note over F: si la conexión se cae, el front reintenta<br/>(1, 2, 4… hasta 30 s) y vuelve a pedir GET /plantas

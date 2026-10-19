@@ -178,7 +178,7 @@ classDiagram
     Usuario "1" --> "0..*" Sesion : abre
     Usuario "1" --> "0..*" Planta : es dueño de
     Planta ..> Especie : especie
-    Planta "1" --> "0..1" Sensor : tiene
+    Planta "1" --> "0..1" Sensor : nace con
     Sensor *-- CodigoSensor : codigo
     Planta "1" --> "0..*" RegistroMedicion : acumula
     RegistroMedicion "1" *-- "1..*" LecturaRegistrada
@@ -187,7 +187,7 @@ classDiagram
     LecturaRegistrada --> EstadoParametro : estado
     RegistroMedicion ..> Diagnostico : se construye desde
 
-    note "Errores del corte 2 (errores_usuarios.py), heredan de ErrorDominio:<br>CorreoInvalido, NombreInvalido, ContrasenaDebil, CorreoYaRegistrado,<br>CredencialesInvalidas, CuentaDesactivada, SesionInvalida,<br>PermisoDenegado, AccionSobreSiMismo, UsuarioNoEncontrado,<br>EspecieYaExiste, PlantaNoEncontrada, ApodoInvalido, ApodoRepetido,<br>CodigoSensorInvalido, SensorYaVinculado, PlantaConSensor,<br>PlantaSinSensor, ClaveSensorInvalida"
+    note "Errores del corte 2 (errores_usuarios.py), heredan de ErrorDominio:<br>CorreoInvalido, NombreInvalido, ContrasenaDebil, CorreoYaRegistrado,<br>CredencialesInvalidas, CuentaDesactivada, SesionInvalida,<br>PermisoDenegado, AccionSobreSiMismo, UsuarioNoEncontrado,<br>EspecieYaExiste, PlantaNoEncontrada, ApodoInvalido, ApodoRepetido,<br>CodigoSensorInvalido, SensorYaVinculado, ClaveSensorInvalida"
 
     style Parametro fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
     style Lectura fill:#D5E8D4,stroke:#5a7d5f,color:#16231b

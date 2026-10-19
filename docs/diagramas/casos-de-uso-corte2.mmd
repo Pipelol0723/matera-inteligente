@@ -1,27 +1,35 @@
 %% Casos de uso del corte 2 (implementado): visitante, usuario registrado, administrador y sensor ESP32.
 %% Gris: casos del corte 1. Verde: casos nuevos. Oscuro: solo el administrador.
+%% Desde el 18 de octubre de 2026 la matera nace con su sensor y solo el sensor escribe mediciones.
+%% Los casos del sensor se declaran primero para que sus flechas «incluye» no crucen otros casos.
 flowchart LR
+    sensor["Sensor ESP32"]
     visitante["Visitante"]
     usuario["Usuario registrado"]
     admin["Administrador"]
-    sensor["Sensor ESP32"]
     subgraph SIS["Matera inteligente · corte 2"]
-        uc1(["Consultar especies y sus rangos"])
-        uc2(["Diagnosticar una planta"])
-        uc3(["Recibir recomendaciones"])
-        uc4(["Crear cuenta"])
-        uc5(["Iniciar sesión"])
-        uc6(["Registrar y borrar plantas"])
-        uc7(["Ver mis materas"])
-        uc8(["Vincular y desvincular un sensor"])
-        uc9(["Ver el historial de una planta"])
-        uc10(["Ver mi cuenta y cerrar sesión"])
         uc11(["Enviar una medición"])
         uc12(["Guardar en el historial"])
+        uc15(["Avisar la medición al dueño"])
+        uc2(["Diagnosticar una planta"])
+        uc3(["Recibir recomendaciones"])
+        uc1(["Consultar especies y sus rangos"])
+        uc4(["Crear cuenta"])
+        uc5(["Iniciar sesión"])
+        uc7(["Ver mis materas en vivo"])
+        uc6(["Crear una matera con su sensor y borrarla"])
+        uc8(["Cambiar el sensor de una matera"])
+        uc9(["Ver el historial de una planta"])
+        uc10(["Ver mi cuenta y cerrar sesión"])
         uc13(["Administrar usuarios"])
         uc14(["Agregar especies"])
-        uc15(["Registrar una medición a mano"])
     end
+    sensor --- uc11
+    uc11 -.->|incluye| uc2
+    uc11 -.->|incluye| uc12
+    uc11 -.->|incluye| uc15
+    uc15 -.->|actualiza| uc7
+    uc2 -.->|incluye| uc3
     visitante --- uc1
     visitante --- uc2
     visitante --- uc4
@@ -32,16 +40,9 @@ flowchart LR
     usuario --- uc8
     usuario --- uc9
     usuario --- uc10
-    usuario --- uc15
     admin -->|también es| usuario
     admin --- uc13
     admin --- uc14
-    sensor --- uc11
-    uc2 -.->|incluye| uc3
-    uc11 -.->|incluye| uc2
-    uc11 -.->|incluye| uc12
-    uc15 -.->|incluye| uc2
-    uc15 -.->|incluye| uc12
 
     classDef actor fill:#ffffff,stroke:#56665b,stroke-width:1.5px,color:#16231b
     classDef caso fill:#f5f8f4,stroke:#7b887f,color:#16231b
