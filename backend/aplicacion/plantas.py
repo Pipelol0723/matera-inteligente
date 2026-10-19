@@ -2,12 +2,12 @@
 from dataclasses import dataclass
 
 from dominio.errores import EspecieNoSoportada
-from dominio.errores_usuarios import ApodoRepetido, PlantaNoEncontrada
+from dominio.errores_usuarios import ApodoRepetido, PlantaNoEncontrada, SensorYaVinculado
 from dominio.historial import RegistroMedicion
 from dominio.plantas import Planta
 from dominio.puertos import ConsultaRangos
-from dominio.puertos_usuarios import HistorialMediciones, RepositorioPlantas, RepositorioSensores
-from dominio.sensores import Sensor
+from dominio.puertos_usuarios import GeneradorSecretos, HistorialMediciones, RepositorioPlantas, RepositorioSensores
+from dominio.sensores import CodigoSensor, Sensor
 from dominio.usuarios import Usuario
 
 
@@ -19,25 +19,54 @@ def buscar_planta_propia(plantas: RepositorioPlantas, usuario_id: int, planta_id
     return planta
 
 
+@dataclass(frozen=True)
+class SensorVinculado:
+    """La planta con el codigo de su sensor. La clave sale solo de aqui, una vez: la base guarda su huella."""
+
+    planta: Planta
+    codigo: CodigoSensor
+    clave: str
+
+
 class RegistrarPlanta:
-    """Usa el mismo puerto ConsultaRangos del corte 1 para saber si la especie existe."""
+    """Una matera nace con su sensor: la planta y el sensor se guardan juntos.
 
-    def __init__(self, plantas: RepositorioPlantas, especies: ConsultaRangos):
+    Usa el mismo puerto ConsultaRangos del corte 1 para saber si la especie existe.
+    """
+
+    def __init__(
+        self,
+        plantas: RepositorioPlantas,
+        sensores: RepositorioSensores,
+        especies: ConsultaRangos,
+        secretos: GeneradorSecretos,
+    ):
         self._plantas = plantas
+        self._sensores = sensores
         self._especies = especies
+        self._secretos = secretos
 
-    def ejecutar(self, usuario: Usuario, apodo: str, especie: str) -> Planta:
+    def ejecutar(self, usuario: Usuario, apodo: str, especie: str, codigo: str) -> SensorVinculado:
         nueva = Planta(None, usuario.id, apodo, especie)
+        codigo_valido = CodigoSensor(codigo)
         if self._especies.rangos_de(nueva.especie) is None:
             raise EspecieNoSoportada(especie)
         if any(propia.mismo_apodo(nueva.apodo) for propia in self._plantas.de_usuario(usuario.id)):
             raise ApodoRepetido(nueva.apodo)
-        return self._plantas.guardar(nueva)
+        if self._sensores.por_codigo(codigo_valido) is not None:
+            raise SensorYaVinculado(codigo_valido.valor)
+
+        clave = self._secretos.nuevo()
+        planta = self._plantas.guardar_con_sensor(nueva, codigo_valido, self._secretos.huella(clave))
+        return SensorVinculado(planta, codigo_valido, clave)
 
 
 @dataclass(frozen=True)
 class PlantaConEstado:
-    """Una tarjeta de Mis materas: la planta, su sensor si tiene, y su ultima medicion si hay."""
+    """Una tarjeta de Mis materas: la planta, su sensor y su ultima medicion si hay.
+
+    El sensor solo falta en las materas creadas antes de que fuera obligatorio.
+    """
 
     planta: Planta
     sensor: Sensor | None

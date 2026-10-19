@@ -19,7 +19,7 @@ from aplicacion.historial import ConsultarHistorial
 from aplicacion.listar_especies import ListarEspecies
 from aplicacion.listar_parametros import ListarParametros
 from aplicacion.plantas import EliminarPlanta, ListarPlantas, RegistrarPlanta
-from aplicacion.sensores import DesvincularSensor, RecibirMedicionDeSensor, VincularSensor
+from aplicacion.sensores import RecibirMedicionDeSensor, ReemplazarSensor
 from dominio.evaluador import EvaluadorPlanta
 from dominio.parametros import PARAMETROS
 from dominio.recomendaciones import GeneradorRecomendaciones
@@ -91,11 +91,10 @@ def construir_app(config: Configuracion) -> Flask:
     # La medicion manual y la del sensor pasan por el mismo caso de uso, que reutiliza el servicio del corte 1.
     diagnosticar_planta = DiagnosticarPlantaDeUsuario(plantas, servicio, historial, reloj)
     mis_plantas = crear_blueprint_plantas(
-        registrar=RegistrarPlanta(plantas, especies),
+        registrar=RegistrarPlanta(plantas, sensores, especies, secretos),
         listar=ListarPlantas(plantas, sensores, historial),
         eliminar=EliminarPlanta(plantas),
-        vincular=VincularSensor(plantas, sensores, secretos),
-        desvincular=DesvincularSensor(plantas, sensores),
+        reemplazar_sensor=ReemplazarSensor(plantas, sensores, secretos),
         consultar_historial=ConsultarHistorial(plantas, historial),
         diagnosticar=diagnosticar_planta,
         autenticacion=autenticacion,

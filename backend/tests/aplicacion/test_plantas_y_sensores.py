@@ -6,14 +6,13 @@ import pytest
 from aplicacion.diagnosticar_planta_de_usuario import DiagnosticarPlantaDeUsuario
 from aplicacion.historial import ConsultarHistorial
 from aplicacion.plantas import EliminarPlanta, ListarPlantas, RegistrarPlanta
-from aplicacion.sensores import DesvincularSensor, RecibirMedicionDeSensor, VincularSensor
+from aplicacion.sensores import RecibirMedicionDeSensor, ReemplazarSensor
 from dominio.errores import EspecieNoSoportada
 from dominio.errores_usuarios import (
     ApodoRepetido,
     ClaveSensorInvalida,
-    PlantaConSensor,
+    CodigoSensorInvalido,
     PlantaNoEncontrada,
-    PlantaSinSensor,
     SensorYaVinculado,
 )
 from dominio.especie import Especie
@@ -23,6 +22,7 @@ from dominio.parametros import HUMEDAD, LUZ, TEMPERATURA
 from dominio.rango import Rango
 from dominio.recomendaciones import GeneradorRecomendaciones
 from dominio.reglas import ReglaHibrida
+from dominio.sensores import CodigoSensor
 from dominio.servicio_diagnostico import ServicioDiagnostico
 from dominio.usuarios import Correo, Usuario
 from tests.dobles import medicion, sansevieria
@@ -56,14 +56,17 @@ class Sistema:
         secretos = GeneradorSecretosFalso()
         servicio = ServicioDiagnostico(especies, EvaluadorPlanta(ReglaHibrida(), GeneradorRecomendaciones()))
 
-        self.registrar = RegistrarPlanta(self.plantas, especies)
+        self.registrar = RegistrarPlanta(self.plantas, self.sensores, especies, secretos)
         self.listar = ListarPlantas(self.plantas, self.sensores, self.historial)
         self.eliminar = EliminarPlanta(self.plantas)
-        self.vincular = VincularSensor(self.plantas, self.sensores, secretos)
-        self.desvincular = DesvincularSensor(self.plantas, self.sensores)
+        self.reemplazar = ReemplazarSensor(self.plantas, self.sensores, secretos)
         self.consultar_historial = ConsultarHistorial(self.plantas, self.historial)
         self.diagnosticar = DiagnosticarPlantaDeUsuario(self.plantas, servicio, self.historial, self.reloj)
         self.recibir = RecibirMedicionDeSensor(self.sensores, self.plantas, secretos, self.diagnosticar)
+
+    def codigo_de(self, planta) -> str | None:
+        sensor = self.sensores.de_planta(planta.id)
+        return sensor.codigo.valor if sensor else None
 
 
 @pytest.fixture
@@ -72,32 +75,52 @@ def sistema():
 
 
 @pytest.fixture
-def planta_de_ana(sistema):
-    return sistema.registrar.ejecutar(ANA, "Sala", "Sansevieria")
+def matera_de_ana(sistema):
+    """La Sala de Ana con el sensor MT-0001-AA. Su clave es secreto-1."""
+    return sistema.registrar.ejecutar(ANA, "Sala", "Sansevieria", "MT-0001-AA")
 
 
-def test_registrar_una_planta_guarda_su_dueno_y_la_especie_normalizada(sistema):
-    planta = sistema.registrar.ejecutar(ANA, "Sala", "  SANSEVIERIA ")
-
-    assert (planta.id, planta.usuario_id, planta.especie) == (1, ANA.id, "sansevieria")
-
-
-def test_no_se_registra_una_planta_de_una_especie_que_no_existe(sistema):
-    with pytest.raises(EspecieNoSoportada):
-        sistema.registrar.ejecutar(ANA, "Sala", "cactus")
+@pytest.fixture
+def planta_de_ana(matera_de_ana):
+    return matera_de_ana.planta
 
 
-def test_un_usuario_no_repite_apodos_pero_otro_usuario_si_puede_usarlo(sistema, planta_de_ana):
-    with pytest.raises(ApodoRepetido):
-        sistema.registrar.ejecutar(ANA, " sala ", "potos")
+def test_la_matera_nace_con_su_sensor_y_la_clave_sale_una_sola_vez(sistema):
+    matera = sistema.registrar.ejecutar(ANA, "Sala", "  SANSEVIERIA ", "mt-0001-aa")
 
-    assert sistema.registrar.ejecutar(BETO, "Sala", "potos").usuario_id == BETO.id
+    assert (matera.planta.id, matera.planta.usuario_id, matera.planta.especie) == (1, ANA.id, "sansevieria")
+    assert (matera.codigo.valor, matera.clave) == ("MT-0001-AA", "secreto-1")
+    assert sistema.sensores.de_planta(matera.planta.id).hash_clave == "huella(secreto-1)"
 
 
-def test_listar_devuelve_solo_las_plantas_propias_con_su_sensor_y_su_ultima_medicion(sistema, planta_de_ana):
-    sistema.registrar.ejecutar(BETO, "Patio", "potos")
-    sistema.vincular.ejecutar(ANA, planta_de_ana.id, "MT-0001-AA")
-    sistema.diagnosticar.ejecutar(ANA.id, planta_de_ana.id, medicion(18, 800, 22))
+@pytest.mark.parametrize(
+    ("apodo", "especie", "codigo", "error"),
+    [
+        ("Cocina", "cactus", "MT-0002-BB", EspecieNoSoportada),
+        (" sala ", "potos", "MT-0002-BB", ApodoRepetido),
+        ("Cocina", "potos", "MT-0001-AA", SensorYaVinculado),
+        ("Cocina", "potos", "sensor-1", CodigoSensorInvalido),
+    ],
+    ids=["especie", "apodo repetido", "codigo en uso", "codigo mal escrito"],
+)
+def test_si_algo_falla_no_se_guarda_ni_la_planta_ni_el_sensor(sistema, planta_de_ana, apodo, especie, codigo, error):
+    with pytest.raises(error):
+        sistema.registrar.ejecutar(ANA, apodo, especie, codigo)
+
+    assert sistema.plantas.de_usuario(ANA.id) == [planta_de_ana]
+    assert sistema.sensores.por_codigo(CodigoSensor("MT-0002-BB")) is None
+
+
+def test_otro_usuario_puede_repetir_el_apodo_pero_no_el_codigo_del_sensor(sistema, planta_de_ana):
+    assert sistema.registrar.ejecutar(BETO, "Sala", "potos", "MT-0002-BB").planta.usuario_id == BETO.id
+
+    with pytest.raises(SensorYaVinculado):
+        sistema.registrar.ejecutar(BETO, "Patio", "potos", "MT-0001-AA")
+
+
+def test_listar_devuelve_solo_las_plantas_propias_con_su_sensor_y_su_ultima_medicion(sistema, matera_de_ana):
+    sistema.registrar.ejecutar(BETO, "Patio", "potos", "MT-0002-BB")
+    sistema.recibir.ejecutar("MT-0001-AA", matera_de_ana.clave, medicion(18, 800, 22))
 
     [tarjeta] = sistema.listar.ejecutar(ANA)
 
@@ -106,28 +129,28 @@ def test_listar_devuelve_solo_las_plantas_propias_con_su_sensor_y_su_ultima_medi
     assert tarjeta.ultima_medicion.estado is EstadoGlobal.EN_RIESGO
 
 
-def test_una_planta_nueva_aparece_sin_sensor_y_sin_mediciones(sistema, planta_de_ana):
+def test_una_matera_nueva_aparece_con_su_sensor_y_sin_mediciones(sistema, planta_de_ana):
     [tarjeta] = sistema.listar.ejecutar(ANA)
 
-    assert (tarjeta.sensor, tarjeta.ultima_medicion) == (None, None)
+    assert (tarjeta.sensor.codigo.valor, tarjeta.ultima_medicion) == ("MT-0001-AA", None)
 
 
-def test_eliminar_borra_la_planta_propia(sistema, planta_de_ana):
+def test_eliminar_borra_la_planta_propia_y_libera_el_codigo_de_su_sensor(sistema, planta_de_ana):
     sistema.eliminar.ejecutar(ANA, planta_de_ana.id)
 
     assert sistema.listar.ejecutar(ANA) == []
+    assert sistema.registrar.ejecutar(ANA, "Cocina", "potos", "MT-0001-AA").codigo.valor == "MT-0001-AA"
 
 
 @pytest.mark.parametrize(
     "accion",
     [
         lambda s, p: s.eliminar.ejecutar(BETO, p.id),
-        lambda s, p: s.vincular.ejecutar(BETO, p.id, "MT-0001-AA"),
-        lambda s, p: s.desvincular.ejecutar(BETO, p.id),
+        lambda s, p: s.reemplazar.ejecutar(BETO, p.id, "MT-0009-ZZ"),
         lambda s, p: s.consultar_historial.ejecutar(BETO, p.id),
-        lambda s, p: s.diagnosticar.ejecutar(BETO.id, p.id, medicion(30, 800, 22)),
+        lambda s, p: s.diagnosticar.ejecutar(BETO.id, p.id, medicion(30, 800, 22), "MT-0009-ZZ"),
     ],
-    ids=["eliminar", "vincular", "desvincular", "historial", "medicion manual"],
+    ids=["eliminar", "cambiar sensor", "historial", "medicion"],
 )
 def test_beto_no_puede_tocar_la_planta_de_ana_y_recibe_el_mismo_error_que_si_no_existiera(
     sistema, planta_de_ana, accion
@@ -137,39 +160,60 @@ def test_beto_no_puede_tocar_la_planta_de_ana_y_recibe_el_mismo_error_que_si_no_
 
     assert sistema.listar.ejecutar(ANA)[0].planta == planta_de_ana
     assert sistema.historial.registros == []
-    assert sistema.sensores.de_planta(planta_de_ana.id) is None
+    assert sistema.codigo_de(planta_de_ana) == "MT-0001-AA"
 
 
 def test_beto_no_ve_las_plantas_de_ana(sistema, planta_de_ana):
     assert sistema.listar.ejecutar(BETO) == []
 
 
-def test_vincular_entrega_la_clave_una_vez_y_guarda_solo_su_huella(sistema, planta_de_ana):
-    vinculado = sistema.vincular.ejecutar(ANA, planta_de_ana.id, "mt-0001-aa")
+def test_cambiar_el_sensor_conserva_el_historial_y_la_clave_vieja_deja_de_servir(sistema, matera_de_ana):
+    planta = matera_de_ana.planta
+    sistema.recibir.ejecutar("MT-0001-AA", matera_de_ana.clave, medicion(30, 800, 22))
 
-    assert (vinculado.codigo.valor, vinculado.clave) == ("MT-0001-AA", "secreto-1")
-    assert sistema.sensores.de_planta(planta_de_ana.id).hash_clave == "huella(secreto-1)"
+    nuevo = sistema.reemplazar.ejecutar(ANA, planta.id, "mt-0002-bb")
+
+    assert (nuevo.planta, nuevo.codigo.valor, nuevo.clave) == (planta, "MT-0002-BB", "secreto-2")
+    with pytest.raises(ClaveSensorInvalida):
+        sistema.recibir.ejecutar("MT-0001-AA", matera_de_ana.clave, medicion(31, 800, 22))
+    sistema.recibir.ejecutar("MT-0002-BB", nuevo.clave, medicion(32, 800, 22))
+    assert [r.origen for r in sistema.historial.registros] == ["MT-0001-AA", "MT-0002-BB"]
+    assert [t.sensor.codigo.valor for t in sistema.listar.ejecutar(ANA)] == ["MT-0002-BB"]
 
 
-def test_un_codigo_en_uso_o_una_planta_con_sensor_no_se_vinculan(sistema, planta_de_ana):
-    otra = sistema.registrar.ejecutar(ANA, "Cocina", "potos")
-    sistema.vincular.ejecutar(ANA, planta_de_ana.id, "MT-0001-AA")
+def test_el_codigo_que_se_deja_queda_libre_para_otra_matera(sistema, planta_de_ana):
+    sistema.reemplazar.ejecutar(ANA, planta_de_ana.id, "MT-0002-BB")
+
+    assert sistema.registrar.ejecutar(BETO, "Patio", "potos", "MT-0001-AA").codigo.valor == "MT-0001-AA"
+
+
+def test_cambiar_al_mismo_codigo_da_una_clave_nueva_si_se_perdio_la_anterior(sistema, matera_de_ana):
+    nuevo = sistema.reemplazar.ejecutar(ANA, matera_de_ana.planta.id, "MT-0001-AA")
+
+    assert nuevo.clave == "secreto-2"
+    with pytest.raises(ClaveSensorInvalida):
+        sistema.recibir.ejecutar("MT-0001-AA", matera_de_ana.clave, medicion(30, 800, 22))
+    assert sistema.recibir.ejecutar("MT-0001-AA", nuevo.clave, medicion(30, 800, 22)).planta == matera_de_ana.planta
+
+
+def test_no_se_cambia_a_un_codigo_de_otra_planta_y_el_sensor_actual_sigue_sirviendo(sistema, matera_de_ana):
+    sistema.registrar.ejecutar(BETO, "Patio", "potos", "MT-0002-BB")
 
     with pytest.raises(SensorYaVinculado):
-        sistema.vincular.ejecutar(ANA, otra.id, "MT-0001-AA")
-    with pytest.raises(PlantaConSensor):
-        sistema.vincular.ejecutar(ANA, planta_de_ana.id, "MT-0002-BB")
+        sistema.reemplazar.ejecutar(ANA, matera_de_ana.planta.id, "MT-0002-BB")
+
+    assert sistema.codigo_de(matera_de_ana.planta) == "MT-0001-AA"
+    assert sistema.recibir.ejecutar("MT-0001-AA", matera_de_ana.clave, medicion(30, 800, 22)).planta.apodo == "Sala"
 
 
-def test_desvincular_libera_el_codigo_para_otra_planta(sistema, planta_de_ana):
-    otra = sistema.registrar.ejecutar(ANA, "Cocina", "potos")
-    sistema.vincular.ejecutar(ANA, planta_de_ana.id, "MT-0001-AA")
+def test_una_matera_vieja_sin_sensor_recibe_uno_con_el_mismo_caso_de_uso(sistema, planta_de_ana):
+    # Las materas creadas antes de que el sensor fuera obligatorio no tienen ninguno.
+    sistema.sensores.quitar_de_planta(planta_de_ana.id)
+    assert sistema.listar.ejecutar(ANA)[0].sensor is None
 
-    sistema.desvincular.ejecutar(ANA, planta_de_ana.id)
+    nuevo = sistema.reemplazar.ejecutar(ANA, planta_de_ana.id, "MT-0003-CC")
 
-    assert sistema.vincular.ejecutar(ANA, otra.id, "MT-0001-AA").planta == otra
-    with pytest.raises(PlantaSinSensor):
-        sistema.desvincular.ejecutar(ANA, planta_de_ana.id)
+    assert sistema.listar.ejecutar(ANA)[0].sensor.codigo == nuevo.codigo
 
 
 def test_la_medicion_manual_usa_la_especie_de_la_planta_y_se_guarda_como_manual(sistema, planta_de_ana):
@@ -181,12 +225,10 @@ def test_la_medicion_manual_usa_la_especie_de_la_planta_y_se_guarda_como_manual(
     assert (registro.planta_id, registro.momento, registro.origen) == (planta_de_ana.id, AHORA, "MANUAL")
 
 
-def test_el_sensor_con_su_clave_guarda_la_medicion_en_su_planta_con_su_codigo(sistema, planta_de_ana):
-    clave = sistema.vincular.ejecutar(ANA, planta_de_ana.id, "MT-0001-AA").clave
+def test_el_sensor_con_su_clave_guarda_la_medicion_en_su_planta_con_su_codigo(sistema, matera_de_ana):
+    resultado = sistema.recibir.ejecutar("mt-0001-aa", matera_de_ana.clave, medicion(30, 800, 22))
 
-    resultado = sistema.recibir.ejecutar("mt-0001-aa", clave, medicion(30, 800, 22))
-
-    assert resultado.planta == planta_de_ana
+    assert resultado.planta == matera_de_ana.planta
     assert resultado.diagnostico.estado is EstadoGlobal.SALUDABLE
     assert sistema.historial.registros[0].origen == "MT-0001-AA"
 
@@ -196,21 +238,19 @@ def test_el_sensor_con_su_clave_guarda_la_medicion_en_su_planta_con_su_codigo(si
     [("MT-0001-AA", "clave-mala"), ("MT-9999-ZZ", "secreto-1"), ("no-es-codigo", "secreto-1")],
 )
 def test_el_sensor_recibe_el_mismo_error_sin_importar_que_fallo_y_no_se_guarda_nada(
-    sistema, planta_de_ana, codigo, clave
+    sistema, matera_de_ana, codigo, clave
 ):
-    sistema.vincular.ejecutar(ANA, planta_de_ana.id, "MT-0001-AA")
-
     with pytest.raises(ClaveSensorInvalida):
         sistema.recibir.ejecutar(codigo, clave, medicion(30, 800, 22))
     assert sistema.historial.registros == []
 
 
-def test_el_historial_trae_lo_mas_reciente_primero_y_respeta_el_limite(sistema, planta_de_ana):
+def test_el_historial_trae_lo_mas_reciente_primero_y_respeta_el_limite(sistema, matera_de_ana):
     for humedad in (30, 31, 32):
-        sistema.diagnosticar.ejecutar(ANA.id, planta_de_ana.id, medicion(humedad, 800, 22))
+        sistema.recibir.ejecutar("MT-0001-AA", matera_de_ana.clave, medicion(humedad, 800, 22))
         sistema.reloj.avanzar(timedelta(hours=1))
 
-    historial = sistema.consultar_historial.ejecutar(ANA, planta_de_ana.id, limite=2)
+    historial = sistema.consultar_historial.ejecutar(ANA, matera_de_ana.planta.id, limite=2)
 
-    assert historial.planta == planta_de_ana
+    assert historial.planta == matera_de_ana.planta
     assert [r.lecturas[0].valor for r in historial.registros] == [32, 31]

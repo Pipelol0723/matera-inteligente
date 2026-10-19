@@ -1,32 +1,21 @@
-"""Casos de uso del sensor: vincularlo a una planta, desvincularlo y recibir sus mediciones."""
-from dataclasses import dataclass
-
+"""Casos de uso del sensor: cambiar el de una planta y recibir sus mediciones."""
 from aplicacion.diagnosticar_planta_de_usuario import DiagnosticarPlantaDeUsuario, ResultadoMedicion
-from aplicacion.plantas import buscar_planta_propia
-from dominio.errores_usuarios import (
-    ClaveSensorInvalida,
-    CodigoSensorInvalido,
-    PlantaConSensor,
-    PlantaSinSensor,
-    SensorYaVinculado,
-)
+from aplicacion.plantas import SensorVinculado, buscar_planta_propia
+from dominio.errores_usuarios import ClaveSensorInvalida, CodigoSensorInvalido, SensorYaVinculado
 from dominio.medicion import Medicion
-from dominio.plantas import Planta
 from dominio.puertos_usuarios import GeneradorSecretos, RepositorioPlantas, RepositorioSensores
 from dominio.sensores import CodigoSensor, Sensor
 from dominio.usuarios import Usuario
 
 
-@dataclass(frozen=True)
-class SensorVinculado:
-    """La clave sale solo de aqui, una vez. La base guarda su huella."""
+class ReemplazarSensor:
+    """Cambia el sensor de una planta, o le da una clave nueva al mismo sensor si se perdio.
 
-    planta: Planta
-    codigo: CodigoSensor
-    clave: str
+    La planta y su historial no cambian: el historial es de la planta, no del
+    sensor. El codigo anterior queda libre y su clave deja de servir. Tambien
+    le da sensor a una matera creada antes de que fuera obligatorio.
+    """
 
-
-class VincularSensor:
     def __init__(self, plantas: RepositorioPlantas, sensores: RepositorioSensores, secretos: GeneradorSecretos):
         self._plantas = plantas
         self._sensores = sensores
@@ -35,29 +24,13 @@ class VincularSensor:
     def ejecutar(self, usuario: Usuario, planta_id: int, codigo: str) -> SensorVinculado:
         planta = buscar_planta_propia(self._plantas, usuario.id, planta_id)
         codigo_valido = CodigoSensor(codigo)
-        if self._sensores.de_planta(planta.id) is not None:
-            raise PlantaConSensor(planta.id)
-        if self._sensores.por_codigo(codigo_valido) is not None:
+        en_uso = self._sensores.por_codigo(codigo_valido)
+        if en_uso is not None and en_uso.planta_id != planta.id:
             raise SensorYaVinculado(codigo_valido.valor)
 
         clave = self._secretos.nuevo()
-        self._sensores.guardar(Sensor(codigo_valido, planta.id, self._secretos.huella(clave)))
+        self._sensores.reemplazar(Sensor(codigo_valido, planta.id, self._secretos.huella(clave)))
         return SensorVinculado(planta, codigo_valido, clave)
-
-
-class DesvincularSensor:
-    """Borra el sensor: su codigo queda libre para otra planta."""
-
-    def __init__(self, plantas: RepositorioPlantas, sensores: RepositorioSensores):
-        self._plantas = plantas
-        self._sensores = sensores
-
-    def ejecutar(self, usuario: Usuario, planta_id: int) -> None:
-        planta = buscar_planta_propia(self._plantas, usuario.id, planta_id)
-        sensor = self._sensores.de_planta(planta.id)
-        if sensor is None:
-            raise PlantaSinSensor(planta.id)
-        self._sensores.eliminar(sensor.codigo)
 
 
 class RecibirMedicionDeSensor:

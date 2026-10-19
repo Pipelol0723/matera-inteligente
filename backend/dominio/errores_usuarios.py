@@ -109,18 +109,6 @@ class SensorYaVinculado(ErrorDominio):
         self.codigo = codigo
 
 
-class PlantaConSensor(ErrorDominio):
-    def __init__(self, planta_id: int):
-        super().__init__(f"La planta {planta_id} ya tiene un sensor. Desvincúlelo primero.")
-        self.planta_id = planta_id
-
-
-class PlantaSinSensor(ErrorDominio):
-    def __init__(self, planta_id: int):
-        super().__init__(f"La planta {planta_id} no tiene un sensor vinculado.")
-        self.planta_id = planta_id
-
-
 class ClaveSensorInvalida(ErrorDominio):
     """El mismo error si el sensor no existe o si la clave no coincide."""
 

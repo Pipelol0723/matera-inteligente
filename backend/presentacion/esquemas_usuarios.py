@@ -10,8 +10,7 @@ from typing import Any
 from aplicacion.cuentas import CuentaUsuario, SesionIniciada
 from aplicacion.diagnosticar_planta_de_usuario import ResultadoMedicion
 from aplicacion.historial import LIMITE_POR_DEFECTO, HistorialPlanta
-from aplicacion.plantas import PlantaConEstado
-from aplicacion.sensores import SensorVinculado
+from aplicacion.plantas import PlantaConEstado, SensorVinculado
 from dominio.errores import RangoInvalido
 from dominio.especie import Especie
 from dominio.historial import RegistroMedicion
@@ -86,9 +85,10 @@ def especie_desde_json(cuerpo: Any) -> Especie:
     return Especie(nombre, rangos, cientifico)
 
 
-def planta_desde_json(cuerpo: Any) -> tuple[str, str]:
+def planta_desde_json(cuerpo: Any) -> tuple[str, str, str]:
+    """Una matera nueva: su apodo, su especie y el codigo de su sensor."""
     cuerpo = _objeto(cuerpo)
-    return _texto(cuerpo, "apodo"), _texto(cuerpo, "especie")
+    return _texto(cuerpo, "apodo"), _texto(cuerpo, "especie"), _texto(cuerpo, "codigo")
 
 
 def codigo_desde_json(cuerpo: Any) -> str:
@@ -138,7 +138,7 @@ def historial_a_json(historial: HistorialPlanta) -> dict[str, Any]:
 
 
 def sensor_vinculado_a_json(vinculado: SensorVinculado) -> dict[str, Any]:
-    """La unica respuesta que trae la clave del sensor."""
+    """Las unicas respuestas que traen la clave del sensor: crear la matera y cambiarle el sensor."""
     return {"planta": planta_a_json(vinculado.planta), "codigo": vinculado.codigo.valor, "clave": vinculado.clave}
 
 

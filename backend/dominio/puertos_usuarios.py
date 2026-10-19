@@ -63,8 +63,13 @@ class RepositorioPlantas(ABC):
     """Aqui vive el aislamiento entre usuarios: no hay forma de pedir una planta sin decir de quien es."""
 
     @abstractmethod
-    def guardar(self, planta: Planta) -> Planta:
-        """Crea la planta y la devuelve con su id. Lanza ApodoRepetido si el dueno ya usa ese apodo."""
+    def guardar_con_sensor(self, planta: Planta, codigo: CodigoSensor, hash_clave: str) -> Planta:
+        """Crea la planta junto con su sensor y la devuelve con su id.
+
+        Una matera no existe sin sensor: es una sola operacion, y si una de las dos
+        partes falla no se guarda ninguna. Lanza ApodoRepetido si el dueno ya usa ese
+        apodo y SensorYaVinculado si el codigo es de otra planta.
+        """
 
     @abstractmethod
     def de_usuario(self, usuario_id: int) -> list[Planta]: ...
@@ -90,11 +95,12 @@ class RepositorioSensores(ABC):
     def de_planta(self, planta_id: int) -> Sensor | None: ...
 
     @abstractmethod
-    def guardar(self, sensor: Sensor) -> None:
-        """Lanza SensorYaVinculado si el codigo ya esta en uso."""
+    def reemplazar(self, sensor: Sensor) -> None:
+        """Deja este sensor como el unico de su planta: quita el anterior, si habia, y guarda este.
 
-    @abstractmethod
-    def eliminar(self, codigo: CodigoSensor) -> None: ...
+        Es una sola operacion: si falla, la planta conserva el sensor que tenia. El
+        historial no se toca. Lanza SensorYaVinculado si el codigo es de otra planta.
+        """
 
 
 class HistorialMediciones(ABC):

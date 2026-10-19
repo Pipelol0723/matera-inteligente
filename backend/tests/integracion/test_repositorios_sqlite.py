@@ -1,7 +1,7 @@
 """Repositorios de cuentas, plantas, sensores e historial sobre un archivo SQLite temporal.
 
 Aqui se prueba lo que los dobles en memoria no imitan: las restricciones de la
-base y las cascadas.
+base, las cascadas y que la planta y su sensor se guarden en una sola transaccion.
 """
 import sqlite3
 from datetime import datetime, timedelta, timezone
@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from dominio.errores import EspecieNoSoportada
-from dominio.errores_usuarios import ApodoRepetido, CorreoYaRegistrado, PlantaConSensor, SensorYaVinculado
+from dominio.errores_usuarios import ApodoRepetido, CorreoYaRegistrado, SensorYaVinculado
 from dominio.estados import EstadoGlobal, EstadoParametro
 from dominio.historial import LecturaRegistrada, RegistroMedicion
 from dominio.parametros import HUMEDAD, LUZ, TEMPERATURA
@@ -27,6 +27,7 @@ from infraestructura.sqlite import (
 
 AHORA = datetime(2026, 10, 12, 15, 0, tzinfo=timezone.utc)
 CODIGO = CodigoSensor("MT-0001-AA")
+OTRO_CODIGO = CodigoSensor("MT-0002-BB")
 
 
 class Repositorios:
@@ -37,9 +38,16 @@ class Repositorios:
         self.plantas = RepositorioPlantasSqlite(self.bd)
         self.sensores = RepositorioSensoresSqlite(self.bd)
         self.historial = HistorialMedicionesSqlite(self.bd)
+        self._codigos = 0
 
     def registrar(self, correo="ana@correo.co", nombre="Ana"):
         return self.usuarios.guardar(Usuario(None, Correo(correo), nombre, "pbkdf2_sha256$1$00$00"))
+
+    def planta(self, usuario_id, apodo="Sala", especie="potos", codigo=None):
+        """Una matera con su sensor; si no se pide un codigo, uno distinto cada vez (MT-0901-ZZ...)."""
+        self._codigos += 1
+        codigo = codigo or CodigoSensor(f"MT-{900 + self._codigos:04d}-ZZ")
+        return self.plantas.guardar_con_sensor(Planta(None, usuario_id, apodo, especie), codigo, "huella-clave")
 
     def registro(self, planta_id, momento=AHORA, humedad=18.0):
         lecturas = (
@@ -47,7 +55,7 @@ class Repositorios:
             LecturaRegistrada(LUZ, 800.0, EstadoParametro.OPTIMO),
             LecturaRegistrada(TEMPERATURA, 22.0, EstadoParametro.OPTIMO),
         )
-        return RegistroMedicion(planta_id, momento, EstadoGlobal.EN_RIESGO, lecturas, "MANUAL")
+        return RegistroMedicion(planta_id, momento, EstadoGlobal.EN_RIESGO, lecturas, CODIGO.valor)
 
     def contar(self, tabla):
         with self.bd.conexion() as conexion:
@@ -86,23 +94,23 @@ def test_la_base_no_acepta_dos_cuentas_con_el_mismo_correo(repos):
 
 def test_los_resumenes_cuentan_las_plantas_de_cada_usuario(repos):
     ana, beto = repos.registrar(), repos.registrar("beto@correo.co", "Beto")
-    repos.plantas.guardar(Planta(None, beto.id, "Sala", "potos"))
-    repos.plantas.guardar(Planta(None, beto.id, "Patio", "lavanda"))
+    repos.planta(beto.id, "Sala", "potos")
+    repos.planta(beto.id, "Patio", "lavanda")
 
     assert [(r.nombre, r.cantidad_plantas) for r in repos.usuarios.resumenes()] == [("Ana", 0), ("Beto", 2)]
 
 
 def test_eliminar_un_usuario_borra_en_cascada_sesiones_plantas_sensores_e_historial(repos):
     ana, beto = repos.registrar(), repos.registrar("beto@correo.co", "Beto")
-    planta = repos.plantas.guardar(Planta(None, ana.id, "Sala", "potos"))
-    repos.plantas.guardar(Planta(None, beto.id, "Sala", "potos"))
+    planta = repos.planta(ana.id)
+    repos.planta(beto.id)
     repos.sesiones.guardar(Sesion("huella", ana.id, AHORA))
-    repos.sensores.guardar(Sensor(CODIGO, planta.id, "huella-clave"))
     repos.historial.agregar(repos.registro(planta.id))
 
     repos.usuarios.eliminar(ana.id)
 
-    assert [repos.contar(t) for t in ("usuario", "sesion", "planta", "sensor", "medicion", "lectura")] == [1, 0, 1, 0, 0, 0]
+    tablas = ("usuario", "sesion", "planta", "sensor", "medicion", "lectura")
+    assert [repos.contar(t) for t in tablas] == [1, 0, 1, 1, 0, 0]
 
 
 def test_una_sesion_conserva_su_vencimiento_con_zona_horaria(repos):
@@ -117,7 +125,7 @@ def test_una_sesion_conserva_su_vencimiento_con_zona_horaria(repos):
 
 def test_una_planta_solo_se_encuentra_junto_con_su_dueno(repos):
     ana, beto = repos.registrar(), repos.registrar("beto@correo.co", "Beto")
-    planta = repos.plantas.guardar(Planta(None, ana.id, "Sala", "potos"))
+    planta = repos.planta(ana.id)
 
     assert repos.plantas.por_id(ana.id, planta.id) == planta
     assert repos.plantas.por_id(beto.id, planta.id) is None
@@ -125,48 +133,87 @@ def test_una_planta_solo_se_encuentra_junto_con_su_dueno(repos):
     assert repos.plantas.de_usuario(ana.id) == [planta]
 
 
-def test_la_base_respalda_el_apodo_unico_sin_importar_mayusculas_y_la_especie_existente(repos):
-    ana = repos.registrar()
-    repos.plantas.guardar(Planta(None, ana.id, "Sala", "potos"))
+def test_la_planta_y_su_sensor_se_guardan_juntos(repos):
+    planta = repos.planta(repos.registrar().id, codigo=CODIGO)
 
-    with pytest.raises(ApodoRepetido):
-        repos.plantas.guardar(Planta(None, ana.id, "SALA", "lavanda"))
-    with pytest.raises(EspecieNoSoportada):
-        repos.plantas.guardar(Planta(None, ana.id, "Patio", "cactus"))
+    assert repos.sensores.por_codigo(CODIGO) == Sensor(CODIGO, planta.id, "huella-clave")
+    assert repos.sensores.de_planta(planta.id) == Sensor(CODIGO, planta.id, "huella-clave")
+    assert repos.plantas.vinculada_a(CODIGO) == planta
+
+
+@pytest.mark.parametrize(
+    ("apodo", "especie", "codigo", "error"),
+    [
+        ("SALA", "lavanda", OTRO_CODIGO, ApodoRepetido),
+        ("Patio", "cactus", OTRO_CODIGO, EspecieNoSoportada),
+        ("Patio", "lavanda", CODIGO, SensorYaVinculado),
+    ],
+    ids=["apodo repetido sin importar mayusculas", "especie que no existe", "codigo en uso"],
+)
+def test_si_la_base_rechaza_la_planta_o_el_sensor_no_queda_ninguno_de_los_dos(repos, apodo, especie, codigo, error):
+    ana = repos.registrar()
+    repos.planta(ana.id, "Sala", "potos", CODIGO)
+
+    with pytest.raises(error):
+        repos.plantas.guardar_con_sensor(Planta(None, ana.id, apodo, especie), codigo, "h")
+
+    assert (repos.contar("planta"), repos.contar("sensor")) == (1, 1)
+    assert repos.sensores.por_codigo(OTRO_CODIGO) is None
 
 
 def test_no_se_puede_borrar_una_especie_que_una_planta_usa(repos):
-    repos.plantas.guardar(Planta(None, repos.registrar().id, "Sala", "potos"))
+    repos.planta(repos.registrar().id, "Sala", "potos")
 
     with pytest.raises(sqlite3.IntegrityError), repos.bd.conexion() as conexion:
         conexion.execute("DELETE FROM especie WHERE nombre = 'potos'")
 
 
-def test_un_sensor_se_encuentra_por_codigo_y_por_planta_y_lleva_a_su_planta(repos):
-    planta = repos.plantas.guardar(Planta(None, repos.registrar().id, "Sala", "potos"))
-    sensor = Sensor(CODIGO, planta.id, "huella-clave")
+def test_reemplazar_el_sensor_deja_uno_solo_libera_el_codigo_y_conserva_el_historial(repos):
+    planta = repos.planta(repos.registrar().id, codigo=CODIGO)
+    repos.historial.agregar(repos.registro(planta.id))
 
-    repos.sensores.guardar(sensor)
+    repos.sensores.reemplazar(Sensor(OTRO_CODIGO, planta.id, "huella-nueva"))
 
-    assert repos.sensores.por_codigo(CODIGO) == sensor
-    assert repos.sensores.de_planta(planta.id) == sensor
-    assert repos.plantas.vinculada_a(CODIGO) == planta
+    assert repos.sensores.de_planta(planta.id) == Sensor(OTRO_CODIGO, planta.id, "huella-nueva")
+    assert repos.sensores.por_codigo(CODIGO) is None
+    assert (repos.contar("sensor"), repos.contar("medicion")) == (1, 1)
 
 
-def test_la_base_no_acepta_un_codigo_repetido_ni_dos_sensores_en_una_planta(repos):
+def test_reemplazar_por_el_mismo_codigo_cambia_la_huella_de_la_clave(repos):
+    planta = repos.planta(repos.registrar().id, codigo=CODIGO)
+
+    repos.sensores.reemplazar(Sensor(CODIGO, planta.id, "huella-nueva"))
+
+    assert repos.sensores.por_codigo(CODIGO).hash_clave == "huella-nueva"
+
+
+def test_reemplazar_por_un_codigo_de_otra_planta_no_le_quita_el_sensor_a_ninguna(repos):
     ana = repos.registrar()
-    sala = repos.plantas.guardar(Planta(None, ana.id, "Sala", "potos"))
-    patio = repos.plantas.guardar(Planta(None, ana.id, "Patio", "lavanda"))
-    repos.sensores.guardar(Sensor(CODIGO, sala.id, "h"))
+    sala = repos.planta(ana.id, "Sala", codigo=CODIGO)
+    patio = repos.planta(ana.id, "Patio", codigo=OTRO_CODIGO)
 
     with pytest.raises(SensorYaVinculado):
-        repos.sensores.guardar(Sensor(CODIGO, patio.id, "h"))
-    with pytest.raises(PlantaConSensor):
-        repos.sensores.guardar(Sensor(CodigoSensor("MT-0002-BB"), sala.id, "h"))
+        repos.sensores.reemplazar(Sensor(OTRO_CODIGO, sala.id, "h"))
+
+    assert repos.sensores.de_planta(sala.id).codigo == CODIGO
+    assert repos.sensores.de_planta(patio.id).codigo == OTRO_CODIGO
+
+
+def test_una_planta_vieja_sin_sensor_recibe_uno(repos):
+    # Antes de que el sensor fuera obligatorio, una planta se podia crear sin el.
+    ana = repos.registrar()
+    with repos.bd.conexion() as conexion:
+        planta_id = conexion.execute(
+            "INSERT INTO planta (usuario_id, especie, apodo) VALUES (?, 'potos', 'Sala')", (ana.id,)
+        ).lastrowid
+
+    repos.sensores.reemplazar(Sensor(CODIGO, planta_id, "h"))
+
+    assert repos.plantas.vinculada_a(CODIGO).id == planta_id
 
 
 def test_el_historial_se_lee_igual_mas_reciente_primero_y_con_limite(repos):
-    planta = repos.plantas.guardar(Planta(None, repos.registrar().id, "Sala", "potos"))
+    planta = repos.planta(repos.registrar().id)
     for horas in range(3):
         repos.historial.agregar(repos.registro(planta.id, AHORA + timedelta(hours=horas, microseconds=horas)))
 
@@ -179,8 +226,7 @@ def test_el_historial_se_lee_igual_mas_reciente_primero_y_con_limite(repos):
 
 def test_borrar_una_planta_borra_su_sensor_y_su_historial(repos):
     ana = repos.registrar()
-    planta = repos.plantas.guardar(Planta(None, ana.id, "Sala", "potos"))
-    repos.sensores.guardar(Sensor(CODIGO, planta.id, "h"))
+    planta = repos.planta(ana.id, codigo=CODIGO)
     repos.historial.agregar(repos.registro(planta.id))
 
     repos.plantas.eliminar(ana.id, planta.id)

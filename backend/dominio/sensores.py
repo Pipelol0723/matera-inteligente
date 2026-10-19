@@ -1,7 +1,8 @@
 """Sensor de una planta: un dispositivo con codigo y clave propios (corte 2).
 
 El sensor no inicia sesion: se identifica con su codigo y su clave. La clave
-se muestra una sola vez al vincularlo; aqui solo se guarda su huella.
+se muestra una sola vez, al crear la matera o al cambiarle el sensor; aqui
+solo se guarda su huella.
 """
 import re
 from dataclasses import dataclass

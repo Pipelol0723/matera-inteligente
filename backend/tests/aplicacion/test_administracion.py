@@ -41,8 +41,10 @@ from tests.dobles_usuarios import (
     HistorialEnMemoria,
     RelojFijo,
     RepositorioPlantasEnMemoria,
+    RepositorioSensoresEnMemoria,
     RepositorioSesionesEnMemoria,
     RepositorioUsuariosEnMemoria,
+    codigo,
 )
 
 AHORA = datetime(2026, 10, 12, 15, 0, tzinfo=timezone.utc)
@@ -58,7 +60,8 @@ class Sistema:
     """Una admin (Ada), un usuario comun (Beto) y los casos de uso conectados a los mismos dobles."""
 
     def __init__(self):
-        self.plantas = RepositorioPlantasEnMemoria()
+        self.sensores = RepositorioSensoresEnMemoria()
+        self.plantas = RepositorioPlantasEnMemoria(self.sensores)
         self.usuarios = RepositorioUsuariosEnMemoria(self.plantas)
         self.sesiones = RepositorioSesionesEnMemoria()
         self.especies = EspeciesEditablesEnMemoria(sansevieria())
@@ -74,7 +77,7 @@ class Sistema:
         self.eliminar = EliminarUsuario(self.usuarios)
         self.agregar_especie = AgregarEspecie(self.especies, self.especies, PARAMETROS)
         servicio = ServicioDiagnostico(self.especies, EvaluadorPlanta(ReglaHibrida(), GeneradorRecomendaciones()))
-        self.registrar_planta = RegistrarPlanta(self.plantas, self.especies)
+        self.registrar_planta = RegistrarPlanta(self.plantas, self.sensores, self.especies, secretos)
         self.diagnosticar = DiagnosticarPlantaDeUsuario(self.plantas, servicio, HistorialEnMemoria(), reloj)
 
         registrar.ejecutar("Ada", "ada@correo.co", "clave-segura")
@@ -116,7 +119,7 @@ def test_crear_admin_con_un_correo_sin_cuenta_falla(sistema):
 
 
 def test_el_admin_ve_cuantas_plantas_tiene_cada_usuario(sistema):
-    sistema.plantas.guardar(Planta(None, sistema.beto.id, "Sala", "sansevieria"))
+    sistema.plantas.guardar_con_sensor(Planta(None, sistema.beto.id, "Sala", "sansevieria"), codigo(1), "h")
 
     resumenes = sistema.listar.ejecutar(sistema.ada)
 
@@ -205,8 +208,8 @@ def test_una_especie_sin_rango_para_algun_parametro_no_se_agrega(sistema):
 def test_una_especie_recien_agregada_sirve_para_registrar_una_planta_y_diagnosticarla(sistema):
     sistema.agregar_especie.ejecutar(sistema.ada, lavanda())
 
-    planta = sistema.registrar_planta.ejecutar(sistema.beto, "Patio", "lavanda")
-    resultado = sistema.diagnosticar.ejecutar(sistema.beto.id, planta.id, medicion(30, 20000, 20))
+    planta = sistema.registrar_planta.ejecutar(sistema.beto, "Patio", "lavanda", "MT-0001-AA").planta
+    resultado = sistema.diagnosticar.ejecutar(sistema.beto.id, planta.id, medicion(30, 20000, 20), "MT-0001-AA")
 
     assert resultado.diagnostico.especie == "lavanda"
     assert resultado.diagnostico.estado is EstadoGlobal.SALUDABLE

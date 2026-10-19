@@ -20,6 +20,7 @@ from tests.dobles_usuarios import (
     RepositorioPlantasEnMemoria,
     RepositorioSesionesEnMemoria,
     RepositorioUsuariosEnMemoria,
+    codigo,
 )
 
 AHORA = datetime(2026, 10, 12, 15, 0, tzinfo=timezone.utc)
@@ -136,8 +137,8 @@ def test_el_token_de_una_cuenta_desactivada_deja_de_servir_aunque_no_haya_vencid
 
 def test_mi_cuenta_cuenta_solo_las_plantas_propias(cuentas):
     beto = cuentas.registrar.ejecutar("Beto", "beto@correo.co", "clave-segura")
-    cuentas.plantas.guardar(Planta(None, 1, "Sala", "potos"))
-    cuentas.plantas.guardar(Planta(None, beto.id, "Patio", "lavanda"))
-    cuentas.plantas.guardar(Planta(None, beto.id, "Cocina", "helecho"))
+    cuentas.plantas.guardar_con_sensor(Planta(None, 1, "Sala", "potos"), codigo(1), "h")
+    cuentas.plantas.guardar_con_sensor(Planta(None, beto.id, "Patio", "lavanda"), codigo(2), "h")
+    cuentas.plantas.guardar_con_sensor(Planta(None, beto.id, "Cocina", "helecho"), codigo(3), "h")
 
     assert cuentas.consultar.ejecutar(cuentas.usuarios.por_id(1)).cantidad_plantas == 1

@@ -25,14 +25,12 @@ _TABLA: dict[type[ErrorDominio], tuple[int, str]] = {
     e.PermisoDenegado: (403, "PERMISO_DENEGADO"),
     # Una planta ajena tambien da 404: un 403 confirmaria que existe.
     e.PlantaNoEncontrada: (404, "PLANTA_NO_ENCONTRADA"),
-    e.PlantaSinSensor: (404, "PLANTA_SIN_SENSOR"),
     e.UsuarioNoEncontrado: (404, "USUARIO_NO_ENCONTRADO"),
     e.CorreoYaRegistrado: (409, "CORREO_YA_REGISTRADO"),
     e.AccionSobreSiMismo: (409, "ACCION_SOBRE_SI_MISMO"),
     e.EspecieYaExiste: (409, "ESPECIE_YA_EXISTE"),
     e.ApodoRepetido: (409, "APODO_REPETIDO"),
     e.SensorYaVinculado: (409, "SENSOR_YA_VINCULADO"),
-    e.PlantaConSensor: (409, "PLANTA_CON_SENSOR"),
 }
 
 # Para los 400, el campo del formulario que hay que corregir.

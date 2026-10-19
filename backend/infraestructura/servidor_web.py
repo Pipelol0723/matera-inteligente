@@ -14,12 +14,12 @@ def crear_app(blueprints: Iterable[Blueprint], config: Configuracion) -> Flask:
     app.json.sort_keys = False
 
     # El front vive en otro origen (RA2); solo esos origenes pueden leer la API (RA7),
-    # mandar el token de sesion o la clave de un sensor, y usar PATCH y DELETE.
+    # mandar el token de sesion o la clave de un sensor, y usar PUT, PATCH y DELETE.
     CORS(
         app,
         resources={r"/api/*": {"origins": list(config.origenes_cors)}},
         allow_headers=["Content-Type", "Authorization", "X-Clave-Sensor"],
-        methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     )
 
     for blueprint in blueprints:

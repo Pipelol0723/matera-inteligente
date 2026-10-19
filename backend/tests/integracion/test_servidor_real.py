@@ -27,10 +27,12 @@ def base_url(config):
     hilo.join()
 
 
-def _pedir(base_url, metodo, ruta, cuerpo=None, token=None):
+def _pedir(base_url, metodo, ruta, cuerpo=None, token=None, clave_sensor=None):
     cabeceras = {"Content-Type": "application/json"}
     if token:
         cabeceras["Authorization"] = f"Bearer {token}"
+    if clave_sensor:
+        cabeceras["X-Clave-Sensor"] = clave_sensor
     datos = json.dumps(cuerpo).encode() if cuerpo is not None else None
     peticion = urllib.request.Request(f"{base_url}{ruta}", data=datos, headers=cabeceras, method=metodo)
     try:
@@ -44,10 +46,11 @@ def test_el_servidor_real_atiende_un_recorrido_completo_con_la_misma_base(base_u
     assert _pedir(base_url, "POST", "/usuarios", {"nombre": "Ana", "correo": "ana@correo.co", "contrasena": "clave-segura"})[0] == 201
     _, sesion = _pedir(base_url, "POST", "/sesiones", {"correo": "ana@correo.co", "contrasena": "clave-segura"})
     token = sesion["token"]
-    estado, planta = _pedir(base_url, "POST", "/plantas", {"apodo": "Sala", "especie": "potos"}, token)
+    estado, matera = _pedir(base_url, "POST", "/plantas", {"apodo": "Sala", "especie": "potos", "codigo": "MT-0001-AA"}, token)
     assert estado == 201
 
-    estado, medicion = _pedir(base_url, "POST", f"/plantas/{planta['id']}/mediciones", {"humedad": 50, "luz": 800, "temperatura": 20}, token)
+    lecturas = {"humedad": 50, "luz": 800, "temperatura": 20}
+    estado, medicion = _pedir(base_url, "POST", "/sensores/MT-0001-AA/mediciones", lecturas, clave_sensor=matera["clave"])
 
     assert estado == 201 and medicion["diagnostico"]["estado"] == "SALUDABLE"
     assert _pedir(base_url, "GET", "/plantas", token=token)[1][0]["ultimaMedicion"]["estado"] == "SALUDABLE"
