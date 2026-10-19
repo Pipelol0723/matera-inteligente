@@ -38,6 +38,8 @@ from infraestructura.sqlite import (
     RepositorioSesionesSqlite,
     RepositorioUsuariosSqlite,
 )
+from infraestructura.tiempo_real import CanalesTiempoReal, NotificadorWebSocket
+from presentacion import esquemas_usuarios
 from presentacion.autenticacion import Autenticacion
 from presentacion.rutas import crear_blueprint
 from presentacion.rutas_admin import crear_blueprint_admin
@@ -88,8 +90,12 @@ def construir_app(config: Configuracion) -> Flask:
         autenticacion=autenticacion,
     )
 
+    # El aviso en vivo de cada medicion. Cambiar el WebSocket por MQTT: cambiar solo esta linea.
+    canales = CanalesTiempoReal()
+    notificador = NotificadorWebSocket(canales, esquemas_usuarios.medicion_en_vivo_a_json)
+
     # Las mediciones solo llegan del sensor, por el caso de uso de la 5.3, que reutiliza el servicio del corte 1.
-    diagnosticar_planta = DiagnosticarPlantaDeUsuario(plantas, servicio, historial, reloj)
+    diagnosticar_planta = DiagnosticarPlantaDeUsuario(plantas, servicio, historial, reloj, notificador)
     mis_plantas = crear_blueprint_plantas(
         registrar=RegistrarPlanta(plantas, sensores, especies, secretos),
         listar=ListarPlantas(plantas, sensores, historial),

@@ -10,6 +10,7 @@ nacen juntos.
 from dataclasses import replace
 from datetime import datetime, timedelta
 
+from dominio.diagnostico import Diagnostico
 from dominio.errores_usuarios import ApodoRepetido, CorreoYaRegistrado, EspecieYaExiste, SensorYaVinculado
 from dominio.especie import Especie
 from dominio.historial import RegistroMedicion
@@ -18,6 +19,7 @@ from dominio.puertos_usuarios import (
     Cifrador,
     GeneradorSecretos,
     HistorialMediciones,
+    NotificadorDiagnosticos,
     RegistroEspecies,
     Reloj,
     RepositorioPlantas,
@@ -164,6 +166,30 @@ class HistorialEnMemoria(HistorialMediciones):
     def ultimo_de(self, planta_id: int) -> RegistroMedicion | None:
         recientes = self.de_planta(planta_id, 1)
         return recientes[0] if recientes else None
+
+
+class NotificadorEnMemoria(NotificadorDiagnosticos):
+    """Anota cada aviso, como si el dueno tuviera la pantalla abierta.
+
+    Si recibe el historial, anota tambien si la medicion ya estaba guardada al avisar.
+    """
+
+    def __init__(self, historial: HistorialEnMemoria | None = None):
+        self._historial = historial
+        self.avisos: list[tuple[int, Planta, RegistroMedicion, Diagnostico]] = []
+        self.guardada_al_avisar: list[bool] = []
+
+    def publicar(self, usuario_id: int, planta: Planta, registro: RegistroMedicion, diagnostico: Diagnostico) -> None:
+        self.avisos.append((usuario_id, planta, registro, diagnostico))
+        if self._historial is not None:
+            self.guardada_al_avisar.append(registro in self._historial.registros)
+
+
+class NotificadorQueFalla(NotificadorDiagnosticos):
+    """Como un WebSocket que se cae justo al avisar."""
+
+    def publicar(self, usuario_id: int, planta: Planta, registro: RegistroMedicion, diagnostico: Diagnostico) -> None:
+        raise ConnectionError("la conexion se cerro")
 
 
 class CifradorFalso(Cifrador):

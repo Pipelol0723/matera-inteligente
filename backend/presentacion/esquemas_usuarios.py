@@ -11,6 +11,7 @@ from aplicacion.cuentas import CuentaUsuario, SesionIniciada
 from aplicacion.diagnosticar_planta_de_usuario import ResultadoMedicion
 from aplicacion.historial import LIMITE_POR_DEFECTO, HistorialPlanta
 from aplicacion.plantas import PlantaConEstado, SensorVinculado
+from dominio.diagnostico import Diagnostico
 from dominio.errores import RangoInvalido
 from dominio.especie import Especie
 from dominio.historial import RegistroMedicion
@@ -140,6 +141,20 @@ def historial_a_json(historial: HistorialPlanta) -> dict[str, Any]:
 def sensor_vinculado_a_json(vinculado: SensorVinculado) -> dict[str, Any]:
     """Las unicas respuestas que traen la clave del sensor: crear la matera y cambiarle el sensor."""
     return {"planta": planta_a_json(vinculado.planta), "codigo": vinculado.codigo.valor, "clave": vinculado.clave}
+
+
+def medicion_en_vivo_a_json(planta: Planta, registro: RegistroMedicion, diagnostico: Diagnostico) -> dict[str, Any]:
+    """El mensaje del WebSocket cuando llega una medicion.
+
+    'medicion' tiene la forma de ultimaMedicion en GET /plantas y de cada registro del
+    historial, asi que el front actualiza la tarjeta y el historial sin pedir nada mas.
+    """
+    return {
+        "tipo": "medicion",
+        "planta": planta_a_json(planta),
+        "medicion": registro_a_json(registro),
+        "diagnostico": diagnostico_a_json(diagnostico),
+    }
 
 
 def resultado_medicion_a_json(resultado: ResultadoMedicion) -> dict[str, Any]:

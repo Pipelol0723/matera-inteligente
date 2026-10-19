@@ -1,4 +1,4 @@
-"""Puertos del corte 2: lo que cuentas, plantas, sensores e historial necesitan de afuera.
+"""Puertos del corte 2: lo que cuentas, plantas, sensores, historial y el aviso en vivo necesitan de afuera.
 
 Igual que dominio.puertos, se declaran aqui y se implementan en
 infraestructura (RA5, DIP). En las pruebas, cada uno tiene un doble en memoria.
@@ -8,6 +8,7 @@ asi que quien solo consulta especies sigue dependiendo solo de ConsultaRangos (I
 from abc import ABC, abstractmethod
 from datetime import datetime
 
+from dominio.diagnostico import Diagnostico
 from dominio.especie import Especie
 from dominio.historial import RegistroMedicion
 from dominio.plantas import Planta
@@ -113,6 +114,18 @@ class HistorialMediciones(ABC):
 
     @abstractmethod
     def ultimo_de(self, planta_id: int) -> RegistroMedicion | None: ...
+
+
+class NotificadorDiagnosticos(ABC):
+    """Avisa al dueno de una planta que llego una medicion, para que su pantalla se actualice sola.
+
+    Hoy lo implementa un WebSocket (infraestructura.tiempo_real); cambiarlo por
+    MQTT o por un correo seria escribir otra implementacion, sin tocar el caso de uso.
+    """
+
+    @abstractmethod
+    def publicar(self, usuario_id: int, planta: Planta, registro: RegistroMedicion, diagnostico: Diagnostico) -> None:
+        """Se llama despues de guardar la medicion. Si el dueno no tiene la pantalla abierta, no hace nada."""
 
 
 class Cifrador(ABC):

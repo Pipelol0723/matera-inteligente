@@ -30,6 +30,8 @@ from tests.dobles_usuarios import (
     EspeciesEditablesEnMemoria,
     GeneradorSecretosFalso,
     HistorialEnMemoria,
+    NotificadorEnMemoria,
+    NotificadorQueFalla,
     RelojFijo,
     RepositorioPlantasEnMemoria,
     RepositorioSensoresEnMemoria,
@@ -47,7 +49,7 @@ def potos() -> Especie:
 class Sistema:
     """Los casos de uso de plantas y sensores conectados a los mismos dobles y al ServicioDiagnostico real."""
 
-    def __init__(self):
+    def __init__(self, notificador=None):
         self.sensores = RepositorioSensoresEnMemoria()
         self.plantas = RepositorioPlantasEnMemoria(self.sensores)
         self.historial = HistorialEnMemoria()
@@ -61,7 +63,10 @@ class Sistema:
         self.eliminar = EliminarPlanta(self.plantas)
         self.reemplazar = ReemplazarSensor(self.plantas, self.sensores, secretos)
         self.consultar_historial = ConsultarHistorial(self.plantas, self.historial)
-        self.diagnosticar = DiagnosticarPlantaDeUsuario(self.plantas, servicio, self.historial, self.reloj)
+        self.notificador = notificador or NotificadorEnMemoria(self.historial)
+        self.diagnosticar = DiagnosticarPlantaDeUsuario(
+            self.plantas, servicio, self.historial, self.reloj, self.notificador
+        )
         self.recibir = RecibirMedicionDeSensor(self.sensores, self.plantas, secretos, self.diagnosticar)
 
     def codigo_de(self, planta) -> str | None:
@@ -245,3 +250,39 @@ def test_el_historial_trae_lo_mas_reciente_primero_y_respeta_el_limite(sistema, 
 
     assert historial.planta == matera_de_ana.planta
     assert [r.lecturas[0].valor for r in historial.registros] == [32, 31]
+
+
+def test_la_medicion_del_sensor_se_avisa_al_dueno_despues_de_guardarla(sistema, matera_de_ana):
+    resultado = sistema.recibir.ejecutar("MT-0001-AA", matera_de_ana.clave, medicion(18, 800, 22))
+
+    assert sistema.notificador.avisos == [(ANA.id, resultado.planta, resultado.registro, resultado.diagnostico)]
+    assert sistema.notificador.guardada_al_avisar == [True]
+
+
+def test_cada_medicion_se_avisa_solo_al_dueno_de_su_planta(sistema, matera_de_ana):
+    de_beto = sistema.registrar.ejecutar(BETO, "Patio", "potos", "MT-0002-BB")
+
+    sistema.recibir.ejecutar("MT-0002-BB", de_beto.clave, medicion(50, 800, 22))
+    sistema.recibir.ejecutar("MT-0001-AA", matera_de_ana.clave, medicion(30, 800, 22))
+
+    assert [(usuario, planta.apodo) for usuario, planta, _, _ in sistema.notificador.avisos] == [
+        (BETO.id, "Patio"),
+        (ANA.id, "Sala"),
+    ]
+
+
+def test_si_el_aviso_falla_la_medicion_queda_guardada_y_el_sensor_recibe_su_diagnostico():
+    sistema = Sistema(notificador=NotificadorQueFalla())
+    matera = sistema.registrar.ejecutar(ANA, "Sala", "Sansevieria", "MT-0001-AA")
+
+    resultado = sistema.recibir.ejecutar("MT-0001-AA", matera.clave, medicion(30, 800, 22))
+
+    assert resultado.diagnostico.estado is EstadoGlobal.SALUDABLE
+    assert sistema.historial.registros == [resultado.registro]
+
+
+def test_una_medicion_rechazada_no_se_avisa(sistema, matera_de_ana):
+    with pytest.raises(ClaveSensorInvalida):
+        sistema.recibir.ejecutar("MT-0001-AA", "clave-mala", medicion(30, 800, 22))
+
+    assert sistema.notificador.avisos == []

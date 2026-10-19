@@ -39,6 +39,7 @@ from tests.dobles_usuarios import (
     EspeciesEditablesEnMemoria,
     GeneradorSecretosFalso,
     HistorialEnMemoria,
+    NotificadorEnMemoria,
     RelojFijo,
     RepositorioPlantasEnMemoria,
     RepositorioSensoresEnMemoria,
@@ -78,7 +79,8 @@ class Sistema:
         self.agregar_especie = AgregarEspecie(self.especies, self.especies, PARAMETROS)
         servicio = ServicioDiagnostico(self.especies, EvaluadorPlanta(ReglaHibrida(), GeneradorRecomendaciones()))
         self.registrar_planta = RegistrarPlanta(self.plantas, self.sensores, self.especies, secretos)
-        self.diagnosticar = DiagnosticarPlantaDeUsuario(self.plantas, servicio, HistorialEnMemoria(), reloj)
+        avisos = NotificadorEnMemoria()
+        self.diagnosticar = DiagnosticarPlantaDeUsuario(self.plantas, servicio, HistorialEnMemoria(), reloj, avisos)
 
         registrar.ejecutar("Ada", "ada@correo.co", "clave-segura")
         self.beto = registrar.ejecutar("Beto", "beto@correo.co", "clave-segura")
