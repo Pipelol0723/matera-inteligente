@@ -1,4 +1,4 @@
-"""La ruta del sensor: el ESP32 (o el simulador del front) manda una medicion con su clave.
+"""La ruta del sensor: el ESP32 manda una medicion con su clave.
 
 El sensor no tiene sesion: se identifica con el codigo de la URL y la cabecera
 X-Clave-Sensor. Aqui la clave deja de saber que existe HTTP.

@@ -88,7 +88,7 @@ def construir_app(config: Configuracion) -> Flask:
         autenticacion=autenticacion,
     )
 
-    # La medicion manual y la del sensor pasan por el mismo caso de uso, que reutiliza el servicio del corte 1.
+    # Las mediciones solo llegan del sensor, por el caso de uso de la 5.3, que reutiliza el servicio del corte 1.
     diagnosticar_planta = DiagnosticarPlantaDeUsuario(plantas, servicio, historial, reloj)
     mis_plantas = crear_blueprint_plantas(
         registrar=RegistrarPlanta(plantas, sensores, especies, secretos),
@@ -96,7 +96,6 @@ def construir_app(config: Configuracion) -> Flask:
         eliminar=EliminarPlanta(plantas),
         reemplazar_sensor=ReemplazarSensor(plantas, sensores, secretos),
         consultar_historial=ConsultarHistorial(plantas, historial),
-        diagnosticar=diagnosticar_planta,
         autenticacion=autenticacion,
     )
     entrada_sensor = crear_blueprint_sensores(RecibirMedicionDeSensor(sensores, plantas, secretos, diagnosticar_planta))

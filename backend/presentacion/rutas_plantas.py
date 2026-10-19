@@ -1,15 +1,14 @@
-"""Rutas de las plantas del usuario: Mis materas, sensor, historial y medicion manual.
+"""Rutas de las plantas del usuario: Mis materas, el sensor de cada una y su historial.
 
 Todas exigen sesion. El usuario sale del token, nunca del cuerpo ni de la URL:
 pedir la planta de otro da 404, igual que una que no existe.
 """
 from flask import Blueprint, jsonify, request
 
-from aplicacion.diagnosticar_planta_de_usuario import DiagnosticarPlantaDeUsuario
 from aplicacion.historial import ConsultarHistorial
 from aplicacion.plantas import EliminarPlanta, ListarPlantas, RegistrarPlanta
 from aplicacion.sensores import ReemplazarSensor
-from presentacion import esquemas, esquemas_usuarios
+from presentacion import esquemas_usuarios
 from presentacion.autenticacion import Autenticacion
 from presentacion.errores_usuarios import registrar_manejadores_usuarios
 
@@ -20,7 +19,6 @@ def crear_blueprint_plantas(
     eliminar: EliminarPlanta,
     reemplazar_sensor: ReemplazarSensor,
     consultar_historial: ConsultarHistorial,
-    diagnosticar: DiagnosticarPlantaDeUsuario,
     autenticacion: Autenticacion,
 ) -> Blueprint:
     bp = Blueprint("api_v1_plantas", __name__, url_prefix="/api/v1/plantas")
@@ -54,13 +52,6 @@ def crear_blueprint_plantas(
         usuario = autenticacion.usuario_actual()
         limite = esquemas_usuarios.limite_desde_consulta(request.args.get("limite"))
         return jsonify(esquemas_usuarios.historial_a_json(consultar_historial.ejecutar(usuario, planta_id, limite)))
-
-    @bp.post("/<int:planta_id>/mediciones")
-    def medicion_manual(planta_id: int):
-        usuario = autenticacion.usuario_actual()
-        medicion = esquemas.medicion_desde_json(request.get_json(silent=True))
-        resultado = diagnosticar.ejecutar(usuario.id, planta_id, medicion)
-        return jsonify(esquemas_usuarios.resultado_medicion_a_json(resultado)), 201
 
     registrar_manejadores_usuarios(bp)
     return bp

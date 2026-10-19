@@ -1,4 +1,4 @@
-"""Materas, sensores, historial y medicion manual de punta a punta: HTTP, casos de uso y SQLite."""
+"""Materas, sensores e historial de punta a punta: HTTP, casos de uso y SQLite."""
 import pytest
 
 from tests.integracion.conftest import ORIGEN_FRONT, es_error
@@ -91,12 +91,11 @@ def test_mis_plantas_muestra_una_matera_nueva_con_su_sensor_y_sin_mediciones(api
     assert tarjetas == [{**planta, "sensor": {"codigo": "MT-0001-AA"}, "ultimaMedicion": None}]
 
 
-def test_la_medicion_manual_devuelve_el_diagnostico_completo_y_queda_en_el_historial(api, ana, planta):
+def test_la_medicion_a_mano_ya_no_existe_y_responde_404_en_json(api, ana, planta):
     respuesta = api.pedir("POST", f"/plantas/{planta['id']}/mediciones", ana, json=MEDICION)
 
-    assert respuesta.status_code == 201
-    [tarjeta] = api.pedir("GET", "/plantas", ana).get_json()
-    assert tarjeta["ultimaMedicion"]["origen"] == "MANUAL"
+    assert es_error(respuesta, 404, "RUTA_NO_ENCONTRADA")
+    assert _historial(api, ana, planta["id"]) == []
 
 
 @pytest.mark.parametrize(
@@ -105,7 +104,6 @@ def test_la_medicion_manual_devuelve_el_diagnostico_completo_y_queda_en_el_histo
         ("DELETE", "/plantas/{id}", None),
         ("PUT", "/plantas/{id}/sensor", {"codigo": "MT-0009-ZZ"}),
         ("GET", "/plantas/{id}/historial", None),
-        ("POST", "/plantas/{id}/mediciones", MEDICION),
     ],
 )
 def test_beto_recibe_404_con_la_planta_de_ana_igual_que_con_una_que_no_existe(api, planta, metodo, ruta, cuerpo):

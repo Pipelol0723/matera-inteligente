@@ -216,15 +216,6 @@ def test_una_matera_vieja_sin_sensor_recibe_uno_con_el_mismo_caso_de_uso(sistema
     assert sistema.listar.ejecutar(ANA)[0].sensor.codigo == nuevo.codigo
 
 
-def test_la_medicion_manual_usa_la_especie_de_la_planta_y_se_guarda_como_manual(sistema, planta_de_ana):
-    resultado = sistema.diagnosticar.ejecutar(ANA.id, planta_de_ana.id, medicion(humedad=1, luz=800, temperatura=22))
-
-    assert resultado.diagnostico.especie == "sansevieria"
-    assert resultado.diagnostico.estado is EstadoGlobal.CRITICO
-    [registro] = sistema.historial.registros
-    assert (registro.planta_id, registro.momento, registro.origen) == (planta_de_ana.id, AHORA, "MANUAL")
-
-
 def test_el_sensor_con_su_clave_guarda_la_medicion_en_su_planta_con_su_codigo(sistema, matera_de_ana):
     resultado = sistema.recibir.ejecutar("mt-0001-aa", matera_de_ana.clave, medicion(30, 800, 22))
 

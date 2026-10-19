@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS medicion (
     planta_id INTEGER NOT NULL REFERENCES planta (id) ON DELETE CASCADE,
     momento   TEXT NOT NULL,                    -- ISO 8601 en UTC
     estado    TEXT NOT NULL,                    -- el estado global calculado en ese momento
-    origen    TEXT NOT NULL                     -- MANUAL o el codigo del sensor
+    origen    TEXT NOT NULL                     -- el codigo del sensor (MANUAL en las mediciones a mano de antes)
 );
 
 CREATE INDEX IF NOT EXISTS medicion_por_planta ON medicion (planta_id, momento);

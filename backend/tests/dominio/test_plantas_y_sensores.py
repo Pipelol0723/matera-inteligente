@@ -6,7 +6,7 @@ import pytest
 from dominio.errores_usuarios import ApodoInvalido, CodigoSensorInvalido
 from dominio.estados import EstadoGlobal, EstadoParametro
 from dominio.evaluador import EvaluadorPlanta
-from dominio.historial import ORIGEN_MANUAL, RegistroMedicion
+from dominio.historial import RegistroMedicion
 from dominio.parametros import HUMEDAD, LUZ, TEMPERATURA
 from dominio.plantas import Planta
 from dominio.recomendaciones import GeneradorRecomendaciones
@@ -56,7 +56,7 @@ def test_el_registro_conserva_los_estados_del_diagnostico_y_su_origen():
         sansevieria(), medicion(humedad=18, luz=800, temperatura=22)
     )
 
-    registro = RegistroMedicion.desde(diagnostico, planta_id=5, momento=MOMENTO, origen=ORIGEN_MANUAL)
+    registro = RegistroMedicion.desde(diagnostico, planta_id=5, momento=MOMENTO, origen="MT-0001-AA")
 
     assert registro.estado is EstadoGlobal.EN_RIESGO
     assert [(l.parametro, l.valor, l.estado) for l in registro.lecturas] == [
@@ -64,4 +64,4 @@ def test_el_registro_conserva_los_estados_del_diagnostico_y_su_origen():
         (LUZ, 800, EstadoParametro.OPTIMO),
         (TEMPERATURA, 22, EstadoParametro.OPTIMO),
     ]
-    assert (registro.planta_id, registro.momento, registro.origen) == (5, MOMENTO, "MANUAL")
+    assert (registro.planta_id, registro.momento, registro.origen) == (5, MOMENTO, "MT-0001-AA")

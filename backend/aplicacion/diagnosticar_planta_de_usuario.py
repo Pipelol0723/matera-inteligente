@@ -1,15 +1,15 @@
 """Caso de uso de la seccion 5.3: diagnosticar una planta de un usuario y guardar la medicion.
 
 Busca la planta por su dueno, toma su especie, llama al ServicioDiagnostico
-del corte 1 sin cambiarlo y guarda el resultado en el historial. Lo usan la
-medicion manual (con el usuario de la sesion) y el sensor (con el dueno de
-la planta a la que esta vinculado).
+del corte 1 sin cambiarlo y guarda el resultado en el historial. Solo lo usa
+el sensor, con el dueno de la planta a la que esta vinculado: el historial
+guarda lo que se midio, no lo que alguien escribio a mano.
 """
 from dataclasses import dataclass
 
 from aplicacion.plantas import buscar_planta_propia
 from dominio.diagnostico import Diagnostico
-from dominio.historial import ORIGEN_MANUAL, RegistroMedicion
+from dominio.historial import RegistroMedicion
 from dominio.medicion import Medicion
 from dominio.plantas import Planta
 from dominio.puertos_usuarios import HistorialMediciones, Reloj, RepositorioPlantas
@@ -36,9 +36,8 @@ class DiagnosticarPlantaDeUsuario:
         self._historial = historial
         self._reloj = reloj
 
-    def ejecutar(
-        self, usuario_id: int, planta_id: int, medicion: Medicion, origen: str = ORIGEN_MANUAL
-    ) -> ResultadoMedicion:
+    def ejecutar(self, usuario_id: int, planta_id: int, medicion: Medicion, origen: str) -> ResultadoMedicion:
+        """El origen es el codigo del sensor que mando la medicion."""
         planta = buscar_planta_propia(self._plantas, usuario_id, planta_id)
         diagnostico = self._servicio.diagnosticar(planta.especie, medicion)
         registro = RegistroMedicion.desde(diagnostico, planta.id, self._reloj.ahora(), origen)

@@ -11,9 +11,6 @@ from dominio.diagnostico import Diagnostico
 from dominio.estados import EstadoGlobal, EstadoParametro
 from dominio.parametros import Parametro
 
-# Origen de una medicion escrita a mano; la de un sensor lleva su codigo.
-ORIGEN_MANUAL = "MANUAL"
-
 
 @dataclass(frozen=True)
 class LecturaRegistrada:
@@ -24,6 +21,12 @@ class LecturaRegistrada:
 
 @dataclass(frozen=True)
 class RegistroMedicion:
+    """El origen es el codigo del sensor que la envio.
+
+    Las mediciones escritas a mano antes de que solo el sensor pudiera medir
+    conservan el origen MANUAL.
+    """
+
     planta_id: int
     momento: datetime
     estado: EstadoGlobal
