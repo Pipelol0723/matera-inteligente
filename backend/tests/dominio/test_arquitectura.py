@@ -58,6 +58,13 @@ def test_presentacion_no_importa_infraestructura():
     assert _violaciones(archivos, {"infraestructura", "main"}) == {}
 
 
+def test_los_adaptadores_de_entrada_conocen_los_puertos_y_no_los_casos_de_uso():
+    """Las rutas y el WebSocket dependen de dominio.puertos_entrada: main.py les entrega la implementacion."""
+    archivos = sorted((BACKEND / "presentacion").glob("*.py"))
+
+    assert _violaciones(archivos, {"aplicacion"}) == {}
+
+
 def test_las_pruebas_de_dominio_y_aplicacion_no_dependen_de_infraestructura_ni_de_flask():
     """Si se borra la carpeta infraestructura, estas pruebas tienen que seguir pasando."""
     archivos = (

@@ -7,17 +7,22 @@ apodo, rango con minimo menor que maximo) las revisa el dominio.
 from dataclasses import dataclass
 from typing import Any
 
-from aplicacion.cuentas import CuentaUsuario, SesionIniciada
-from aplicacion.diagnosticar_planta_de_usuario import ResultadoMedicion
-from aplicacion.historial import LIMITE_POR_DEFECTO, HistorialPlanta
-from aplicacion.plantas import PlantaConEstado, SensorVinculado
 from dominio.diagnostico import Diagnostico
 from dominio.errores import RangoInvalido
 from dominio.especie import Especie
 from dominio.historial import RegistroMedicion
 from dominio.parametros import PARAMETROS
 from dominio.plantas import Planta
+from dominio.puertos_entrada import LIMITE_HISTORIAL
 from dominio.rango import Rango
+from dominio.resultados import (
+    CuentaUsuario,
+    HistorialPlanta,
+    PlantaConEstado,
+    ResultadoMedicion,
+    SensorVinculado,
+    SesionIniciada,
+)
 from dominio.usuarios import ResumenUsuario, Rol, Usuario
 from presentacion.esquemas import EntradaInvalida, diagnostico_a_json
 
@@ -99,7 +104,7 @@ def codigo_desde_json(cuerpo: Any) -> str:
 def limite_desde_consulta(texto: str | None) -> int:
     """?limite= del historial: un entero entre 1 y LIMITE_MAXIMO, o el valor por defecto."""
     if texto is None:
-        return LIMITE_POR_DEFECTO
+        return LIMITE_HISTORIAL
     try:
         limite = int(texto)
     except ValueError:

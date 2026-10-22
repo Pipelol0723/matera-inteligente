@@ -1,4 +1,4 @@
-from aplicacion.diagnosticar_planta import DiagnosticarPlanta, SolicitudDiagnostico
+from aplicacion.diagnosticar_planta import DiagnosticarPlanta
 from aplicacion.listar_especies import ListarEspecies
 from aplicacion.listar_parametros import ListarParametros
 from dominio.especie import Especie
@@ -8,6 +8,7 @@ from dominio.parametros import HUMEDAD, Parametro
 from dominio.rango import Rango
 from dominio.recomendaciones import GeneradorRecomendaciones
 from dominio.reglas import ReglaHibrida
+from dominio.resultados import SolicitudDiagnostico
 from dominio.servicio_diagnostico import ServicioDiagnostico
 from tests.dobles import RepositorioEspeciesEnMemoria, medicion, sansevieria
 

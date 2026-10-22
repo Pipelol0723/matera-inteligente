@@ -5,13 +5,13 @@ str y devuelve un Usuario del dominio. Las rutas no leen cabeceras.
 """
 from flask import request
 
-from aplicacion.cuentas import IdentificarUsuario
+from dominio import puertos_entrada as entrada
 from dominio.errores_usuarios import SesionInvalida
 from dominio.usuarios import Usuario
 
 
 class Autenticacion:
-    def __init__(self, identificar: IdentificarUsuario):
+    def __init__(self, identificar: entrada.IdentificarUsuario):
         self._identificar = identificar
 
     def token(self) -> str:

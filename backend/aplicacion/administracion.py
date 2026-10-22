@@ -6,6 +6,7 @@ decide nada, y esconder la pestana en el front es solo comodidad.
 """
 from collections.abc import Sequence
 
+from dominio import puertos_entrada as entrada
 from dominio.errores import ParametroSinRango
 from dominio.errores_usuarios import EspecieYaExiste, UsuarioNoEncontrado
 from dominio.especie import Especie
@@ -22,7 +23,7 @@ def _buscar_usuario(usuarios: RepositorioUsuarios, usuario_id: int) -> Usuario:
     return usuario
 
 
-class ListarUsuarios:
+class ListarUsuarios(entrada.ListarUsuarios):
     """El admin ve cuantas plantas tiene cada usuario, pero no cuales."""
 
     def __init__(self, usuarios: RepositorioUsuarios):
@@ -33,7 +34,7 @@ class ListarUsuarios:
         return sorted(self._usuarios.resumenes(), key=lambda resumen: resumen.id)
 
 
-class CambiarEstadoUsuario:
+class CambiarEstadoUsuario(entrada.CambiarEstadoUsuario):
     """Desactivar cierra todas las sesiones de la cuenta en ese momento."""
 
     def __init__(self, usuarios: RepositorioUsuarios, sesiones: RepositorioSesiones):
@@ -49,7 +50,7 @@ class CambiarEstadoUsuario:
         return actualizado
 
 
-class CambiarRol:
+class CambiarRol(entrada.CambiarRol):
     def __init__(self, usuarios: RepositorioUsuarios):
         self._usuarios = usuarios
 
@@ -59,7 +60,7 @@ class CambiarRol:
         return self._usuarios.guardar(_buscar_usuario(self._usuarios, usuario_id).con_rol(rol))
 
 
-class EliminarUsuario:
+class EliminarUsuario(entrada.EliminarUsuario):
     """Borra la cuenta con sus sesiones, plantas, sensores e historial (lo hace el repositorio)."""
 
     def __init__(self, usuarios: RepositorioUsuarios):
@@ -72,7 +73,7 @@ class EliminarUsuario:
         self._usuarios.eliminar(usuario_id)
 
 
-class AgregarEspecie:
+class AgregarEspecie(entrada.AgregarEspecie):
     """Una especie nueva usa las mismas clases Especie y Rango del corte 1.
 
     Debe traer un rango por cada parametro que se mide: si no, sus plantas no
@@ -95,7 +96,7 @@ class AgregarEspecie:
         return especie
 
 
-class ConvertirEnAdministrador:
+class ConvertirEnAdministrador(entrada.ConvertirEnAdministrador):
     """Da el rol de admin a una cuenta ya registrada. Solo lo usa crear_admin.py, desde la consola.
 
     No pide actor: es la forma de tener el primer admin, y la API no lo expone.

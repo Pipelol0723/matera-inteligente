@@ -4,9 +4,9 @@ Reciben textos ya sacados del borde (nunca un request) y trabajan solo con
 puertos: no saben si la contrasena se cifra con PBKDF2 ni si la sesion se
 guarda en SQLite.
 """
-from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import timedelta
 
+from dominio import puertos_entrada as entrada
 from dominio.errores_usuarios import (
     CorreoInvalido,
     CorreoYaRegistrado,
@@ -22,10 +22,11 @@ from dominio.puertos_usuarios import (
     RepositorioSesiones,
     RepositorioUsuarios,
 )
+from dominio.resultados import CuentaUsuario, SesionIniciada
 from dominio.usuarios import Correo, PoliticaContrasena, Sesion, Usuario
 
 
-class RegistrarUsuario:
+class RegistrarUsuario(entrada.RegistrarUsuario):
     """Crea siempre un USUARIO comun: ninguna ruta de la API da el rol de admin."""
 
     def __init__(self, usuarios: RepositorioUsuarios, cifrador: Cifrador):
@@ -40,16 +41,7 @@ class RegistrarUsuario:
         return self._usuarios.guardar(Usuario(None, correo_valido, nombre, self._cifrador.cifrar(contrasena)))
 
 
-@dataclass(frozen=True)
-class SesionIniciada:
-    """El token solo sale de aqui; la base guarda su huella."""
-
-    token: str
-    vence_en: datetime
-    usuario: Usuario
-
-
-class IniciarSesion:
+class IniciarSesion(entrada.IniciarSesion):
     def __init__(
         self,
         usuarios: RepositorioUsuarios,
@@ -86,7 +78,7 @@ class IniciarSesion:
         return SesionIniciada(token, sesion.vence_en, usuario)
 
 
-class CerrarSesion:
+class CerrarSesion(entrada.CerrarSesion):
     def __init__(self, sesiones: RepositorioSesiones, secretos: GeneradorSecretos):
         self._sesiones = sesiones
         self._secretos = secretos
@@ -95,7 +87,7 @@ class CerrarSesion:
         self._sesiones.eliminar(self._secretos.huella(token))
 
 
-class IdentificarUsuario:
+class IdentificarUsuario(entrada.IdentificarUsuario):
     """De un token a un Usuario. Aqui se rechaza una sesion vencida o de una cuenta desactivada."""
 
     def __init__(
@@ -124,13 +116,7 @@ class IdentificarUsuario:
         return usuario
 
 
-@dataclass(frozen=True)
-class CuentaUsuario:
-    usuario: Usuario
-    cantidad_plantas: int
-
-
-class ConsultarCuenta:
+class ConsultarCuenta(entrada.ConsultarCuenta):
     """Lo que muestra Mi cuenta: los datos del usuario y cuantas plantas tiene."""
 
     def __init__(self, plantas: RepositorioPlantas):

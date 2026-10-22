@@ -5,14 +5,14 @@ X-Clave-Sensor. Aqui la clave deja de saber que existe HTTP.
 """
 from flask import Blueprint, jsonify, request
 
-from aplicacion.sensores import RecibirMedicionDeSensor
+from dominio import puertos_entrada as entrada
 from presentacion import esquemas, esquemas_usuarios
 from presentacion.errores_usuarios import registrar_manejadores_usuarios
 
 CABECERA_CLAVE = "X-Clave-Sensor"
 
 
-def crear_blueprint_sensores(recibir: RecibirMedicionDeSensor) -> Blueprint:
+def crear_blueprint_sensores(recibir: entrada.RecibirMedicionDeSensor) -> Blueprint:
     bp = Blueprint("api_v1_sensores", __name__, url_prefix="/api/v1/sensores")
 
     @bp.post("/<codigo>/mediciones")

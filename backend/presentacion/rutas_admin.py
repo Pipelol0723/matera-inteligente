@@ -5,18 +5,18 @@ solo se identifica al actor por su token y se traduce HTTP <-> caso de uso.
 """
 from flask import Blueprint, jsonify, request
 
-from aplicacion.administracion import AgregarEspecie, CambiarEstadoUsuario, CambiarRol, EliminarUsuario, ListarUsuarios
+from dominio import puertos_entrada as entrada
 from presentacion import esquemas, esquemas_usuarios
 from presentacion.autenticacion import Autenticacion
 from presentacion.errores_usuarios import registrar_manejadores_usuarios
 
 
 def crear_blueprint_admin(
-    listar: ListarUsuarios,
-    cambiar_estado: CambiarEstadoUsuario,
-    cambiar_rol: CambiarRol,
-    eliminar: EliminarUsuario,
-    agregar_especie: AgregarEspecie,
+    listar: entrada.ListarUsuarios,
+    cambiar_estado: entrada.CambiarEstadoUsuario,
+    cambiar_rol: entrada.CambiarRol,
+    eliminar: entrada.EliminarUsuario,
+    agregar_especie: entrada.AgregarEspecie,
     autenticacion: Autenticacion,
 ) -> Blueprint:
     bp = Blueprint("api_v1_admin", __name__, url_prefix="/api/v1/admin")

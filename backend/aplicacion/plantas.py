@@ -1,13 +1,12 @@
 """Casos de uso de las plantas de un usuario: registrar, listar y eliminar (seccion 5.3)."""
-from dataclasses import dataclass
-
+from dominio import puertos_entrada as entrada
 from dominio.errores import EspecieNoSoportada
 from dominio.errores_usuarios import ApodoRepetido, PlantaNoEncontrada, SensorYaVinculado
-from dominio.historial import RegistroMedicion
 from dominio.plantas import Planta
 from dominio.puertos import ConsultaRangos
 from dominio.puertos_usuarios import GeneradorSecretos, HistorialMediciones, RepositorioPlantas, RepositorioSensores
-from dominio.sensores import CodigoSensor, Sensor
+from dominio.resultados import PlantaConEstado, SensorVinculado
+from dominio.sensores import CodigoSensor
 from dominio.usuarios import Usuario
 
 
@@ -19,16 +18,7 @@ def buscar_planta_propia(plantas: RepositorioPlantas, usuario_id: int, planta_id
     return planta
 
 
-@dataclass(frozen=True)
-class SensorVinculado:
-    """La planta con el codigo de su sensor. La clave sale solo de aqui, una vez: la base guarda su huella."""
-
-    planta: Planta
-    codigo: CodigoSensor
-    clave: str
-
-
-class RegistrarPlanta:
+class RegistrarPlanta(entrada.RegistrarPlanta):
     """Una matera nace con su sensor: la planta y el sensor se guardan juntos.
 
     Usa el mismo puerto ConsultaRangos del corte 1 para saber si la especie existe.
@@ -61,19 +51,7 @@ class RegistrarPlanta:
         return SensorVinculado(planta, codigo_valido, clave)
 
 
-@dataclass(frozen=True)
-class PlantaConEstado:
-    """Una tarjeta de Mis materas: la planta, su sensor y su ultima medicion si hay.
-
-    El sensor solo falta en las materas creadas antes de que fuera obligatorio.
-    """
-
-    planta: Planta
-    sensor: Sensor | None
-    ultima_medicion: RegistroMedicion | None
-
-
-class ListarPlantas:
+class ListarPlantas(entrada.ListarPlantas):
     def __init__(self, plantas: RepositorioPlantas, sensores: RepositorioSensores, historial: HistorialMediciones):
         self._plantas = plantas
         self._sensores = sensores
@@ -86,7 +64,7 @@ class ListarPlantas:
         ]
 
 
-class EliminarPlanta:
+class EliminarPlanta(entrada.EliminarPlanta):
     """Borra la planta con su sensor y su historial."""
 
     def __init__(self, plantas: RepositorioPlantas):

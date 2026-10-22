@@ -27,7 +27,7 @@ from simple_websocket import ConnectionClosed
 from werkzeug.routing.exceptions import WebsocketMismatch
 from wsproto.utilities import RemoteProtocolError
 
-from aplicacion.cuentas import IdentificarUsuario
+from dominio import puertos_entrada as entrada
 from dominio.errores_usuarios import SesionInvalida
 from presentacion.errores_http import respuesta_error
 
@@ -188,7 +188,7 @@ class Suscripciones(Protocol):
 
 
 def crear_blueprint_tiempo_real(
-    identificar: IdentificarUsuario, suscripciones: Suscripciones, origenes: Iterable[str]
+    identificar: entrada.IdentificarUsuario, suscripciones: Suscripciones, origenes: Iterable[str]
 ) -> Blueprint:
     bp = Blueprint("api_v1_tiempo_real", __name__)
     permitidos = frozenset(origenes)
@@ -243,7 +243,7 @@ def crear_blueprint_tiempo_real(
     return bp
 
 
-def _atender(canal: CanalWebSocket, identificar: IdentificarUsuario, suscripciones: Suscripciones) -> None:
+def _atender(canal: CanalWebSocket, identificar: entrada.IdentificarUsuario, suscripciones: Suscripciones) -> None:
     token = _token_del_primer_mensaje(canal)
     if token is None:
         return
@@ -282,7 +282,7 @@ def _token_del_primer_mensaje(canal: CanalWebSocket) -> str | None:
     return token.strip()
 
 
-def _esperar_hasta_que_cierre(canal: CanalWebSocket, identificar: IdentificarUsuario, token: str) -> None:
+def _esperar_hasta_que_cierre(canal: CanalWebSocket, identificar: entrada.IdentificarUsuario, token: str) -> None:
     """El front no manda nada mas: cualquier otro mensaje se ignora.
 
     Cada REVISION_SESION segundos se revisa la sesion, aunque el cliente mande

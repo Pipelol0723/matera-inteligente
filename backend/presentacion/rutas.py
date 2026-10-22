@@ -1,19 +1,17 @@
 """Controladores REST de la API v1. Solo traducen: HTTP -> caso de uso -> JSON."""
 from flask import Blueprint, jsonify, request
 
-from aplicacion.diagnosticar_planta import DiagnosticarPlanta
-from aplicacion.listar_especies import ListarEspecies
-from aplicacion.listar_parametros import ListarParametros
+from dominio import puertos_entrada as entrada
 from presentacion import esquemas
 from presentacion.errores_http import registrar_manejadores
 
 
 def crear_blueprint(
-    diagnosticar: DiagnosticarPlanta,
-    listar: ListarEspecies,
-    listar_parametros: ListarParametros,
+    diagnosticar: entrada.DiagnosticarPlanta,
+    listar: entrada.ListarEspecies,
+    listar_parametros: entrada.ListarParametros,
 ) -> Blueprint:
-    """Recibe los casos de uso ya armados: las rutas no crean dependencias (DIP)."""
+    """Recibe los puertos de entrada ya armados: las rutas no crean dependencias ni conocen los casos de uso (DIP)."""
     bp = Blueprint("api_v1", __name__, url_prefix="/api/v1")
 
     @bp.get("/especies")

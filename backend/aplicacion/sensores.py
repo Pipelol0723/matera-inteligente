@@ -1,14 +1,16 @@
 """Casos de uso del sensor: cambiar el de una planta y recibir sus mediciones."""
-from aplicacion.diagnosticar_planta_de_usuario import DiagnosticarPlantaDeUsuario, ResultadoMedicion
-from aplicacion.plantas import SensorVinculado, buscar_planta_propia
+from aplicacion.diagnosticar_planta_de_usuario import DiagnosticarPlantaDeUsuario
+from aplicacion.plantas import buscar_planta_propia
+from dominio import puertos_entrada as entrada
 from dominio.errores_usuarios import ClaveSensorInvalida, CodigoSensorInvalido, SensorYaVinculado
 from dominio.medicion import Medicion
 from dominio.puertos_usuarios import GeneradorSecretos, RepositorioPlantas, RepositorioSensores
+from dominio.resultados import ResultadoMedicion, SensorVinculado
 from dominio.sensores import CodigoSensor, Sensor
 from dominio.usuarios import Usuario
 
 
-class ReemplazarSensor:
+class ReemplazarSensor(entrada.ReemplazarSensor):
     """Cambia el sensor de una planta, o le da una clave nueva al mismo sensor si se perdio.
 
     La planta y su historial no cambian: el historial es de la planta, no del
@@ -33,7 +35,7 @@ class ReemplazarSensor:
         return SensorVinculado(planta, codigo_valido, clave)
 
 
-class RecibirMedicionDeSensor:
+class RecibirMedicionDeSensor(entrada.RecibirMedicionDeSensor):
     """El sensor no tiene sesion: se identifica con su codigo y su clave.
 
     No inventa un diagnostico propio: verifica la clave y le pasa la medicion a

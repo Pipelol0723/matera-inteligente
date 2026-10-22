@@ -5,10 +5,11 @@ parametros ni limites a mano: agregar el pH al dominio no obliga a tocarlo.
 """
 from collections.abc import Sequence
 
+from dominio import puertos_entrada as entrada
 from dominio.parametros import Parametro
 
 
-class ListarParametros:
+class ListarParametros(entrada.ListarParametros):
     def __init__(self, parametros: Sequence[Parametro]):
         self._parametros = tuple(parametros)
 

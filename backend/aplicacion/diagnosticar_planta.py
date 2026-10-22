@@ -1,20 +1,11 @@
 """Caso de uso: diagnosticar una planta a partir de una medicion."""
-from dataclasses import dataclass
-
+from dominio import puertos_entrada as entrada
 from dominio.diagnostico import Diagnostico
-from dominio.medicion import Medicion
+from dominio.resultados import SolicitudDiagnostico
 from dominio.servicio_diagnostico import ServicioDiagnostico
 
 
-@dataclass(frozen=True)
-class SolicitudDiagnostico:
-    """Pedido ya validado. No importa si llego por HTTP, por MQTT o desde una prueba."""
-
-    especie: str
-    medicion: Medicion
-
-
-class DiagnosticarPlanta:
+class DiagnosticarPlanta(entrada.DiagnosticarPlanta):
     """Hoy solo delega en el dominio.
 
     Es el lugar donde entrarian guardar el historico, resolver la planta de un

@@ -9,7 +9,6 @@ Despues de guardar, avisa al dueno por el puerto NotificadorDiagnosticos. El
 caso de uso no sabe si el aviso viaja por un WebSocket o por otro medio.
 """
 import logging
-from dataclasses import dataclass
 
 from aplicacion.plantas import buscar_planta_propia
 from dominio.diagnostico import Diagnostico
@@ -17,19 +16,14 @@ from dominio.historial import RegistroMedicion
 from dominio.medicion import Medicion
 from dominio.plantas import Planta
 from dominio.puertos_usuarios import HistorialMediciones, NotificadorDiagnosticos, Reloj, RepositorioPlantas
+from dominio.resultados import ResultadoMedicion
 from dominio.servicio_diagnostico import ServicioDiagnostico
 
 _log = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True)
-class ResultadoMedicion:
-    planta: Planta
-    diagnostico: Diagnostico
-    registro: RegistroMedicion
-
-
 class DiagnosticarPlantaDeUsuario:
+    """Sin puerto de entrada: ningun adaptador lo llama, solo otros casos de uso."""
     def __init__(
         self,
         plantas: RepositorioPlantas,

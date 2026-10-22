@@ -5,11 +5,11 @@ Los limites fisicos no se revisan aqui; los revisa Lectura, en el dominio.
 """
 from typing import Any
 
-from aplicacion.diagnosticar_planta import SolicitudDiagnostico
 from dominio.diagnostico import Diagnostico, ResultadoParametro
 from dominio.especie import Especie
 from dominio.medicion import Lectura, Medicion
 from dominio.parametros import PARAMETROS, Parametro
+from dominio.resultados import SolicitudDiagnostico
 
 
 class EntradaInvalida(Exception):

@@ -5,20 +5,18 @@ pedir la planta de otro da 404, igual que una que no existe.
 """
 from flask import Blueprint, jsonify, request
 
-from aplicacion.historial import ConsultarHistorial
-from aplicacion.plantas import EliminarPlanta, ListarPlantas, RegistrarPlanta
-from aplicacion.sensores import ReemplazarSensor
+from dominio import puertos_entrada as entrada
 from presentacion import esquemas_usuarios
 from presentacion.autenticacion import Autenticacion
 from presentacion.errores_usuarios import registrar_manejadores_usuarios
 
 
 def crear_blueprint_plantas(
-    registrar: RegistrarPlanta,
-    listar: ListarPlantas,
-    eliminar: EliminarPlanta,
-    reemplazar_sensor: ReemplazarSensor,
-    consultar_historial: ConsultarHistorial,
+    registrar: entrada.RegistrarPlanta,
+    listar: entrada.ListarPlantas,
+    eliminar: entrada.EliminarPlanta,
+    reemplazar_sensor: entrada.ReemplazarSensor,
+    consultar_historial: entrada.ConsultarHistorial,
     autenticacion: Autenticacion,
 ) -> Blueprint:
     bp = Blueprint("api_v1_plantas", __name__, url_prefix="/api/v1/plantas")

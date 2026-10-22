@@ -1,17 +1,17 @@
 """Rutas de la cuenta: registro, inicio y cierre de sesion, y Mi cuenta. Solo traducen HTTP <-> caso de uso."""
 from flask import Blueprint, jsonify, request
 
-from aplicacion.cuentas import CerrarSesion, ConsultarCuenta, IniciarSesion, RegistrarUsuario
+from dominio import puertos_entrada as entrada
 from presentacion import esquemas_usuarios
 from presentacion.autenticacion import Autenticacion
 from presentacion.errores_usuarios import registrar_manejadores_usuarios
 
 
 def crear_blueprint_usuarios(
-    registrar: RegistrarUsuario,
-    iniciar: IniciarSesion,
-    cerrar: CerrarSesion,
-    consultar: ConsultarCuenta,
+    registrar: entrada.RegistrarUsuario,
+    iniciar: entrada.IniciarSesion,
+    cerrar: entrada.CerrarSesion,
+    consultar: entrada.ConsultarCuenta,
     autenticacion: Autenticacion,
 ) -> Blueprint:
     bp = Blueprint("api_v1_usuarios", __name__, url_prefix="/api/v1")
