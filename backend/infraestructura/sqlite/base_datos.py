@@ -9,12 +9,14 @@ ESQUEMA = _DATOS / "esquema.sql"
 CARGA = _DATOS / "carga.sql"
 
 # Version del esquema, guardada en PRAGMA user_version. Una base sin numero es de antes de la fase 2.
-VERSION = 2
+VERSION = 3
 # Lo que hay que hacer en una base que ya tenia tablas para llegar a cada version. Despues,
 # esquema.sql crea lo que falte. Una base nueva no las necesita: esquema.sql ya trae lo ultimo.
 _MIGRACIONES = {
     # La sesion guarda el id del JWT, no la huella del token opaco de antes: esas sesiones ya no sirven.
     2: "DROP TABLE IF EXISTS sesion;",
+    # Cada sensor guarda el id de su JWT vigente. La clave de cada uno sigue sirviendo para el canje.
+    3: "ALTER TABLE sensor ADD COLUMN token_id TEXT;",
 }
 
 

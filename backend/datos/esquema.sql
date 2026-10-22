@@ -52,7 +52,8 @@ CREATE TABLE IF NOT EXISTS sensor (
     codigo       TEXT PRIMARY KEY,              -- MT-0000-XX
     planta_id    INTEGER NOT NULL UNIQUE REFERENCES planta (id) ON DELETE CASCADE,
     hash_clave   TEXT NOT NULL,                 -- SHA-256 de la clave: la clave no se guarda
-    vinculado_en TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+    vinculado_en TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    token_id     TEXT                           -- el id (jti) del JWT vigente; NULL hasta el primer canje
 );
 
 CREATE TABLE IF NOT EXISTS medicion (

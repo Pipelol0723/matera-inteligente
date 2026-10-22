@@ -21,6 +21,8 @@ class Configuracion:
     ruta_bd: Path
     origenes_cors: tuple[str, ...]
     duracion_sesion: timedelta = timedelta(days=7)
+    # El token de un dispositivo dura menos que una sesion: la placa lo vuelve a canjear con su clave.
+    duracion_token_dispositivo: timedelta = timedelta(hours=24)
     # Las pruebas bajan este numero: con 600 000 iteraciones cada registro tarda casi un segundo.
     iteraciones_contrasena: int = ITERACIONES_RECOMENDADAS
     # Por defecto la API solo responde en este PC. Para que un ESP32 del mismo WiFi la alcance,
@@ -42,6 +44,7 @@ class Configuracion:
             ruta_bd=Path(os.environ.get("MATERA_RUTA_BD", _BACKEND / "datos" / "matera.sqlite")),
             origenes_cors=tuple(origen.strip() for origen in origenes.split(",") if origen.strip()),
             duracion_sesion=timedelta(days=float(os.environ.get("MATERA_DIAS_SESION", "7"))),
+            duracion_token_dispositivo=timedelta(hours=float(os.environ.get("MATERA_HORAS_TOKEN_DISPOSITIVO", "24"))),
             host=os.environ.get("MATERA_HOST", "127.0.0.1").strip(),
             secreto_jwt=os.environ.get("MATERA_JWT_SECRETO", "").strip() or None,
         )

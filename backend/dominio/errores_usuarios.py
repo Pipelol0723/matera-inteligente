@@ -129,3 +129,26 @@ class ClaveSensorInvalida(ErrorDominio):
 
     def __init__(self):
         super().__init__("El código del sensor o su clave no son correctos.")
+
+
+class CredencialDispositivoInvalida(ErrorDominio):
+    """Falta el token del dispositivo, su firma no es valida, ya vencio o lo reemplazo un canje nuevo.
+
+    La placa responde a este error canjeando su clave otra vez.
+    """
+
+    def __init__(self):
+        super().__init__("El token del dispositivo no es válido o ya venció: canjee la clave por uno nuevo.")
+
+
+class DispositivoAjeno(ErrorDominio):
+    """El reporte dice venir de un dispositivo distinto del que se autentico."""
+
+    def __init__(self, autenticado: str, reportado: str):
+        super().__init__(f"El sensor {autenticado} solo puede reportar sus propias lecturas, no las de {reportado}.")
+        self.autenticado = autenticado
+        self.reportado = reportado
+
+
+class MomentoInvalido(ErrorDominio):
+    """La hora de una lectura no sirve: no tiene zona horaria o es del futuro."""

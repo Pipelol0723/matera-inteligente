@@ -15,16 +15,20 @@ _TABLA: dict[type[ErrorDominio], tuple[int, str]] = {
     e.ContrasenaDebil: (400, "PARAMETRO_INVALIDO"),
     e.ApodoInvalido: (400, "PARAMETRO_INVALIDO"),
     e.CodigoSensorInvalido: (400, "CODIGO_SENSOR_INVALIDO"),
+    e.MomentoInvalido: (400, "MOMENTO_INVALIDO"),
     # El corte 1 no los manejaba y terminaban en 500; con especies nuevas pueden venir del cliente.
     RangoInvalido: (400, "PARAMETRO_INVALIDO"),
     ParametroSinRango: (400, "PARAMETRO_INVALIDO"),
     e.CredencialesInvalidas: (401, "CREDENCIALES_INVALIDAS"),
     e.SesionInvalida: (401, "SESION_INVALIDA"),
     e.ClaveSensorInvalida: (401, "CLAVE_SENSOR_INVALIDA"),
+    # La placa responde a este canjeando su clave otra vez; al de arriba, no: la clave esta mal.
+    e.CredencialDispositivoInvalida: (401, "CREDENCIAL_DISPOSITIVO_INVALIDA"),
     e.CuentaDesactivada: (403, "CUENTA_DESACTIVADA"),
     # Un token valido pero de otro alcance (el de un sensor en una ruta de usuario): 403, no 401.
     e.AlcanceInvalido: (403, "ALCANCE_INVALIDO"),
     e.PermisoDenegado: (403, "PERMISO_DENEGADO"),
+    e.DispositivoAjeno: (403, "DISPOSITIVO_AJENO"),
     # Una planta ajena tambien da 404: un 403 confirmaria que existe.
     e.PlantaNoEncontrada: (404, "PLANTA_NO_ENCONTRADA"),
     e.UsuarioNoEncontrado: (404, "USUARIO_NO_ENCONTRADO"),
@@ -43,6 +47,7 @@ _CAMPOS = {
     e.ContrasenaDebil: "contrasena",
     e.ApodoInvalido: "apodo",
     e.CodigoSensorInvalido: "codigo",
+    e.MomentoInvalido: "momento",
 }
 
 

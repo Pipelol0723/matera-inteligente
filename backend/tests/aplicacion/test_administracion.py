@@ -84,7 +84,7 @@ class Sistema:
         servicio = ServicioDiagnostico(self.especies, EvaluadorPlanta(ReglaHibrida(), GeneradorRecomendaciones()))
         self.registrar_planta = RegistrarPlanta(self.plantas, self.plantas, self.sensores, self.especies, secretos)
         avisos = NotificadorEnMemoria()
-        self.diagnosticar = DiagnosticarPlantaDeUsuario(self.plantas, servicio, HistorialEnMemoria(), reloj, avisos)
+        self.diagnosticar = DiagnosticarPlantaDeUsuario(self.plantas, servicio, HistorialEnMemoria(), avisos)
 
         registrar.ejecutar("Ada", "ada@correo.co", "clave-segura")
         self.beto = registrar.ejecutar("Beto", "beto@correo.co", "clave-segura")
@@ -215,7 +215,7 @@ def test_una_especie_recien_agregada_sirve_para_registrar_una_planta_y_diagnosti
     sistema.agregar_especie.ejecutar(sistema.ada, lavanda())
 
     planta = sistema.registrar_planta.ejecutar(sistema.beto, "Patio", "lavanda", "MT-0001-AA").planta
-    resultado = sistema.diagnosticar.ejecutar(sistema.beto.id, planta.id, medicion(30, 20000, 20), "MT-0001-AA")
+    resultado = sistema.diagnosticar.ejecutar(sistema.beto.id, planta.id, medicion(30, 20000, 20), "MT-0001-AA", AHORA)
 
     assert resultado.diagnostico.especie == "lavanda"
     assert resultado.diagnostico.estado is EstadoGlobal.SALUDABLE

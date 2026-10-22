@@ -141,7 +141,6 @@ def test_la_planta_y_su_sensor_se_guardan_juntos(repos):
 
     assert repos.sensores.por_codigo(CODIGO) == Sensor(CODIGO, planta.id, "huella-clave")
     assert repos.sensores.de_planta(planta.id) == Sensor(CODIGO, planta.id, "huella-clave")
-    assert repos.sensores.planta_de(Sensor(CODIGO, planta.id, "huella-clave")) == planta
 
 
 @pytest.mark.parametrize(
@@ -212,10 +211,31 @@ def test_una_planta_vieja_sin_sensor_recibe_uno(repos):
 
     repos.sensores.reemplazar(Planta(planta_id, ana.id, "Sala", "potos"), Sensor(CODIGO, planta_id, "h"))
 
-    assert repos.sensores.planta_de(Sensor(CODIGO, planta_id, "h")).id == planta_id
+    assert repos.sensores.de_planta(planta_id) == Sensor(CODIGO, planta_id, "h")
 
 
-def test_planta_de_no_devuelve_la_planta_si_el_sensor_cambio_despues_de_leerlo(repos):
+def test_el_canje_deja_vigente_solo_el_ultimo_token_del_sensor(repos):
+    sala = repos.planta(repos.registrar().id, codigo=CODIGO)
+    sensor = repos.sensores.por_codigo(CODIGO)
+
+    assert repos.sensores.planta_con_token(CODIGO, "jti-1") is None  # sin canje, ningun token sirve
+    assert repos.sensores.renovar(sensor, "jti-1") is True
+    assert repos.sensores.planta_con_token(CODIGO, "jti-1") == sala
+    assert repos.sensores.renovar(sensor, "jti-2") is True
+    assert repos.sensores.planta_con_token(CODIGO, "jti-1") is None
+    assert repos.sensores.planta_con_token(CODIGO, "jti-2") == sala
+
+
+def test_cambiar_el_sensor_deja_sin_efecto_su_token(repos):
+    sala = repos.planta(repos.registrar().id, codigo=CODIGO)
+    repos.sensores.renovar(repos.sensores.por_codigo(CODIGO), "jti-1")
+
+    repos.sensores.reemplazar(sala, Sensor(CODIGO, sala.id, "huella-nueva"))
+
+    assert repos.sensores.planta_con_token(CODIGO, "jti-1") is None
+
+
+def test_renovar_no_da_token_si_el_sensor_cambio_despues_de_leerlo(repos):
     ana, beto = repos.registrar(), repos.registrar("beto@correo.co", "Beto")
     sala = repos.planta(ana.id, codigo=CODIGO)
     leido = repos.sensores.por_codigo(CODIGO)  # el sensor con el que se verifico la clave
@@ -224,7 +244,8 @@ def test_planta_de_no_devuelve_la_planta_si_el_sensor_cambio_despues_de_leerlo(r
     repos.sensores.reemplazar(sala, Sensor(OTRO_CODIGO, sala.id, "huella-nueva"))
     repos.planta(beto.id, "Patio", codigo=CODIGO)
 
-    assert repos.sensores.planta_de(leido) is None
+    assert repos.sensores.renovar(leido, "jti-1") is False
+    assert repos.sensores.planta_con_token(CODIGO, "jti-1") is None
 
 
 def test_no_se_reemplaza_el_sensor_si_la_planta_ya_no_es_la_que_se_leyo_ni_si_ya_no_existe(repos):

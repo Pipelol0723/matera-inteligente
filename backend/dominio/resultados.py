@@ -66,6 +66,14 @@ class HistorialPlanta:
 
 
 @dataclass(frozen=True)
+class TokenDispositivo:
+    """El token que recibe la placa a cambio de su clave, y cuando vence: antes de eso, canjea otra vez."""
+
+    token: str
+    vence_en: datetime
+
+
+@dataclass(frozen=True)
 class ResultadoMedicion:
     planta: Planta
     diagnostico: Diagnostico

@@ -19,7 +19,7 @@ from aplicacion.historial import ConsultarHistorial
 from aplicacion.listar_especies import ListarEspecies
 from aplicacion.listar_parametros import ListarParametros
 from aplicacion.plantas import EliminarPlanta, ListarPlantas, RegistrarPlanta
-from aplicacion.sensores import RecibirMedicionDeSensor, ReemplazarSensor
+from aplicacion.sensores import CanjearClaveDispositivo, ReemplazarSensor, RegistrarLectura
 from dominio.evaluador import EvaluadorPlanta
 from dominio.parametros import PARAMETROS
 from dominio.recomendaciones import GeneradorRecomendaciones
@@ -101,7 +101,7 @@ def construir_app(config: Configuracion) -> Flask:
     notificador = NotificadorWebSocket(canales, esquemas_usuarios.medicion_en_vivo_a_json)
 
     # Las mediciones solo llegan del sensor, por el caso de uso de la 5.3, que reutiliza el servicio del corte 1.
-    diagnosticar_planta = DiagnosticarPlantaDeUsuario(plantas, servicio, historial, reloj, notificador)
+    diagnosticar_planta = DiagnosticarPlantaDeUsuario(plantas, servicio, historial, notificador)
     mis_plantas = crear_blueprint_plantas(
         registrar=RegistrarPlanta(plantas, plantas, sensores, especies, secretos),
         listar=ListarPlantas(plantas, sensores, historial),
@@ -110,7 +110,10 @@ def construir_app(config: Configuracion) -> Flask:
         consultar_historial=ConsultarHistorial(plantas, historial),
         autenticacion=autenticacion,
     )
-    entrada_sensor = crear_blueprint_sensores(RecibirMedicionDeSensor(sensores, secretos, diagnosticar_planta))
+    # El dispositivo canjea su clave por un JWT de alcance «lecturas» y reporta con el.
+    canjear = CanjearClaveDispositivo(sensores, sensores, secretos, tokens, reloj, config.duracion_token_dispositivo)
+    registrar_lectura = RegistrarLectura(sensores, diagnosticar_planta, reloj)
+    entrada_sensor = crear_blueprint_sensores(canjear, tokens, registrar_lectura)
     # El WebSocket del front registra sus conexiones en los mismos canales que usa el notificador.
     en_vivo = crear_blueprint_tiempo_real(tokens, identificar, canales, config.origenes_cors)
 

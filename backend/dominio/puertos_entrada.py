@@ -12,9 +12,9 @@ from abc import ABC, abstractmethod
 
 from dominio.diagnostico import Diagnostico
 from dominio.especie import Especie
-from dominio.identidad import IdentidadUsuario
-from dominio.medicion import Medicion
+from dominio.identidad import IdentidadDispositivo, IdentidadUsuario
 from dominio.parametros import Parametro
+from dominio.reportes import ReporteDeDispositivo
 from dominio.resultados import (
     CuentaUsuario,
     HistorialPlanta,
@@ -23,6 +23,7 @@ from dominio.resultados import (
     SensorVinculado,
     SesionIniciada,
     SolicitudDiagnostico,
+    TokenDispositivo,
 )
 from dominio.usuarios import ResumenUsuario, Rol, Usuario
 
@@ -113,9 +114,21 @@ class ConsultarHistorial(ABC):
     def ejecutar(self, usuario: Usuario, planta_id: int, limite: int = LIMITE_HISTORIAL) -> HistorialPlanta: ...
 
 
-class RecibirMedicionDeSensor(ABC):
+# --- Dispositivos ---
+
+
+class CanjearClaveDispositivo(ABC):
+    """La placa cambia su clave por un token de alcance «lecturas»."""
+
     @abstractmethod
-    def ejecutar(self, codigo: str, clave: str, medicion: Medicion) -> ResultadoMedicion: ...
+    def ejecutar(self, codigo: str, clave: str) -> TokenDispositivo: ...
+
+
+class RegistrarLectura(ABC):
+    """Un dispositivo, ya autenticado con su token, reporta una lectura de su planta (R2)."""
+
+    @abstractmethod
+    def ejecutar(self, identidad: IdentidadDispositivo, reporte: ReporteDeDispositivo) -> ResultadoMedicion: ...
 
 
 # --- Administracion: cada caso de uso exige un actor ADMIN ---

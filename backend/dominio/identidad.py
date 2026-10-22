@@ -6,6 +6,8 @@ que el token es un JWT ni que llego en una cabecera HTTP.
 """
 from dataclasses import dataclass
 
+from dominio.sensores import CodigoSensor
+
 
 @dataclass(frozen=True)
 class IdentidadUsuario:
@@ -16,4 +18,16 @@ class IdentidadUsuario:
     """
 
     usuario_id: int
+    token_id: str
+
+
+@dataclass(frozen=True)
+class IdentidadDispositivo:
+    """Un sensor que se autentico con su token. Solo puede reportar lecturas de su planta.
+
+    token_id es el id del ultimo token que se le entrego a cambio de su clave: un
+    canje nuevo, o cambiar el sensor de la planta, deja sin efecto los anteriores.
+    """
+
+    codigo: CodigoSensor
     token_id: str

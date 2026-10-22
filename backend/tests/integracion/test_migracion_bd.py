@@ -5,8 +5,12 @@ from infraestructura.sqlite.base_datos import ESQUEMA, VERSION, BaseDatos
 
 
 def _base_de_antes(ruta) -> None:
-    """Una base como la de antes de la fase 2: sin numero de version y con la sesion por huella del token opaco."""
+    """Una base como la de antes de la fase 2: sin numero de version, con la sesion por huella del
+    token opaco y sin el token vigente de cada sensor."""
     esquema = ESQUEMA.read_text(encoding="utf-8").replace("token_id   TEXT PRIMARY KEY,", "hash_token TEXT PRIMARY KEY,")
+    sin_token = esquema.split("'now')),\n    token_id     TEXT")
+    assert len(sin_token) == 2, "cambio la definicion de la tabla sensor en esquema.sql"
+    esquema = sin_token[0] + "'now'))" + sin_token[1].split("\n", 1)[1]
     with sqlite3.connect(ruta) as conexion:
         conexion.executescript(esquema)
         conexion.executescript(
@@ -37,7 +41,10 @@ def test_una_base_de_antes_se_migra_sin_perder_datos_y_deja_una_copia(tmp_path):
         assert conexion.execute("SELECT COUNT(*) FROM sesion").fetchone()[0] == 0
         assert conexion.execute("SELECT correo FROM usuario").fetchall() == [("ana@correo.co",)]
         assert conexion.execute("SELECT apodo FROM planta").fetchall() == [("Sala",)]
-        assert conexion.execute("SELECT codigo, hash_clave FROM sensor").fetchall() == [("MT-0001-AA", "huella-clave")]
+        # El sensor conserva su clave, que sirve para el canje, y todavia no tiene token vigente.
+        assert conexion.execute("SELECT codigo, hash_clave, token_id FROM sensor").fetchall() == [
+            ("MT-0001-AA", "huella-clave", None)
+        ]
     copia = tmp_path / "matera.respaldo-v0.sqlite"
     with sqlite3.connect(copia) as conexion:
         assert conexion.execute("SELECT hash_token FROM sesion").fetchall() == [("huella-vieja",)]

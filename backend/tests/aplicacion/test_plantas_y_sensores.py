@@ -6,12 +6,16 @@ import pytest
 from aplicacion.diagnosticar_planta_de_usuario import DiagnosticarPlantaDeUsuario
 from aplicacion.historial import ConsultarHistorial
 from aplicacion.plantas import EliminarPlanta, ListarPlantas, RegistrarPlanta
-from aplicacion.sensores import RecibirMedicionDeSensor, ReemplazarSensor
+from aplicacion.sensores import CanjearClaveDispositivo, ReemplazarSensor, RegistrarLectura
 from dominio.errores import EspecieNoSoportada
 from dominio.errores_usuarios import (
+    AlcanceInvalido,
     ApodoRepetido,
     ClaveSensorInvalida,
     CodigoSensorInvalido,
+    CredencialDispositivoInvalida,
+    DispositivoAjeno,
+    MomentoInvalido,
     PlantaNoEncontrada,
     SensorYaVinculado,
 )
@@ -22,6 +26,7 @@ from dominio.parametros import HUMEDAD, LUZ, TEMPERATURA
 from dominio.rango import Rango
 from dominio.recomendaciones import GeneradorRecomendaciones
 from dominio.reglas import ReglaHibrida
+from dominio.reportes import ReporteDeDispositivo
 from dominio.sensores import CodigoSensor, Sensor
 from dominio.servicio_diagnostico import ServicioDiagnostico
 from dominio.usuarios import Correo, Usuario
@@ -35,6 +40,7 @@ from tests.dobles_usuarios import (
     RelojFijo,
     RepositorioPlantasEnMemoria,
     RepositorioSensoresEnMemoria,
+    TokensFalsos,
 )
 
 AHORA = datetime(2026, 10, 12, 15, 0, tzinfo=timezone.utc)
@@ -64,10 +70,19 @@ class Sistema:
         self.reemplazar = ReemplazarSensor(self.plantas, self.sensores, secretos)
         self.consultar_historial = ConsultarHistorial(self.plantas, self.historial)
         self.notificador = notificador or NotificadorEnMemoria(self.historial)
-        self.diagnosticar = DiagnosticarPlantaDeUsuario(
-            self.plantas, servicio, self.historial, self.reloj, self.notificador
+        self.diagnosticar = DiagnosticarPlantaDeUsuario(self.plantas, servicio, self.historial, self.notificador)
+        self.tokens = TokensFalsos()
+        # Su propio generador: asi los ids de token no corren la numeracion de las claves (secreto-1, secreto-2...).
+        self.canjear = CanjearClaveDispositivo(
+            self.sensores, self.sensores, GeneradorSecretosFalso(), self.tokens, self.reloj, timedelta(hours=24)
         )
-        self.recibir = RecibirMedicionDeSensor(self.sensores, secretos, self.diagnosticar)
+        self.registrar_lectura = RegistrarLectura(self.sensores, self.diagnosticar, self.reloj)
+
+    def medir(self, codigo: str, clave: str, medida, momento=None):
+        """Como la placa: canjea su clave por un token y reporta la medicion con la identidad de ese token."""
+        identidad = self.tokens.verificar_dispositivo(self.canjear.ejecutar(codigo, clave).token)
+        reporte = ReporteDeDispositivo(identidad.codigo, momento or self.reloj.ahora(), medida)
+        return self.registrar_lectura.ejecutar(identidad, reporte)
 
     def codigo_de(self, planta) -> str | None:
         sensor = self.sensores.de_planta(planta.id)
@@ -125,7 +140,7 @@ def test_otro_usuario_puede_repetir_el_apodo_pero_no_el_codigo_del_sensor(sistem
 
 def test_listar_devuelve_solo_las_plantas_propias_con_su_sensor_y_su_ultima_medicion(sistema, matera_de_ana):
     sistema.registrar.ejecutar(BETO, "Patio", "potos", "MT-0002-BB")
-    sistema.recibir.ejecutar("MT-0001-AA", matera_de_ana.clave, medicion(18, 800, 22))
+    sistema.medir("MT-0001-AA", matera_de_ana.clave, medicion(18, 800, 22))
 
     [tarjeta] = sistema.listar.ejecutar(ANA)
 
@@ -153,7 +168,7 @@ def test_eliminar_borra_la_planta_propia_y_libera_el_codigo_de_su_sensor(sistema
         lambda s, p: s.eliminar.ejecutar(BETO, p.id),
         lambda s, p: s.reemplazar.ejecutar(BETO, p.id, "MT-0009-ZZ"),
         lambda s, p: s.consultar_historial.ejecutar(BETO, p.id),
-        lambda s, p: s.diagnosticar.ejecutar(BETO.id, p.id, medicion(30, 800, 22), "MT-0009-ZZ"),
+        lambda s, p: s.diagnosticar.ejecutar(BETO.id, p.id, medicion(30, 800, 22), "MT-0009-ZZ", AHORA),
     ],
     ids=["eliminar", "cambiar sensor", "historial", "medicion"],
 )
@@ -176,14 +191,14 @@ def test_beto_no_ve_las_plantas_de_ana(sistema, planta_de_ana):
 
 def test_cambiar_el_sensor_conserva_el_historial_y_la_clave_vieja_deja_de_servir(sistema, matera_de_ana):
     planta = matera_de_ana.planta
-    sistema.recibir.ejecutar("MT-0001-AA", matera_de_ana.clave, medicion(30, 800, 22))
+    sistema.medir("MT-0001-AA", matera_de_ana.clave, medicion(30, 800, 22))
 
     nuevo = sistema.reemplazar.ejecutar(ANA, planta.id, "mt-0002-bb")
 
     assert (nuevo.planta, nuevo.codigo.valor, nuevo.clave) == (planta, "MT-0002-BB", "secreto-2")
     with pytest.raises(ClaveSensorInvalida):
-        sistema.recibir.ejecutar("MT-0001-AA", matera_de_ana.clave, medicion(31, 800, 22))
-    sistema.recibir.ejecutar("MT-0002-BB", nuevo.clave, medicion(32, 800, 22))
+        sistema.medir("MT-0001-AA", matera_de_ana.clave, medicion(31, 800, 22))
+    sistema.medir("MT-0002-BB", nuevo.clave, medicion(32, 800, 22))
     assert [r.origen for r in sistema.historial.registros] == ["MT-0001-AA", "MT-0002-BB"]
     assert [t.sensor.codigo.valor for t in sistema.listar.ejecutar(ANA)] == ["MT-0002-BB"]
 
@@ -199,8 +214,8 @@ def test_cambiar_al_mismo_codigo_da_una_clave_nueva_si_se_perdio_la_anterior(sis
 
     assert nuevo.clave == "secreto-2"
     with pytest.raises(ClaveSensorInvalida):
-        sistema.recibir.ejecutar("MT-0001-AA", matera_de_ana.clave, medicion(30, 800, 22))
-    assert sistema.recibir.ejecutar("MT-0001-AA", nuevo.clave, medicion(30, 800, 22)).planta == matera_de_ana.planta
+        sistema.medir("MT-0001-AA", matera_de_ana.clave, medicion(30, 800, 22))
+    assert sistema.medir("MT-0001-AA", nuevo.clave, medicion(30, 800, 22)).planta == matera_de_ana.planta
 
 
 def test_no_se_cambia_a_un_codigo_de_otra_planta_y_el_sensor_actual_sigue_sirviendo(sistema, matera_de_ana):
@@ -210,7 +225,7 @@ def test_no_se_cambia_a_un_codigo_de_otra_planta_y_el_sensor_actual_sigue_sirvie
         sistema.reemplazar.ejecutar(ANA, matera_de_ana.planta.id, "MT-0002-BB")
 
     assert sistema.codigo_de(matera_de_ana.planta) == "MT-0001-AA"
-    assert sistema.recibir.ejecutar("MT-0001-AA", matera_de_ana.clave, medicion(30, 800, 22)).planta.apodo == "Sala"
+    assert sistema.medir("MT-0001-AA", matera_de_ana.clave, medicion(30, 800, 22)).planta.apodo == "Sala"
 
 
 def test_una_matera_vieja_sin_sensor_recibe_uno_con_el_mismo_caso_de_uso(sistema, planta_de_ana):
@@ -224,7 +239,7 @@ def test_una_matera_vieja_sin_sensor_recibe_uno_con_el_mismo_caso_de_uso(sistema
 
 
 def test_el_sensor_con_su_clave_guarda_la_medicion_en_su_planta_con_su_codigo(sistema, matera_de_ana):
-    resultado = sistema.recibir.ejecutar("mt-0001-aa", matera_de_ana.clave, medicion(30, 800, 22))
+    resultado = sistema.medir("mt-0001-aa", matera_de_ana.clave, medicion(30, 800, 22))
 
     assert resultado.planta == matera_de_ana.planta
     assert resultado.diagnostico.estado is EstadoGlobal.SALUDABLE
@@ -239,7 +254,7 @@ def test_el_sensor_recibe_el_mismo_error_sin_importar_que_fallo_y_no_se_guarda_n
     sistema, matera_de_ana, codigo, clave
 ):
     with pytest.raises(ClaveSensorInvalida):
-        sistema.recibir.ejecutar(codigo, clave, medicion(30, 800, 22))
+        sistema.medir(codigo, clave, medicion(30, 800, 22))
     assert sistema.historial.registros == []
 
 
@@ -253,7 +268,7 @@ def test_una_clave_revocada_mientras_llegaba_la_medicion_no_escribe_en_la_planta
     monkeypatch.setattr(sistema.sensores, "por_codigo", lambda codigo: viejo)
 
     with pytest.raises(ClaveSensorInvalida):
-        sistema.recibir.ejecutar("MT-0001-AA", matera_de_ana.clave, medicion(30, 800, 22))
+        sistema.medir("MT-0001-AA", matera_de_ana.clave, medicion(30, 800, 22))
 
     assert sistema.historial.registros == []
     assert sistema.notificador.avisos == []
@@ -269,7 +284,7 @@ def test_no_se_cambia_el_sensor_de_una_planta_que_se_borro_mientras_tanto(sistem
 
 def test_el_historial_trae_lo_mas_reciente_primero_y_respeta_el_limite(sistema, matera_de_ana):
     for humedad in (30, 31, 32):
-        sistema.recibir.ejecutar("MT-0001-AA", matera_de_ana.clave, medicion(humedad, 800, 22))
+        sistema.medir("MT-0001-AA", matera_de_ana.clave, medicion(humedad, 800, 22))
         sistema.reloj.avanzar(timedelta(hours=1))
 
     historial = sistema.consultar_historial.ejecutar(ANA, matera_de_ana.planta.id, limite=2)
@@ -279,7 +294,7 @@ def test_el_historial_trae_lo_mas_reciente_primero_y_respeta_el_limite(sistema, 
 
 
 def test_la_medicion_del_sensor_se_avisa_al_dueno_despues_de_guardarla(sistema, matera_de_ana):
-    resultado = sistema.recibir.ejecutar("MT-0001-AA", matera_de_ana.clave, medicion(18, 800, 22))
+    resultado = sistema.medir("MT-0001-AA", matera_de_ana.clave, medicion(18, 800, 22))
 
     assert sistema.notificador.avisos == [(ANA.id, resultado.planta, resultado.registro, resultado.diagnostico)]
     assert sistema.notificador.guardada_al_avisar == [True]
@@ -288,8 +303,8 @@ def test_la_medicion_del_sensor_se_avisa_al_dueno_despues_de_guardarla(sistema, 
 def test_cada_medicion_se_avisa_solo_al_dueno_de_su_planta(sistema, matera_de_ana):
     de_beto = sistema.registrar.ejecutar(BETO, "Patio", "potos", "MT-0002-BB")
 
-    sistema.recibir.ejecutar("MT-0002-BB", de_beto.clave, medicion(50, 800, 22))
-    sistema.recibir.ejecutar("MT-0001-AA", matera_de_ana.clave, medicion(30, 800, 22))
+    sistema.medir("MT-0002-BB", de_beto.clave, medicion(50, 800, 22))
+    sistema.medir("MT-0001-AA", matera_de_ana.clave, medicion(30, 800, 22))
 
     assert [(usuario, planta.apodo) for usuario, planta, _, _ in sistema.notificador.avisos] == [
         (BETO.id, "Patio"),
@@ -301,7 +316,7 @@ def test_si_el_aviso_falla_la_medicion_queda_guardada_y_el_sensor_recibe_su_diag
     sistema = Sistema(notificador=NotificadorQueFalla())
     matera = sistema.registrar.ejecutar(ANA, "Sala", "Sansevieria", "MT-0001-AA")
 
-    resultado = sistema.recibir.ejecutar("MT-0001-AA", matera.clave, medicion(30, 800, 22))
+    resultado = sistema.medir("MT-0001-AA", matera.clave, medicion(30, 800, 22))
 
     assert resultado.diagnostico.estado is EstadoGlobal.SALUDABLE
     assert sistema.historial.registros == [resultado.registro]
@@ -309,6 +324,76 @@ def test_si_el_aviso_falla_la_medicion_queda_guardada_y_el_sensor_recibe_su_diag
 
 def test_una_medicion_rechazada_no_se_avisa(sistema, matera_de_ana):
     with pytest.raises(ClaveSensorInvalida):
-        sistema.recibir.ejecutar("MT-0001-AA", "clave-mala", medicion(30, 800, 22))
+        sistema.medir("MT-0001-AA", "clave-mala", medicion(30, 800, 22))
 
     assert sistema.notificador.avisos == []
+
+
+# --- El dispositivo: canje de la clave por un token y registro de lecturas ---
+
+
+def test_el_canje_entrega_un_token_de_dispositivo_que_vence_en_24_horas(sistema, matera_de_ana):
+    canjeado = sistema.canjear.ejecutar("mt-0001-aa", matera_de_ana.clave)
+
+    assert canjeado.token == "token(dispositivo MT-0001-AA, secreto-1)"
+    assert canjeado.vence_en == AHORA + timedelta(hours=24)
+    with pytest.raises(AlcanceInvalido):
+        sistema.tokens.verificar_usuario(canjeado.token)  # no sirve en las rutas de usuario
+
+
+def test_la_lectura_se_guarda_con_la_hora_que_trae_el_reporte_no_con_la_de_llegada(sistema, matera_de_ana):
+    tomada = AHORA - timedelta(minutes=10)
+
+    resultado = sistema.medir("MT-0001-AA", matera_de_ana.clave, medicion(30, 800, 22), momento=tomada)
+
+    assert resultado.registro.momento == tomada
+    assert sistema.historial.registros == [resultado.registro]
+
+
+def _identidad(sistema, codigo, clave):
+    return sistema.tokens.verificar_dispositivo(sistema.canjear.ejecutar(codigo, clave).token)
+
+
+def test_un_canje_nuevo_deja_sin_efecto_el_token_anterior(sistema, matera_de_ana):
+    vieja = _identidad(sistema, "MT-0001-AA", matera_de_ana.clave)
+    nueva = _identidad(sistema, "MT-0001-AA", matera_de_ana.clave)
+
+    with pytest.raises(CredencialDispositivoInvalida):
+        sistema.registrar_lectura.ejecutar(vieja, ReporteDeDispositivo(vieja.codigo, AHORA, medicion(30, 800, 22)))
+    assert sistema.registrar_lectura.ejecutar(nueva, ReporteDeDispositivo(nueva.codigo, AHORA, medicion(30, 800, 22)))
+
+
+def test_cambiar_el_sensor_deja_sin_efecto_su_token_aunque_no_haya_vencido(sistema, matera_de_ana):
+    identidad = _identidad(sistema, "MT-0001-AA", matera_de_ana.clave)
+
+    sistema.reemplazar.ejecutar(ANA, matera_de_ana.planta.id, "MT-0001-AA")
+
+    with pytest.raises(CredencialDispositivoInvalida):
+        sistema.registrar_lectura.ejecutar(identidad, ReporteDeDispositivo(identidad.codigo, AHORA, medicion(30, 800, 22)))
+    assert sistema.historial.registros == []
+
+
+def test_un_sensor_no_puede_reportar_lecturas_de_otro(sistema, matera_de_ana):
+    sistema.registrar.ejecutar(BETO, "Patio", "potos", "MT-0002-BB")
+    identidad = _identidad(sistema, "MT-0001-AA", matera_de_ana.clave)
+
+    with pytest.raises(DispositivoAjeno):
+        sistema.registrar_lectura.ejecutar(
+            identidad, ReporteDeDispositivo(CodigoSensor("MT-0002-BB"), AHORA, medicion(30, 800, 22))
+        )
+    assert sistema.historial.registros == []
+
+
+def test_una_lectura_del_futuro_no_se_guarda_ni_se_avisa(sistema, matera_de_ana):
+    with pytest.raises(MomentoInvalido):
+        sistema.medir("MT-0001-AA", matera_de_ana.clave, medicion(30, 800, 22), momento=AHORA + timedelta(minutes=5))
+
+    assert sistema.historial.registros == []
+    assert sistema.notificador.avisos == []
+
+
+def test_un_token_de_un_sensor_que_nunca_canjeo_no_sirve(sistema, matera_de_ana):
+    inventada = sistema.tokens.verificar_dispositivo("token(dispositivo MT-0001-AA, inventado)")
+
+    with pytest.raises(CredencialDispositivoInvalida):
+        sistema.registrar_lectura.ejecutar(inventada, ReporteDeDispositivo(inventada.codigo, AHORA, medicion(30, 800, 22)))

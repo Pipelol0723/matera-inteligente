@@ -15,7 +15,7 @@ from dataclasses import replace
 from dominio.errores import EspecieNoSoportada
 from dominio.errores_usuarios import ApodoRepetido, PlantaNoEncontrada, SensorYaVinculado, SesionInvalida
 from dominio.plantas import Planta
-from dominio.puertos_usuarios import ConsultaPlantas, RegistroPlantas, SensoresVinculados
+from dominio.puertos_usuarios import ConsultaPlantas, CredencialesSensor, RegistroPlantas, SensoresVinculados
 from dominio.sensores import CodigoSensor, Sensor
 from infraestructura.sqlite.base_datos import BaseDatos
 
@@ -80,7 +80,7 @@ class RepositorioPlantasSqlite(ConsultaPlantas, RegistroPlantas):
             conexion.execute("DELETE FROM planta WHERE id = ? AND usuario_id = ?", (planta.id, planta.usuario_id))
 
 
-class RepositorioSensoresSqlite(SensoresVinculados):
+class RepositorioSensoresSqlite(SensoresVinculados, CredencialesSensor):
     def __init__(self, bd: BaseDatos):
         self._bd = bd
 
@@ -110,13 +110,21 @@ class RepositorioSensoresSqlite(SensoresVinculados):
                 raise SensorYaVinculado(sensor.codigo.valor) from None
             raise
 
-    def planta_de(self, sensor: Sensor) -> Planta | None:
-        # Codigo, planta y huella: si entre tanto se cambio el sensor, la fila ya no coincide.
+    def renovar(self, sensor: Sensor, token_id: str) -> bool:
+        # Codigo, planta y huella: si entre tanto se cambio el sensor, la fila ya no coincide y no se toca.
+        with self._bd.conexion() as conexion:
+            actualizado = conexion.execute(
+                "UPDATE sensor SET token_id = ? WHERE codigo = ? AND planta_id = ? AND hash_clave = ?",
+                (token_id, sensor.codigo.valor, sensor.planta_id, sensor.hash_clave),
+            )
+        return actualizado.rowcount == 1
+
+    def planta_con_token(self, codigo: CodigoSensor, token_id: str) -> Planta | None:
         with self._bd.conexion() as conexion:
             fila = conexion.execute(
                 f"SELECT {_COLUMNAS_PLANTA} FROM planta p JOIN sensor s ON s.planta_id = p.id"
-                " WHERE s.codigo = ? AND s.planta_id = ? AND s.hash_clave = ?",
-                (sensor.codigo.valor, sensor.planta_id, sensor.hash_clave),
+                " WHERE s.codigo = ? AND s.token_id = ?",
+                (codigo.valor, token_id),
             ).fetchone()
         return _planta(fila) if fila else None
 

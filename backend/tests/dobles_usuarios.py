@@ -12,8 +12,10 @@ from datetime import datetime, timedelta
 
 from dominio.diagnostico import Diagnostico
 from dominio.errores_usuarios import (
+    AlcanceInvalido,
     ApodoRepetido,
     CorreoYaRegistrado,
+    CredencialDispositivoInvalida,
     EspecieYaExiste,
     PlantaNoEncontrada,
     SensorYaVinculado,
@@ -21,12 +23,13 @@ from dominio.errores_usuarios import (
 )
 from dominio.especie import Especie
 from dominio.historial import RegistroMedicion
-from dominio.identidad import IdentidadUsuario
+from dominio.identidad import IdentidadDispositivo, IdentidadUsuario
 from dominio.plantas import Planta
 from dominio.puertos_usuarios import (
     Cifrador,
     ConsultaCuentas,
     ConsultaPlantas,
+    CredencialesSensor,
     EmisorTokens,
     GeneradorSecretos,
     HistorialMediciones,
@@ -54,9 +57,12 @@ class EspeciesEditablesEnMemoria(RepositorioEspeciesEnMemoria, RegistroEspecies)
         self._especies[especie.nombre] = especie
 
 
-class RepositorioSensoresEnMemoria(SensoresVinculados):
+class RepositorioSensoresEnMemoria(SensoresVinculados, CredencialesSensor):
+    """Los sensores y, como la columna token_id de la base, el id del token vigente de cada uno."""
+
     def __init__(self):
         self._sensores: dict[str, Sensor] = {}
+        self._tokens: dict[str, str] = {}
         # Lo conecta RepositorioPlantasEnMemoria: la planta guardada con ese id, como el JOIN de la base.
         self.planta_con_id = lambda planta_id: None
 
@@ -75,17 +81,27 @@ class RepositorioSensoresEnMemoria(SensoresVinculados):
         if en_uso is not None and en_uso.planta_id != sensor.planta_id:
             raise SensorYaVinculado(sensor.codigo.valor)
         self.quitar_de_planta(sensor.planta_id)
-        self._sensores[sensor.codigo.valor] = sensor
+        self._sensores[sensor.codigo.valor] = sensor  # el sensor nuevo nace sin token vigente
 
-    def planta_de(self, sensor: Sensor) -> Planta | None:
+    def renovar(self, sensor: Sensor, token_id: str) -> bool:
         # Solo si el sensor guardado sigue siendo ese mismo (codigo, planta y huella). Lee lo guardado
         # y no por_codigo(), que una prueba puede reemplazar para simular una lectura vieja.
-        guardado = self._sensores.get(sensor.codigo.valor)
-        return self.planta_con_id(sensor.planta_id) if guardado == sensor else None
+        if self._sensores.get(sensor.codigo.valor) != sensor:
+            return False
+        self._tokens[sensor.codigo.valor] = token_id
+        return True
+
+    def planta_con_token(self, codigo: CodigoSensor, token_id: str) -> Planta | None:
+        sensor = self._sensores.get(codigo.valor)
+        if sensor is None or self._tokens.get(codigo.valor) != token_id:
+            return None
+        return self.planta_con_id(sensor.planta_id)
 
     def quitar_de_planta(self, planta_id: int) -> None:
         """No es del puerto: imita la cascada de la base al borrar una planta."""
-        self._sensores = {c: s for c, s in self._sensores.items() if s.planta_id != planta_id}
+        quitados = {c for c, s in self._sensores.items() if s.planta_id == planta_id}
+        self._sensores = {c: s for c, s in self._sensores.items() if c not in quitados}
+        self._tokens = {c: t for c, t in self._tokens.items() if c not in quitados}
 
 
 class RepositorioPlantasEnMemoria(ConsultaPlantas, RegistroPlantas):
@@ -244,22 +260,38 @@ class GeneradorSecretosFalso(GeneradorSecretos):
 
 
 class TokensFalsos(EmisorTokens, VerificadorTokens):
-    """Tokens legibles a proposito, sin firma: token(usuario 1, secreto-1).
+    """Tokens legibles a proposito, sin firma: token(usuario 1, secreto-1) o token(dispositivo MT-0001-AA, secreto-2).
 
-    Sirven para probar los casos de uso, que nunca ven un JWT. La firma, el
-    vencimiento y el alcance de los tokens de verdad los prueban las pruebas de
+    Sirven para probar los casos de uso, que nunca ven un JWT. La firma y el
+    vencimiento de los tokens de verdad los prueban las pruebas de
     infraestructura.tokens_jwt.
     """
 
-    def emitir(self, identidad: IdentidadUsuario, vence_en: datetime) -> str:
-        return f"token(usuario {identidad.usuario_id}, {identidad.token_id})"
+    def emitir(self, identidad: IdentidadUsuario | IdentidadDispositivo, vence_en: datetime) -> str:
+        if isinstance(identidad, IdentidadUsuario):
+            return f"token(usuario {identidad.usuario_id}, {identidad.token_id})"
+        return f"token(dispositivo {identidad.codigo.valor}, {identidad.token_id})"
 
     def verificar_usuario(self, token: str) -> IdentidadUsuario:
-        prefijo, _, resto = token.partition("token(usuario ")
-        usuario_id, _, token_id = resto.removesuffix(")").partition(", ")
-        if prefijo or not usuario_id.isdigit() or not token_id:
-            raise SesionInvalida()
-        return IdentidadUsuario(int(usuario_id), token_id)
+        alcance, sujeto, token_id = self._partes(token, SesionInvalida)
+        if alcance != "usuario":
+            raise AlcanceInvalido("usuario")
+        return IdentidadUsuario(int(sujeto), token_id)
+
+    def verificar_dispositivo(self, token: str) -> IdentidadDispositivo:
+        alcance, sujeto, token_id = self._partes(token, CredencialDispositivoInvalida)
+        if alcance != "dispositivo":
+            raise AlcanceInvalido("dispositivo")
+        return IdentidadDispositivo(CodigoSensor(sujeto), token_id)
+
+    @staticmethod
+    def _partes(token: str, error: type) -> tuple[str, str, str]:
+        prefijo, _, resto = token.partition("token(")
+        alcance, _, resto = resto.partition(" ")
+        sujeto, _, token_id = resto.removesuffix(")").partition(", ")
+        if prefijo or not sujeto or not token_id:
+            raise error()
+        return alcance, sujeto, token_id
 
 
 class RelojFijo(Reloj):

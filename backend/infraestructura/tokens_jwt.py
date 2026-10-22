@@ -6,9 +6,9 @@ con los mismos metodos y cambiar una linea de main.py.
 
 El token va firmado con HS256 y un secreto que solo conoce el servidor. Trae:
   iss      quien lo emitio (siempre "matera-inteligente")
-  sub      a quien identifica (el id del usuario)
-  alcance  para que sirve ("usuario")
-  jti      su id, el que guarda la sesion: sin sesion abierta, el token no sirve
+  sub      a quien identifica: el id del usuario o el codigo del sensor
+  alcance  para que sirve: "usuario" (sus rutas) o "lecturas" (solo reportar lecturas)
+  jti      su id: el de usuario debe tener su sesion abierta, el de sensor debe ser el vigente
   iat/exp  cuando se emitio y cuando vence
 """
 import secrets
@@ -17,13 +17,21 @@ from pathlib import Path
 
 import jwt
 
-from dominio.errores_usuarios import AlcanceInvalido, SesionInvalida
-from dominio.identidad import IdentidadUsuario
+from dominio.errores import ErrorDominio
+from dominio.errores_usuarios import (
+    AlcanceInvalido,
+    CodigoSensorInvalido,
+    CredencialDispositivoInvalida,
+    SesionInvalida,
+)
+from dominio.identidad import IdentidadDispositivo, IdentidadUsuario
 from dominio.puertos_usuarios import EmisorTokens, Reloj, VerificadorTokens
+from dominio.sensores import CodigoSensor
 
 ALGORITMO = "HS256"
 EMISOR = "matera-inteligente"
 ALCANCE_USUARIO = "usuario"
+ALCANCE_LECTURAS = "lecturas"
 _RECLAMOS = ["iss", "sub", "alcance", "jti", "iat", "exp"]
 
 
@@ -35,11 +43,15 @@ class TokensJwt(EmisorTokens, VerificadorTokens):
         self._secreto = secreto
         self._reloj = reloj
 
-    def emitir(self, identidad: IdentidadUsuario, vence_en: datetime) -> str:
+    def emitir(self, identidad: IdentidadUsuario | IdentidadDispositivo, vence_en: datetime) -> str:
+        if isinstance(identidad, IdentidadUsuario):
+            sujeto, alcance = str(identidad.usuario_id), ALCANCE_USUARIO
+        else:
+            sujeto, alcance = identidad.codigo.valor, ALCANCE_LECTURAS
         reclamos = {
             "iss": EMISOR,
-            "sub": str(identidad.usuario_id),
-            "alcance": ALCANCE_USUARIO,
+            "sub": sujeto,
+            "alcance": alcance,
             "jti": identidad.token_id,
             "iat": self._reloj.ahora(),
             "exp": vence_en,
@@ -47,7 +59,7 @@ class TokensJwt(EmisorTokens, VerificadorTokens):
         return jwt.encode(reclamos, self._secreto, algorithm=ALGORITMO)
 
     def verificar_usuario(self, token: str) -> IdentidadUsuario:
-        reclamos = self._decodificar(token)
+        reclamos = self._decodificar(token, SesionInvalida)
         if reclamos["alcance"] != ALCANCE_USUARIO:
             raise AlcanceInvalido("usuario")
         try:
@@ -55,7 +67,16 @@ class TokensJwt(EmisorTokens, VerificadorTokens):
         except ValueError:
             raise SesionInvalida() from None
 
-    def _decodificar(self, token: str) -> dict:
+    def verificar_dispositivo(self, token: str) -> IdentidadDispositivo:
+        reclamos = self._decodificar(token, CredencialDispositivoInvalida)
+        if reclamos["alcance"] != ALCANCE_LECTURAS:
+            raise AlcanceInvalido("dispositivo")
+        try:
+            return IdentidadDispositivo(CodigoSensor(reclamos["sub"]), reclamos["jti"])
+        except CodigoSensorInvalido:
+            raise CredencialDispositivoInvalida() from None
+
+    def _decodificar(self, token: str, error: type[ErrorDominio]) -> dict:
         try:
             # algorithms fijo: un token con "alg": "none" o firmado con otro algoritmo se rechaza.
             return jwt.decode(
@@ -67,7 +88,7 @@ class TokensJwt(EmisorTokens, VerificadorTokens):
             )
         except jwt.InvalidTokenError:
             # Firma alterada, otro secreto, vencido, mal formado o sin algun reclamo: el mismo error.
-            raise SesionInvalida() from None
+            raise error() from None
 
 
 def secreto_guardado(ruta: Path) -> str:

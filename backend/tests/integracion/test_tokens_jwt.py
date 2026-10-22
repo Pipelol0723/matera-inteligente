@@ -7,8 +7,9 @@ from datetime import datetime, timedelta, timezone
 import jwt
 import pytest
 
-from dominio.errores_usuarios import AlcanceInvalido, SesionInvalida
-from dominio.identidad import IdentidadUsuario
+from dominio.errores_usuarios import AlcanceInvalido, CredencialDispositivoInvalida, SesionInvalida
+from dominio.identidad import IdentidadDispositivo, IdentidadUsuario
+from dominio.sensores import CodigoSensor
 from infraestructura.reloj import RelojSistema
 from infraestructura.tokens_jwt import ALGORITMO, EMISOR, TokensJwt, secreto_guardado
 
@@ -95,6 +96,37 @@ def test_un_token_valido_de_otro_alcance_no_sirve_como_token_de_usuario(tokens):
 
     with pytest.raises(AlcanceInvalido):
         tokens.verificar_usuario(del_sensor)
+
+
+SENSOR = IdentidadDispositivo(CodigoSensor("MT-0001-AA"), "id-del-canje")
+
+
+def test_el_token_de_un_sensor_tiene_alcance_lecturas_y_su_codigo(tokens):
+    token = tokens.emitir(SENSOR, _en(24))
+
+    reclamos = jwt.decode(token, SECRETO, algorithms=[ALGORITMO], issuer=EMISOR)
+    assert (reclamos["alcance"], reclamos["sub"], reclamos["jti"]) == ("lecturas", "MT-0001-AA", "id-del-canje")
+    assert tokens.verificar_dispositivo(token) == SENSOR
+
+
+def test_el_token_de_un_usuario_no_sirve_como_token_de_sensor(tokens):
+    with pytest.raises(AlcanceInvalido):
+        tokens.verificar_dispositivo(tokens.emitir(ANA, _en(1)))
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        jwt.encode(_reclamos(alcance="lecturas", sub="MT-0001-AA", exp=_en(-1)), SECRETO, algorithm=ALGORITMO),
+        jwt.encode(_reclamos(alcance="lecturas", sub="no-es-un-codigo"), SECRETO, algorithm=ALGORITMO),
+        jwt.encode(_reclamos(alcance="lecturas", sub="MT-0001-AA"), "otro-secreto-de-cuarenta-caracteres-xxxx", algorithm=ALGORITMO),
+        "no-es-un-jwt",
+    ],
+    ids=["vencido", "sub que no es un codigo", "otro secreto", "mal formado"],
+)
+def test_un_token_de_sensor_que_no_es_valido_da_credencial_invalida(tokens, token):
+    with pytest.raises(CredencialDispositivoInvalida):
+        tokens.verificar_dispositivo(token)
 
 
 def test_un_secreto_corto_no_se_acepta():

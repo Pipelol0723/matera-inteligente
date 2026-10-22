@@ -12,7 +12,7 @@ from datetime import datetime
 from dominio.diagnostico import Diagnostico
 from dominio.especie import Especie
 from dominio.historial import RegistroMedicion
-from dominio.identidad import IdentidadUsuario
+from dominio.identidad import IdentidadDispositivo, IdentidadUsuario
 from dominio.plantas import Planta
 from dominio.sensores import CodigoSensor, Sensor
 from dominio.usuarios import Correo, ResumenUsuario, Sesion, Usuario
@@ -128,16 +128,25 @@ class SensoresVinculados(ABC):
         Es una sola operacion, y solo si la planta sigue siendo la que se leyo: si
         mientras tanto se borro, lanza PlantaNoEncontrada. Si algo falla, la planta
         conserva el sensor que tenia. El historial no se toca. Lanza
-        SensorYaVinculado si el codigo es de otra planta.
+        SensorYaVinculado si el codigo es de otra planta. El sensor nuevo empieza
+        sin token vigente: los tokens del anterior dejan de servir.
+        """
+
+
+class CredencialesSensor(ABC):
+    """El token vigente de cada sensor, por su id: solo el del ultimo canje sirve."""
+
+    @abstractmethod
+    def renovar(self, sensor: Sensor, token_id: str) -> bool:
+        """Deja token_id como el unico vigente del sensor, que ya se autentico con su clave.
+
+        False si el sensor cambio desde que se leyo (otra clave u otra planta): asi
+        una clave recien revocada no consigue un token para la planta que tomo su codigo.
         """
 
     @abstractmethod
-    def planta_de(self, sensor: Sensor) -> Planta | None:
-        """La planta de este sensor, que ya se autentico con su clave.
-
-        None si el sensor cambio desde que se leyo (otra clave u otra planta): asi
-        una clave recien revocada no puede escribir en la planta que tomo su codigo.
-        """
+    def planta_con_token(self, codigo: CodigoSensor, token_id: str) -> Planta | None:
+        """La planta del sensor, si ese token sigue siendo su vigente; si no, None."""
 
 
 class HistorialMediciones(ABC):
@@ -168,22 +177,29 @@ class NotificadorDiagnosticos(ABC):
 
 
 class EmisorTokens(ABC):
-    """Firma el token de una identidad. El caso de uso lo pide; no sabe que es un JWT."""
+    """Firma el token de una identidad. El caso de uso lo pide; no sabe que es un JWT.
+
+    El de un usuario sirve para sus rutas; el de un dispositivo, solo para reportar lecturas.
+    """
 
     @abstractmethod
-    def emitir(self, identidad: IdentidadUsuario, vence_en: datetime) -> str: ...
+    def emitir(self, identidad: IdentidadUsuario | IdentidadDispositivo, vence_en: datetime) -> str: ...
 
 
 class VerificadorTokens(ABC):
     """Revisa la firma, el vencimiento y el alcance de un token, y dice de quien es.
 
-    Lo usan los adaptadores de entrada (el decorador de las rutas y el WebSocket):
+    Lo usan los adaptadores de entrada (los decoradores de las rutas y el WebSocket):
     el caso de uso recibe la identidad, nunca el token.
     """
 
     @abstractmethod
     def verificar_usuario(self, token: str) -> IdentidadUsuario:
         """Lanza SesionInvalida si el token no sirve y AlcanceInvalido si no es de un usuario."""
+
+    @abstractmethod
+    def verificar_dispositivo(self, token: str) -> IdentidadDispositivo:
+        """Lanza CredencialDispositivoInvalida si el token no sirve y AlcanceInvalido si no es de un dispositivo."""
 
 
 # --- Criptografia y tiempo ---
