@@ -75,6 +75,14 @@ def test_solo_el_adaptador_de_tokens_importa_la_libreria_jwt():
     assert con_jwt == ["infraestructura/tokens_jwt.py"]
 
 
+def test_solo_el_adaptador_csv_sabe_que_existe_un_csv():
+    archivos = [archivo for archivo in sorted(BACKEND.rglob("*.py")) if "tests" not in archivo.relative_to(BACKEND).parts]
+
+    con_csv = sorted(archivo.relative_to(BACKEND).as_posix() for archivo in archivos if "csv" in _modulos_importados(archivo))
+
+    assert con_csv == ["infraestructura/repositorio_especies_csv.py"]
+
+
 def test_las_pruebas_de_dominio_y_aplicacion_no_dependen_de_infraestructura_ni_de_flask():
     """Si se borra la carpeta infraestructura, estas pruebas tienen que seguir pasando."""
     archivos = (

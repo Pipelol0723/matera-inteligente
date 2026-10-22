@@ -11,6 +11,7 @@ _BACKEND = Path(__file__).resolve().parent.parent
 # Origenes desde los que se sirve el front. Para el navegador, localhost y
 # 127.0.0.1 son origenes distintos, por eso van los dos.
 _ORIGENES_POR_DEFECTO = "http://localhost:5500,http://127.0.0.1:5500"
+TABLAS_DE_REFERENCIA = ("bd", "csv")
 
 
 @dataclass(frozen=True)
@@ -30,6 +31,20 @@ class Configuracion:
     host: str = "127.0.0.1"
     # Con que se firman los JWT. Si falta, se usa el del archivo ruta_secreto_jwt (y se crea si no existe).
     secreto_jwt: str | None = None
+    # De donde sale la tabla de especies (R4): "bd" (SQLite) o "csv" (la copia de solo lectura).
+    tabla_referencia: str = "bd"
+    # La copia en CSV. Sin ruta, va junto a la base; desde_entorno usa la del repositorio.
+    ruta_csv: Path | None = None
+
+    def __post_init__(self) -> None:
+        if self.tabla_referencia not in TABLAS_DE_REFERENCIA:
+            raise ValueError(
+                f"MATERA_TABLA_REFERENCIA debe ser bd o csv, no '{self.tabla_referencia}'."
+            )
+
+    @property
+    def ruta_tabla_csv(self) -> Path:
+        return self.ruta_csv or self.ruta_bd.with_name("especies.csv")
 
     @property
     def ruta_secreto_jwt(self) -> Path:
@@ -47,4 +62,6 @@ class Configuracion:
             duracion_token_dispositivo=timedelta(hours=float(os.environ.get("MATERA_HORAS_TOKEN_DISPOSITIVO", "24"))),
             host=os.environ.get("MATERA_HOST", "127.0.0.1").strip(),
             secreto_jwt=os.environ.get("MATERA_JWT_SECRETO", "").strip() or None,
+            tabla_referencia=os.environ.get("MATERA_TABLA_REFERENCIA", "bd").strip().lower(),
+            ruta_csv=Path(os.environ.get("MATERA_RUTA_CSV", _BACKEND / "datos" / "especies.csv")),
         )

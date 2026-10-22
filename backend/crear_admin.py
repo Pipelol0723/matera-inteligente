@@ -8,11 +8,10 @@ Uso, desde la carpeta backend/:
 """
 import sys
 
-from aplicacion.administracion import ConvertirEnAdministrador
 from dominio.errores import ErrorDominio
 from dominio.errores_usuarios import UsuarioNoEncontrado
 from infraestructura.configuracion import Configuracion
-from infraestructura.sqlite import BaseDatos, RepositorioUsuariosSqlite
+from main import construir_consola
 
 
 def main(argumentos: list[str], config: Configuracion | None = None) -> int:
@@ -20,9 +19,8 @@ def main(argumentos: list[str], config: Configuracion | None = None) -> int:
         print("Uso: python crear_admin.py correo", file=sys.stderr)
         return 2
     config = config or Configuracion.desde_entorno()
-    usuarios = RepositorioUsuariosSqlite(BaseDatos(config.ruta_bd).preparar())
     try:
-        admin = ConvertirEnAdministrador(usuarios, usuarios).ejecutar(argumentos[0])
+        admin = construir_consola(config).convertir_en_admin.ejecutar(argumentos[0])
     except UsuarioNoEncontrado as error:
         print(f"{error} Primero cree la cuenta desde el front o con POST /api/v1/usuarios.", file=sys.stderr)
         return 1

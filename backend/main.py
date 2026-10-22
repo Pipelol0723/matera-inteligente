@@ -1,14 +1,22 @@
 """Raiz de composicion: el unico lugar que elige clases concretas y las conecta.
 
+Arma la app (construir_app) y las piezas de los comandos de consola
+(construir_consola): crear_admin.py y exportar_especies_csv.py no arman nada
+por su cuenta.
+
 Uso, desde la carpeta backend/:
     python main.py
 """
+from collections.abc import Callable
+from dataclasses import dataclass
+
 from flask import Flask
 
 from aplicacion.administracion import (
     AgregarEspecie,
     CambiarEstadoUsuario,
     CambiarRol,
+    ConvertirEnAdministrador,
     EliminarUsuario,
     ListarUsuarios,
 )
@@ -20,13 +28,22 @@ from aplicacion.listar_especies import ListarEspecies
 from aplicacion.listar_parametros import ListarParametros
 from aplicacion.plantas import EliminarPlanta, ListarPlantas, RegistrarPlanta
 from aplicacion.sensores import CanjearClaveDispositivo, ReemplazarSensor, RegistrarLectura
+from dominio import puertos_entrada as entrada
 from dominio.evaluador import EvaluadorPlanta
 from dominio.parametros import PARAMETROS
+from dominio.puertos import ConsultaRangos
+from dominio.puertos_usuarios import RegistroEspecies
 from dominio.recomendaciones import GeneradorRecomendaciones
 from dominio.reglas import ReglaHibrida
 from dominio.servicio_diagnostico import ServicioDiagnostico
 from infraestructura.configuracion import Configuracion
 from infraestructura.reloj import RelojSistema
+from infraestructura.repositorio_especies_csv import (
+    EspeciesDeSoloLectura,
+    RegistroEspeciesConCopiaCsv,
+    RepositorioEspeciesCsv,
+    escribir_csv,
+)
 from infraestructura.seguridad import CifradorPbkdf2, GeneradorSecretosSeguro
 from infraestructura.servidor_web import crear_app
 from infraestructura.sqlite import (
@@ -50,10 +67,22 @@ from presentacion.rutas_usuarios import crear_blueprint_usuarios
 from presentacion.tiempo_real import crear_blueprint_tiempo_real
 
 
+def _tabla_de_referencia(config: Configuracion, bd: BaseDatos) -> tuple[ConsultaRangos, RegistroEspecies]:
+    """R4: la tabla sale del CSV o de SQLite segun MATERA_TABLA_REFERENCIA. Elegir es solo esto.
+
+    Las dos implementan los puertos ConsultaRangos y CatalogoEspecies del corte 1.
+    El CSV es una copia de la base y no se edita. Con la base, agregar una especie
+    tambien vuelve a escribir la copia.
+    """
+    if config.tabla_referencia == "csv":
+        return RepositorioEspeciesCsv(config.ruta_tabla_csv), EspeciesDeSoloLectura()
+    sqlite = RepositorioEspeciesSqlite(bd)
+    return sqlite, RegistroEspeciesConCopiaCsv(sqlite, sqlite, config.ruta_tabla_csv)
+
+
 def construir_app(config: Configuracion) -> Flask:
     bd = BaseDatos(config.ruta_bd).preparar()
-    # Escenario 5.2: las especies salen de SQLite. Cambiar de base es cambiar solo esta linea.
-    especies = RepositorioEspeciesSqlite(bd)
+    especies, registro_especies = _tabla_de_referencia(config, bd)
 
     # Cambiar la regla del estado global: cambiar solo esta linea.
     evaluador = EvaluadorPlanta(ReglaHibrida(umbral=0.5), GeneradorRecomendaciones())
@@ -92,7 +121,7 @@ def construir_app(config: Configuracion) -> Flask:
         cambiar_estado=CambiarEstadoUsuario(usuarios, usuarios, sesiones),
         cambiar_rol=CambiarRol(usuarios, usuarios),
         eliminar=EliminarUsuario(usuarios, usuarios),
-        agregar_especie=AgregarEspecie(especies, especies, PARAMETROS),
+        agregar_especie=AgregarEspecie(especies, registro_especies, PARAMETROS),
         autenticacion=autenticacion,
     )
 
@@ -120,6 +149,29 @@ def construir_app(config: Configuracion) -> Flask:
     return crear_app([api, cuentas, administracion, mis_plantas, entrada_sensor, en_vivo], config)
 
 
+@dataclass(frozen=True)
+class Consola:
+    """Las piezas de los comandos de consola, armadas aqui igual que las de la app."""
+
+    convertir_en_admin: entrada.ConvertirEnAdministrador
+    # Escribe la copia en CSV de la tabla de la base y devuelve cuantas especies escribio.
+    exportar_especies: Callable[[], int]
+
+
+def construir_consola(config: Configuracion) -> Consola:
+    bd = BaseDatos(config.ruta_bd).preparar()
+    usuarios = RepositorioUsuariosSqlite(bd)
+    especies = RepositorioEspeciesSqlite(bd)
+    return Consola(
+        convertir_en_admin=ConvertirEnAdministrador(usuarios, usuarios),
+        exportar_especies=lambda: escribir_csv(especies.listar(), config.ruta_tabla_csv),
+    )
+
+
 if __name__ == "__main__":
     configuracion = Configuracion.desde_entorno()
+    if configuracion.tabla_referencia == "csv":
+        print(f"Tabla de referencia: la copia en CSV, {configuracion.ruta_tabla_csv} (solo lectura)")
+    else:
+        print(f"Tabla de referencia: la base de datos, {configuracion.ruta_bd}")
     construir_app(configuracion).run(host=configuracion.host, port=configuracion.puerto, debug=False)
