@@ -58,16 +58,16 @@ class Sistema:
         secretos = GeneradorSecretosFalso()
         servicio = ServicioDiagnostico(especies, EvaluadorPlanta(ReglaHibrida(), GeneradorRecomendaciones()))
 
-        self.registrar = RegistrarPlanta(self.plantas, self.sensores, especies, secretos)
+        self.registrar = RegistrarPlanta(self.plantas, self.plantas, self.sensores, especies, secretos)
         self.listar = ListarPlantas(self.plantas, self.sensores, self.historial)
-        self.eliminar = EliminarPlanta(self.plantas)
+        self.eliminar = EliminarPlanta(self.plantas, self.plantas)
         self.reemplazar = ReemplazarSensor(self.plantas, self.sensores, secretos)
         self.consultar_historial = ConsultarHistorial(self.plantas, self.historial)
         self.notificador = notificador or NotificadorEnMemoria(self.historial)
         self.diagnosticar = DiagnosticarPlantaDeUsuario(
             self.plantas, servicio, self.historial, self.reloj, self.notificador
         )
-        self.recibir = RecibirMedicionDeSensor(self.sensores, self.plantas, secretos, self.diagnosticar)
+        self.recibir = RecibirMedicionDeSensor(self.sensores, secretos, self.diagnosticar)
 
     def codigo_de(self, planta) -> str | None:
         sensor = self.sensores.de_planta(planta.id)
@@ -160,6 +160,8 @@ def test_eliminar_borra_la_planta_propia_y_libera_el_codigo_de_su_sensor(sistema
 def test_beto_no_puede_tocar_la_planta_de_ana_y_recibe_el_mismo_error_que_si_no_existiera(
     sistema, planta_de_ana, accion
 ):
+    # El doble de plantas, como la base, se la devuelve a cualquiera: la que la niega es la regla del dominio.
+    assert sistema.plantas.por_id(planta_de_ana.id) == planta_de_ana
     with pytest.raises(PlantaNoEncontrada):
         accion(sistema, planta_de_ana)
 
@@ -259,10 +261,10 @@ def test_una_clave_revocada_mientras_llegaba_la_medicion_no_escribe_en_la_planta
 
 def test_no_se_cambia_el_sensor_de_una_planta_que_se_borro_mientras_tanto(sistema, matera_de_ana):
     # buscar_planta_propia ya la encontro, pero otra pestana la borra antes de guardar el sensor.
-    sistema.plantas.eliminar(ANA.id, matera_de_ana.planta.id)
+    sistema.plantas.eliminar(matera_de_ana.planta)
 
     with pytest.raises(PlantaNoEncontrada):
-        sistema.sensores.reemplazar(ANA.id, Sensor(CodigoSensor("MT-0002-BB"), matera_de_ana.planta.id, "h"))
+        sistema.sensores.reemplazar(matera_de_ana.planta, Sensor(CodigoSensor("MT-0002-BB"), matera_de_ana.planta.id, "h"))
 
 
 def test_el_historial_trae_lo_mas_reciente_primero_y_respeta_el_limite(sistema, matera_de_ana):

@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from dominio.errores_usuarios import ApodoInvalido, CodigoSensorInvalido
+from dominio.errores_usuarios import ApodoInvalido, CodigoSensorInvalido, PlantaNoEncontrada
 from dominio.estados import EstadoGlobal, EstadoParametro
 from dominio.evaluador import EvaluadorPlanta
 from dominio.historial import RegistroMedicion
@@ -35,6 +35,15 @@ def test_la_planta_sabe_de_quien_es():
 
     assert planta.es_de(1)
     assert not planta.es_de(2)
+
+
+def test_solo_el_dueno_pasa_y_una_planta_ajena_da_el_mismo_error_que_una_inexistente():
+    planta = Planta(3, usuario_id=1, apodo="Sala", especie="potos")
+
+    planta.exigir_dueno(1)
+    with pytest.raises(PlantaNoEncontrada) as error:
+        planta.exigir_dueno(2)
+    assert str(error.value) == str(PlantaNoEncontrada(3))
 
 
 def test_dos_apodos_que_solo_cambian_en_mayusculas_o_espacios_son_el_mismo():

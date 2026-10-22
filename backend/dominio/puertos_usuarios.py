@@ -2,8 +2,9 @@
 
 Igual que dominio.puertos, se declaran aqui y se implementan en
 infraestructura (RA5, DIP). En las pruebas, cada uno tiene un doble en memoria.
-Los puertos del corte 1 no cambian: RegistroEspecies es una interfaz aparte,
-asi que quien solo consulta especies sigue dependiendo solo de ConsultaRangos (ISP).
+Cada puerto dice una cosa que el nucleo necesita, con pocos metodos: quien solo
+consulta cuentas no depende de como se borran (ISP). Un mismo adaptador puede
+implementar varios, como RepositorioEspeciesSqlite implementa los de especies.
 """
 from abc import ABC, abstractmethod
 from datetime import datetime
@@ -21,16 +22,27 @@ class RegistroEspecies(ABC):
 
     @abstractmethod
     def agregar(self, especie: Especie) -> None:
-        """Lanza EspecieYaExiste si ya hay una con ese nombre."""
+        """Lanza EspecieYaExiste si ya hay una con ese nombre.
+
+        Lanza TablaDeSoloLectura si la tabla de referencia no admite cambios,
+        como la copia en CSV.
+        """
 
 
-class RepositorioUsuarios(ABC):
+# --- Cuentas y sesiones ---
+
+
+class ConsultaCuentas(ABC):
+    """Buscar una cuenta: para registrarse, iniciar sesion e identificar a quien pide algo."""
+
     @abstractmethod
     def por_correo(self, correo: Correo) -> Usuario | None: ...
 
     @abstractmethod
     def por_id(self, usuario_id: int) -> Usuario | None: ...
 
+
+class RegistroCuentas(ABC):
     @abstractmethod
     def guardar(self, usuario: Usuario) -> Usuario:
         """Crea la cuenta si no tiene id y la devuelve con su id; si lo tiene, la actualiza.
@@ -39,30 +51,48 @@ class RepositorioUsuarios(ABC):
         """
 
     @abstractmethod
-    def resumenes(self) -> list[ResumenUsuario]: ...
-
-    @abstractmethod
     def eliminar(self, usuario_id: int) -> None:
         """Borra la cuenta con sus sesiones, plantas, sensores e historial."""
 
 
-class RepositorioSesiones(ABC):
-    @abstractmethod
-    def guardar(self, sesion: Sesion) -> None: ...
+class ListadoCuentas(ABC):
+    """Lo que ve el admin de todas las cuentas: cuantas plantas tiene cada una, no cuales."""
 
     @abstractmethod
-    def por_huella(self, huella: str) -> Sesion | None: ...
+    def resumenes(self) -> list[ResumenUsuario]: ...
+
+
+class SesionesAbiertas(ABC):
+    @abstractmethod
+    def abrir(self, sesion: Sesion) -> None: ...
 
     @abstractmethod
-    def eliminar(self, huella: str) -> None: ...
+    def abierta(self, huella: str) -> Sesion | None:
+        """La sesion con esa huella de token, o None si nunca se abrio o ya se cerro."""
 
     @abstractmethod
-    def eliminar_de_usuario(self, usuario_id: int) -> None: ...
+    def cerrar(self, huella: str) -> None: ...
+
+    @abstractmethod
+    def cerrar_de_usuario(self, usuario_id: int) -> None:
+        """Cierra todas las sesiones de la cuenta, por ejemplo al desactivarla."""
 
 
-class RepositorioPlantas(ABC):
-    """Aqui vive el aislamiento entre usuarios: no hay forma de pedir una planta sin decir de quien es."""
+# --- Plantas y sensores ---
 
+
+class ConsultaPlantas(ABC):
+    """Buscar plantas. No decide quien puede verlas: eso lo decide Planta.exigir_dueno, en el dominio."""
+
+    @abstractmethod
+    def por_id(self, planta_id: int) -> Planta | None:
+        """La planta con ese id, sea de quien sea, o None si no existe."""
+
+    @abstractmethod
+    def de_usuario(self, usuario_id: int) -> list[Planta]: ...
+
+
+class RegistroPlantas(ABC):
     @abstractmethod
     def guardar_con_sensor(self, planta: Planta, codigo: CodigoSensor, hash_clave: str) -> Planta:
         """Crea la planta junto con su sensor y la devuelve con su id.
@@ -73,26 +103,15 @@ class RepositorioPlantas(ABC):
         """
 
     @abstractmethod
-    def de_usuario(self, usuario_id: int) -> list[Planta]: ...
+    def eliminar(self, planta: Planta) -> None:
+        """Borra la planta con su sensor y su historial.
 
-    @abstractmethod
-    def por_id(self, usuario_id: int, planta_id: int) -> Planta | None:
-        """None si la planta no existe o si es de otro usuario."""
-
-    @abstractmethod
-    def vinculada_a(self, sensor: Sensor) -> Planta | None:
-        """La planta de este sensor, que ya se autentico con su clave.
-
-        None si el sensor cambio desde que se leyo (otra clave u otra planta): asi
-        una clave recien revocada no puede escribir en la planta que tomo su codigo.
+        Recibe la planta que ya se leyo: si mientras tanto otra pestana la borro y su
+        id paso a una planta nueva, esa otra no se toca.
         """
 
-    @abstractmethod
-    def eliminar(self, usuario_id: int, planta_id: int) -> None:
-        """Borra la planta con su sensor y su historial."""
 
-
-class RepositorioSensores(ABC):
+class SensoresVinculados(ABC):
     @abstractmethod
     def por_codigo(self, codigo: CodigoSensor) -> Sensor | None: ...
 
@@ -100,13 +119,21 @@ class RepositorioSensores(ABC):
     def de_planta(self, planta_id: int) -> Sensor | None: ...
 
     @abstractmethod
-    def reemplazar(self, usuario_id: int, sensor: Sensor) -> None:
-        """Deja este sensor como el unico de su planta: quita el anterior, si habia, y guarda este.
+    def reemplazar(self, planta: Planta, sensor: Sensor) -> None:
+        """Deja este sensor como el unico de la planta: quita el anterior, si habia, y guarda este.
 
-        Es una sola operacion, y solo si la planta sigue siendo de ese usuario: si
+        Es una sola operacion, y solo si la planta sigue siendo la que se leyo: si
         mientras tanto se borro, lanza PlantaNoEncontrada. Si algo falla, la planta
         conserva el sensor que tenia. El historial no se toca. Lanza
         SensorYaVinculado si el codigo es de otra planta.
+        """
+
+    @abstractmethod
+    def planta_de(self, sensor: Sensor) -> Planta | None:
+        """La planta de este sensor, que ya se autentico con su clave.
+
+        None si el sensor cambio desde que se leyo (otra clave u otra planta): asi
+        una clave recien revocada no puede escribir en la planta que tomo su codigo.
         """
 
 
@@ -132,6 +159,9 @@ class NotificadorDiagnosticos(ABC):
     @abstractmethod
     def publicar(self, usuario_id: int, planta: Planta, registro: RegistroMedicion, diagnostico: Diagnostico) -> None:
         """Se llama despues de guardar la medicion. Si el dueno no tiene la pantalla abierta, no hace nada."""
+
+
+# --- Criptografia y tiempo ---
 
 
 class Cifrador(ABC):

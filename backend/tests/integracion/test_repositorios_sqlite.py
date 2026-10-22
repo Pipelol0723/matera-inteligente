@@ -4,6 +4,7 @@ Aqui se prueba lo que los dobles en memoria no imitan: las restricciones de la
 base, las cascadas y que la planta y su sensor se guarden en una sola transaccion.
 """
 import sqlite3
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -104,7 +105,7 @@ def test_eliminar_un_usuario_borra_en_cascada_sesiones_plantas_sensores_e_histor
     ana, beto = repos.registrar(), repos.registrar("beto@correo.co", "Beto")
     planta = repos.planta(ana.id)
     repos.planta(beto.id)
-    repos.sesiones.guardar(Sesion("huella", ana.id, AHORA))
+    repos.sesiones.abrir(Sesion("huella", ana.id, AHORA))
     repos.historial.agregar(repos.registro(planta.id))
 
     repos.usuarios.eliminar(ana.id)
@@ -115,21 +116,23 @@ def test_eliminar_un_usuario_borra_en_cascada_sesiones_plantas_sensores_e_histor
 
 def test_una_sesion_conserva_su_vencimiento_con_zona_horaria(repos):
     ana = repos.registrar()
-    repos.sesiones.guardar(Sesion("huella", ana.id, AHORA + timedelta(days=7)))
+    repos.sesiones.abrir(Sesion("huella", ana.id, AHORA + timedelta(days=7)))
 
-    assert repos.sesiones.por_huella("huella") == Sesion("huella", ana.id, AHORA + timedelta(days=7))
+    assert repos.sesiones.abierta("huella") == Sesion("huella", ana.id, AHORA + timedelta(days=7))
 
-    repos.sesiones.eliminar_de_usuario(ana.id)
-    assert repos.sesiones.por_huella("huella") is None
+    repos.sesiones.cerrar_de_usuario(ana.id)
+    assert repos.sesiones.abierta("huella") is None
 
 
-def test_una_planta_solo_se_encuentra_junto_con_su_dueno(repos):
+def test_por_id_no_decide_de_quien_es_la_planta_y_eliminar_exige_la_misma_planta(repos):
     ana, beto = repos.registrar(), repos.registrar("beto@correo.co", "Beto")
     planta = repos.planta(ana.id)
 
-    assert repos.plantas.por_id(ana.id, planta.id) == planta
-    assert repos.plantas.por_id(beto.id, planta.id) is None
-    repos.plantas.eliminar(beto.id, planta.id)
+    # Quien puede verla lo decide Planta.exigir_dueno, en el dominio.
+    assert repos.plantas.por_id(planta.id) == planta
+    assert repos.plantas.por_id(999) is None
+    # Una planta con ese id pero de otro dueno no es la que se leyo: no se borra.
+    repos.plantas.eliminar(replace(planta, usuario_id=beto.id))
     assert repos.plantas.de_usuario(ana.id) == [planta]
 
 
@@ -138,7 +141,7 @@ def test_la_planta_y_su_sensor_se_guardan_juntos(repos):
 
     assert repos.sensores.por_codigo(CODIGO) == Sensor(CODIGO, planta.id, "huella-clave")
     assert repos.sensores.de_planta(planta.id) == Sensor(CODIGO, planta.id, "huella-clave")
-    assert repos.plantas.vinculada_a(Sensor(CODIGO, planta.id, "huella-clave")) == planta
+    assert repos.sensores.planta_de(Sensor(CODIGO, planta.id, "huella-clave")) == planta
 
 
 @pytest.mark.parametrize(
@@ -172,7 +175,7 @@ def test_reemplazar_el_sensor_deja_uno_solo_libera_el_codigo_y_conserva_el_histo
     planta = repos.planta(repos.registrar().id, codigo=CODIGO)
     repos.historial.agregar(repos.registro(planta.id))
 
-    repos.sensores.reemplazar(planta.usuario_id, Sensor(OTRO_CODIGO, planta.id, "huella-nueva"))
+    repos.sensores.reemplazar(planta, Sensor(OTRO_CODIGO, planta.id, "huella-nueva"))
 
     assert repos.sensores.de_planta(planta.id) == Sensor(OTRO_CODIGO, planta.id, "huella-nueva")
     assert repos.sensores.por_codigo(CODIGO) is None
@@ -182,7 +185,7 @@ def test_reemplazar_el_sensor_deja_uno_solo_libera_el_codigo_y_conserva_el_histo
 def test_reemplazar_por_el_mismo_codigo_cambia_la_huella_de_la_clave(repos):
     planta = repos.planta(repos.registrar().id, codigo=CODIGO)
 
-    repos.sensores.reemplazar(planta.usuario_id, Sensor(CODIGO, planta.id, "huella-nueva"))
+    repos.sensores.reemplazar(planta, Sensor(CODIGO, planta.id, "huella-nueva"))
 
     assert repos.sensores.por_codigo(CODIGO).hash_clave == "huella-nueva"
 
@@ -193,7 +196,7 @@ def test_reemplazar_por_un_codigo_de_otra_planta_no_le_quita_el_sensor_a_ninguna
     patio = repos.planta(ana.id, "Patio", codigo=OTRO_CODIGO)
 
     with pytest.raises(SensorYaVinculado):
-        repos.sensores.reemplazar(ana.id, Sensor(OTRO_CODIGO, sala.id, "h"))
+        repos.sensores.reemplazar(sala, Sensor(OTRO_CODIGO, sala.id, "h"))
 
     assert repos.sensores.de_planta(sala.id).codigo == CODIGO
     assert repos.sensores.de_planta(patio.id).codigo == OTRO_CODIGO
@@ -207,31 +210,32 @@ def test_una_planta_vieja_sin_sensor_recibe_uno(repos):
             "INSERT INTO planta (usuario_id, especie, apodo) VALUES (?, 'potos', 'Sala')", (ana.id,)
         ).lastrowid
 
-    repos.sensores.reemplazar(ana.id, Sensor(CODIGO, planta_id, "h"))
+    repos.sensores.reemplazar(Planta(planta_id, ana.id, "Sala", "potos"), Sensor(CODIGO, planta_id, "h"))
 
-    assert repos.plantas.vinculada_a(Sensor(CODIGO, planta_id, "h")).id == planta_id
+    assert repos.sensores.planta_de(Sensor(CODIGO, planta_id, "h")).id == planta_id
 
 
-def test_vinculada_a_no_devuelve_la_planta_si_el_sensor_cambio_despues_de_leerlo(repos):
+def test_planta_de_no_devuelve_la_planta_si_el_sensor_cambio_despues_de_leerlo(repos):
     ana, beto = repos.registrar(), repos.registrar("beto@correo.co", "Beto")
     sala = repos.planta(ana.id, codigo=CODIGO)
     leido = repos.sensores.por_codigo(CODIGO)  # el sensor con el que se verifico la clave
 
     # Mientras tanto Ana cambia de sensor y Beto crea una matera con el codigo que quedo libre.
-    repos.sensores.reemplazar(ana.id, Sensor(OTRO_CODIGO, sala.id, "huella-nueva"))
+    repos.sensores.reemplazar(sala, Sensor(OTRO_CODIGO, sala.id, "huella-nueva"))
     repos.planta(beto.id, "Patio", codigo=CODIGO)
 
-    assert repos.plantas.vinculada_a(leido) is None
+    assert repos.sensores.planta_de(leido) is None
 
 
-def test_no_se_reemplaza_el_sensor_de_una_planta_ajena_ni_de_una_que_ya_no_existe(repos):
+def test_no_se_reemplaza_el_sensor_si_la_planta_ya_no_es_la_que_se_leyo_ni_si_ya_no_existe(repos):
     ana, beto = repos.registrar(), repos.registrar("beto@correo.co", "Beto")
     de_beto = repos.planta(beto.id, codigo=CODIGO)
 
+    # Ana leyo la planta con ese id cuando era suya; otra pestana la borro y el id paso a Beto.
     with pytest.raises(PlantaNoEncontrada):
-        repos.sensores.reemplazar(ana.id, Sensor(OTRO_CODIGO, de_beto.id, "h"))
+        repos.sensores.reemplazar(replace(de_beto, usuario_id=ana.id), Sensor(OTRO_CODIGO, de_beto.id, "h"))
     with pytest.raises(PlantaNoEncontrada):
-        repos.sensores.reemplazar(ana.id, Sensor(OTRO_CODIGO, 999, "h"))
+        repos.sensores.reemplazar(Planta(999, ana.id, "Sala", "potos"), Sensor(OTRO_CODIGO, 999, "h"))
 
     assert repos.sensores.de_planta(de_beto.id) == Sensor(CODIGO, de_beto.id, "huella-clave")
     assert repos.contar("sensor") == 1
@@ -262,7 +266,7 @@ def test_borrar_una_planta_borra_su_sensor_y_su_historial(repos):
     planta = repos.planta(ana.id, codigo=CODIGO)
     repos.historial.agregar(repos.registro(planta.id))
 
-    repos.plantas.eliminar(ana.id, planta.id)
+    repos.plantas.eliminar(planta)
 
     assert [repos.contar(t) for t in ("planta", "sensor", "medicion", "lectura")] == [0, 0, 0, 0]
     assert repos.historial.ultimo_de(planta.id) is None

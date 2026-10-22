@@ -4,7 +4,7 @@ from aplicacion.plantas import buscar_planta_propia
 from dominio import puertos_entrada as entrada
 from dominio.errores_usuarios import ClaveSensorInvalida, CodigoSensorInvalido, SensorYaVinculado
 from dominio.medicion import Medicion
-from dominio.puertos_usuarios import GeneradorSecretos, RepositorioPlantas, RepositorioSensores
+from dominio.puertos_usuarios import ConsultaPlantas, GeneradorSecretos, SensoresVinculados
 from dominio.resultados import ResultadoMedicion, SensorVinculado
 from dominio.sensores import CodigoSensor, Sensor
 from dominio.usuarios import Usuario
@@ -18,7 +18,7 @@ class ReemplazarSensor(entrada.ReemplazarSensor):
     le da sensor a una matera creada antes de que fuera obligatorio.
     """
 
-    def __init__(self, plantas: RepositorioPlantas, sensores: RepositorioSensores, secretos: GeneradorSecretos):
+    def __init__(self, plantas: ConsultaPlantas, sensores: SensoresVinculados, secretos: GeneradorSecretos):
         self._plantas = plantas
         self._sensores = sensores
         self._secretos = secretos
@@ -31,7 +31,7 @@ class ReemplazarSensor(entrada.ReemplazarSensor):
             raise SensorYaVinculado(codigo_valido.valor)
 
         clave = self._secretos.nuevo()
-        self._sensores.reemplazar(usuario.id, Sensor(codigo_valido, planta.id, self._secretos.huella(clave)))
+        self._sensores.reemplazar(planta, Sensor(codigo_valido, planta.id, self._secretos.huella(clave)))
         return SensorVinculado(planta, codigo_valido, clave)
 
 
@@ -44,13 +44,11 @@ class RecibirMedicionDeSensor(entrada.RecibirMedicionDeSensor):
 
     def __init__(
         self,
-        sensores: RepositorioSensores,
-        plantas: RepositorioPlantas,
+        sensores: SensoresVinculados,
         secretos: GeneradorSecretos,
         diagnosticar: DiagnosticarPlantaDeUsuario,
     ):
         self._sensores = sensores
-        self._plantas = plantas
         self._secretos = secretos
         self._diagnosticar = diagnosticar
 
@@ -64,7 +62,7 @@ class RecibirMedicionDeSensor(entrada.RecibirMedicionDeSensor):
         if sensor is None or not self._secretos.coincide(clave, sensor.hash_clave):
             raise ClaveSensorInvalida()
         # La planta de ese mismo sensor: si cambio desde que se verifico la clave, no se acepta.
-        planta = self._plantas.vinculada_a(sensor)
+        planta = self._sensores.planta_de(sensor)
         if planta is None:
             raise ClaveSensorInvalida()
         return self._diagnosticar.ejecutar(planta.usuario_id, planta.id, medicion, origen=codigo_valido.valor)

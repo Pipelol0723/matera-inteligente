@@ -36,7 +36,7 @@ class Cuentas:
         self.sesiones = RepositorioSesionesEnMemoria()
         self.reloj = RelojFijo(AHORA)
         secretos = GeneradorSecretosFalso()
-        self.registrar = RegistrarUsuario(self.usuarios, CifradorFalso())
+        self.registrar = RegistrarUsuario(self.usuarios, self.usuarios, CifradorFalso())
         self.iniciar = IniciarSesion(self.usuarios, self.sesiones, CifradorFalso(), secretos, self.reloj, SIETE_DIAS)
         self.cerrar = CerrarSesion(self.sesiones, secretos)
         self.identificar = IdentificarUsuario(self.sesiones, self.usuarios, secretos, self.reloj)

@@ -29,6 +29,7 @@ _TABLA: dict[type[ErrorDominio], tuple[int, str]] = {
     e.CorreoYaRegistrado: (409, "CORREO_YA_REGISTRADO"),
     e.AccionSobreSiMismo: (409, "ACCION_SOBRE_SI_MISMO"),
     e.EspecieYaExiste: (409, "ESPECIE_YA_EXISTE"),
+    e.TablaDeSoloLectura: (409, "TABLA_SOLO_LECTURA"),
     e.ApodoRepetido: (409, "APODO_REPETIDO"),
     e.SensorYaVinculado: (409, "SENSOR_YA_VINCULADO"),
 }

@@ -16,11 +16,12 @@ from dominio.errores_usuarios import (
 )
 from dominio.puertos_usuarios import (
     Cifrador,
+    ConsultaCuentas,
+    ConsultaPlantas,
     GeneradorSecretos,
+    RegistroCuentas,
     Reloj,
-    RepositorioPlantas,
-    RepositorioSesiones,
-    RepositorioUsuarios,
+    SesionesAbiertas,
 )
 from dominio.resultados import CuentaUsuario, SesionIniciada
 from dominio.usuarios import Correo, PoliticaContrasena, Sesion, Usuario
@@ -29,29 +30,30 @@ from dominio.usuarios import Correo, PoliticaContrasena, Sesion, Usuario
 class RegistrarUsuario(entrada.RegistrarUsuario):
     """Crea siempre un USUARIO comun: ninguna ruta de la API da el rol de admin."""
 
-    def __init__(self, usuarios: RepositorioUsuarios, cifrador: Cifrador):
-        self._usuarios = usuarios
+    def __init__(self, cuentas: ConsultaCuentas, registro: RegistroCuentas, cifrador: Cifrador):
+        self._cuentas = cuentas
+        self._registro = registro
         self._cifrador = cifrador
 
     def ejecutar(self, nombre: str, correo: str, contrasena: str) -> Usuario:
         correo_valido = Correo(correo)
         PoliticaContrasena.validar(contrasena)
-        if self._usuarios.por_correo(correo_valido) is not None:
+        if self._cuentas.por_correo(correo_valido) is not None:
             raise CorreoYaRegistrado(correo_valido.valor)
-        return self._usuarios.guardar(Usuario(None, correo_valido, nombre, self._cifrador.cifrar(contrasena)))
+        return self._registro.guardar(Usuario(None, correo_valido, nombre, self._cifrador.cifrar(contrasena)))
 
 
 class IniciarSesion(entrada.IniciarSesion):
     def __init__(
         self,
-        usuarios: RepositorioUsuarios,
-        sesiones: RepositorioSesiones,
+        cuentas: ConsultaCuentas,
+        sesiones: SesionesAbiertas,
         cifrador: Cifrador,
         secretos: GeneradorSecretos,
         reloj: Reloj,
         duracion: timedelta,
     ):
-        self._usuarios = usuarios
+        self._cuentas = cuentas
         self._sesiones = sesiones
         self._cifrador = cifrador
         self._secretos = secretos
@@ -65,7 +67,7 @@ class IniciarSesion(entrada.IniciarSesion):
             correo_valido = Correo(correo)
         except CorreoInvalido:
             raise CredencialesInvalidas() from None
-        usuario = self._usuarios.por_correo(correo_valido)
+        usuario = self._cuentas.por_correo(correo_valido)
         if usuario is None or not self._cifrador.verificar(contrasena, usuario.hash_contrasena):
             raise CredencialesInvalidas()
         # Solo despues de verificar la contrasena se dice que la cuenta esta desactivada.
@@ -74,17 +76,17 @@ class IniciarSesion(entrada.IniciarSesion):
 
         token = self._secretos.nuevo()
         sesion = Sesion.abrir(self._secretos.huella(token), usuario.id, self._reloj.ahora(), self._duracion)
-        self._sesiones.guardar(sesion)
+        self._sesiones.abrir(sesion)
         return SesionIniciada(token, sesion.vence_en, usuario)
 
 
 class CerrarSesion(entrada.CerrarSesion):
-    def __init__(self, sesiones: RepositorioSesiones, secretos: GeneradorSecretos):
+    def __init__(self, sesiones: SesionesAbiertas, secretos: GeneradorSecretos):
         self._sesiones = sesiones
         self._secretos = secretos
 
     def ejecutar(self, token: str) -> None:
-        self._sesiones.eliminar(self._secretos.huella(token))
+        self._sesiones.cerrar(self._secretos.huella(token))
 
 
 class IdentificarUsuario(entrada.IdentificarUsuario):
@@ -92,25 +94,25 @@ class IdentificarUsuario(entrada.IdentificarUsuario):
 
     def __init__(
         self,
-        sesiones: RepositorioSesiones,
-        usuarios: RepositorioUsuarios,
+        sesiones: SesionesAbiertas,
+        cuentas: ConsultaCuentas,
         secretos: GeneradorSecretos,
         reloj: Reloj,
     ):
         self._sesiones = sesiones
-        self._usuarios = usuarios
+        self._cuentas = cuentas
         self._secretos = secretos
         self._reloj = reloj
 
     def ejecutar(self, token: str) -> Usuario:
         huella = self._secretos.huella(token)
-        sesion = self._sesiones.por_huella(huella)
+        sesion = self._sesiones.abierta(huella)
         if sesion is None:
             raise SesionInvalida()
         if not sesion.vigente(self._reloj.ahora()):
-            self._sesiones.eliminar(huella)
+            self._sesiones.cerrar(huella)
             raise SesionInvalida()
-        usuario = self._usuarios.por_id(sesion.usuario_id)
+        usuario = self._cuentas.por_id(sesion.usuario_id)
         if usuario is None or not usuario.activo:
             raise SesionInvalida()
         return usuario
@@ -119,7 +121,7 @@ class IdentificarUsuario(entrada.IdentificarUsuario):
 class ConsultarCuenta(entrada.ConsultarCuenta):
     """Lo que muestra Mi cuenta: los datos del usuario y cuantas plantas tiene."""
 
-    def __init__(self, plantas: RepositorioPlantas):
+    def __init__(self, plantas: ConsultaPlantas):
         self._plantas = plantas
 
     def ejecutar(self, usuario: Usuario) -> CuentaUsuario:

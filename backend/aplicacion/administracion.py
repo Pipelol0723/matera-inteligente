@@ -12,12 +12,18 @@ from dominio.errores_usuarios import EspecieYaExiste, UsuarioNoEncontrado
 from dominio.especie import Especie
 from dominio.parametros import Parametro
 from dominio.puertos import ConsultaRangos
-from dominio.puertos_usuarios import RegistroEspecies, RepositorioSesiones, RepositorioUsuarios
+from dominio.puertos_usuarios import (
+    ConsultaCuentas,
+    ListadoCuentas,
+    RegistroCuentas,
+    RegistroEspecies,
+    SesionesAbiertas,
+)
 from dominio.usuarios import Correo, ResumenUsuario, Rol, Usuario
 
 
-def _buscar_usuario(usuarios: RepositorioUsuarios, usuario_id: int) -> Usuario:
-    usuario = usuarios.por_id(usuario_id)
+def _buscar_usuario(cuentas: ConsultaCuentas, usuario_id: int) -> Usuario:
+    usuario = cuentas.por_id(usuario_id)
     if usuario is None:
         raise UsuarioNoEncontrado(usuario_id)
     return usuario
@@ -26,51 +32,54 @@ def _buscar_usuario(usuarios: RepositorioUsuarios, usuario_id: int) -> Usuario:
 class ListarUsuarios(entrada.ListarUsuarios):
     """El admin ve cuantas plantas tiene cada usuario, pero no cuales."""
 
-    def __init__(self, usuarios: RepositorioUsuarios):
-        self._usuarios = usuarios
+    def __init__(self, listado: ListadoCuentas):
+        self._listado = listado
 
     def ejecutar(self, actor: Usuario) -> list[ResumenUsuario]:
         actor.exigir_admin()
-        return sorted(self._usuarios.resumenes(), key=lambda resumen: resumen.id)
+        return sorted(self._listado.resumenes(), key=lambda resumen: resumen.id)
 
 
 class CambiarEstadoUsuario(entrada.CambiarEstadoUsuario):
     """Desactivar cierra todas las sesiones de la cuenta en ese momento."""
 
-    def __init__(self, usuarios: RepositorioUsuarios, sesiones: RepositorioSesiones):
-        self._usuarios = usuarios
+    def __init__(self, cuentas: ConsultaCuentas, registro: RegistroCuentas, sesiones: SesionesAbiertas):
+        self._cuentas = cuentas
+        self._registro = registro
         self._sesiones = sesiones
 
     def ejecutar(self, actor: Usuario, usuario_id: int, activo: bool) -> Usuario:
         actor.exigir_admin()
         actor.exigir_otro_usuario(usuario_id)
-        actualizado = self._usuarios.guardar(_buscar_usuario(self._usuarios, usuario_id).con_estado(activo))
+        actualizado = self._registro.guardar(_buscar_usuario(self._cuentas, usuario_id).con_estado(activo))
         if not activo:
-            self._sesiones.eliminar_de_usuario(usuario_id)
+            self._sesiones.cerrar_de_usuario(usuario_id)
         return actualizado
 
 
 class CambiarRol(entrada.CambiarRol):
-    def __init__(self, usuarios: RepositorioUsuarios):
-        self._usuarios = usuarios
+    def __init__(self, cuentas: ConsultaCuentas, registro: RegistroCuentas):
+        self._cuentas = cuentas
+        self._registro = registro
 
     def ejecutar(self, actor: Usuario, usuario_id: int, rol: Rol) -> Usuario:
         actor.exigir_admin()
         actor.exigir_otro_usuario(usuario_id)
-        return self._usuarios.guardar(_buscar_usuario(self._usuarios, usuario_id).con_rol(rol))
+        return self._registro.guardar(_buscar_usuario(self._cuentas, usuario_id).con_rol(rol))
 
 
 class EliminarUsuario(entrada.EliminarUsuario):
     """Borra la cuenta con sus sesiones, plantas, sensores e historial (lo hace el repositorio)."""
 
-    def __init__(self, usuarios: RepositorioUsuarios):
-        self._usuarios = usuarios
+    def __init__(self, cuentas: ConsultaCuentas, registro: RegistroCuentas):
+        self._cuentas = cuentas
+        self._registro = registro
 
     def ejecutar(self, actor: Usuario, usuario_id: int) -> None:
         actor.exigir_admin()
         actor.exigir_otro_usuario(usuario_id)
-        _buscar_usuario(self._usuarios, usuario_id)
-        self._usuarios.eliminar(usuario_id)
+        _buscar_usuario(self._cuentas, usuario_id)
+        self._registro.eliminar(usuario_id)
 
 
 class AgregarEspecie(entrada.AgregarEspecie):
@@ -102,11 +111,12 @@ class ConvertirEnAdministrador(entrada.ConvertirEnAdministrador):
     No pide actor: es la forma de tener el primer admin, y la API no lo expone.
     """
 
-    def __init__(self, usuarios: RepositorioUsuarios):
-        self._usuarios = usuarios
+    def __init__(self, cuentas: ConsultaCuentas, registro: RegistroCuentas):
+        self._cuentas = cuentas
+        self._registro = registro
 
     def ejecutar(self, correo: str) -> Usuario:
-        usuario = self._usuarios.por_correo(Correo(correo))
+        usuario = self._cuentas.por_correo(Correo(correo))
         if usuario is None:
             raise UsuarioNoEncontrado(correo)
-        return self._usuarios.guardar(usuario.con_rol(Rol.ADMIN))
+        return self._registro.guardar(usuario.con_rol(Rol.ADMIN))

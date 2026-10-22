@@ -5,7 +5,7 @@ la planta cambian por razones distintas (SRP).
 """
 from dataclasses import dataclass
 
-from dominio.errores_usuarios import ApodoInvalido
+from dominio.errores_usuarios import ApodoInvalido, PlantaNoEncontrada
 from dominio.especie import normalizar_nombre
 
 APODO_MAXIMO = 40
@@ -29,6 +29,14 @@ class Planta:
 
     def es_de(self, usuario_id: int) -> bool:
         return self.usuario_id == usuario_id
+
+    def exigir_dueno(self, usuario_id: int) -> None:
+        """La regla «un usuario solo ve sus plantas», venga la orden por HTTP, por MQTT o por consola.
+
+        Una planta ajena da el mismo error que una que no existe: no se confirma que exista.
+        """
+        if not self.es_de(usuario_id):
+            raise PlantaNoEncontrada(self.id)
 
     def mismo_apodo(self, apodo: str) -> bool:
         """'Potos de la sala' y 'potos  de la SALA' son el mismo apodo."""

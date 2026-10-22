@@ -22,7 +22,7 @@ def main(argumentos: list[str], config: Configuracion | None = None) -> int:
     config = config or Configuracion.desde_entorno()
     usuarios = RepositorioUsuariosSqlite(BaseDatos(config.ruta_bd).preparar())
     try:
-        admin = ConvertirEnAdministrador(usuarios).ejecutar(argumentos[0])
+        admin = ConvertirEnAdministrador(usuarios, usuarios).ejecutar(argumentos[0])
     except UsuarioNoEncontrado as error:
         print(f"{error} Primero cree la cuenta desde el front o con POST /api/v1/usuarios.", file=sys.stderr)
         return 1

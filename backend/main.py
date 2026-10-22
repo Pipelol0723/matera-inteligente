@@ -64,7 +64,8 @@ def construir_app(config: Configuracion) -> Flask:
         listar_parametros=ListarParametros(PARAMETROS),
     )
 
-    # Corte 2: cuentas, plantas, sensores e historial, en la misma base.
+    # Corte 2: cuentas, plantas, sensores e historial, en la misma base. Cada adaptador SQLite
+    # implementa varios puertos pequenos: se pasa una vez por cada puerto que pide el caso de uso.
     usuarios = RepositorioUsuariosSqlite(bd)
     sesiones = RepositorioSesionesSqlite(bd)
     plantas = RepositorioPlantasSqlite(bd)
@@ -77,7 +78,7 @@ def construir_app(config: Configuracion) -> Flask:
     autenticacion = Autenticacion(identificar)
 
     cuentas = crear_blueprint_usuarios(
-        registrar=RegistrarUsuario(usuarios, cifrador),
+        registrar=RegistrarUsuario(usuarios, usuarios, cifrador),
         iniciar=IniciarSesion(usuarios, sesiones, cifrador, secretos, reloj, config.duracion_sesion),
         cerrar=CerrarSesion(sesiones, secretos),
         consultar=ConsultarCuenta(plantas),
@@ -85,9 +86,9 @@ def construir_app(config: Configuracion) -> Flask:
     )
     administracion = crear_blueprint_admin(
         listar=ListarUsuarios(usuarios),
-        cambiar_estado=CambiarEstadoUsuario(usuarios, sesiones),
-        cambiar_rol=CambiarRol(usuarios),
-        eliminar=EliminarUsuario(usuarios),
+        cambiar_estado=CambiarEstadoUsuario(usuarios, usuarios, sesiones),
+        cambiar_rol=CambiarRol(usuarios, usuarios),
+        eliminar=EliminarUsuario(usuarios, usuarios),
         agregar_especie=AgregarEspecie(especies, especies, PARAMETROS),
         autenticacion=autenticacion,
     )
@@ -99,14 +100,14 @@ def construir_app(config: Configuracion) -> Flask:
     # Las mediciones solo llegan del sensor, por el caso de uso de la 5.3, que reutiliza el servicio del corte 1.
     diagnosticar_planta = DiagnosticarPlantaDeUsuario(plantas, servicio, historial, reloj, notificador)
     mis_plantas = crear_blueprint_plantas(
-        registrar=RegistrarPlanta(plantas, sensores, especies, secretos),
+        registrar=RegistrarPlanta(plantas, plantas, sensores, especies, secretos),
         listar=ListarPlantas(plantas, sensores, historial),
-        eliminar=EliminarPlanta(plantas),
+        eliminar=EliminarPlanta(plantas, plantas),
         reemplazar_sensor=ReemplazarSensor(plantas, sensores, secretos),
         consultar_historial=ConsultarHistorial(plantas, historial),
         autenticacion=autenticacion,
     )
-    entrada_sensor = crear_blueprint_sensores(RecibirMedicionDeSensor(sensores, plantas, secretos, diagnosticar_planta))
+    entrada_sensor = crear_blueprint_sensores(RecibirMedicionDeSensor(sensores, secretos, diagnosticar_planta))
     # El WebSocket del front registra sus conexiones en los mismos canales que usa el notificador.
     en_vivo = crear_blueprint_tiempo_real(identificar, canales, config.origenes_cors)
 

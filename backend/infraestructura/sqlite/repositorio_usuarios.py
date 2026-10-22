@@ -4,12 +4,12 @@ from dataclasses import replace
 from datetime import datetime
 
 from dominio.errores_usuarios import CorreoYaRegistrado
-from dominio.puertos_usuarios import RepositorioSesiones, RepositorioUsuarios
+from dominio.puertos_usuarios import ConsultaCuentas, ListadoCuentas, RegistroCuentas, SesionesAbiertas
 from dominio.usuarios import Correo, ResumenUsuario, Rol, Sesion, Usuario
 from infraestructura.sqlite.base_datos import BaseDatos
 
 
-class RepositorioUsuariosSqlite(RepositorioUsuarios):
+class RepositorioUsuariosSqlite(ConsultaCuentas, RegistroCuentas, ListadoCuentas):
     def __init__(self, bd: BaseDatos):
         self._bd = bd
 
@@ -66,18 +66,18 @@ class RepositorioUsuariosSqlite(RepositorioUsuarios):
         )
 
 
-class RepositorioSesionesSqlite(RepositorioSesiones):
+class RepositorioSesionesSqlite(SesionesAbiertas):
     def __init__(self, bd: BaseDatos):
         self._bd = bd
 
-    def guardar(self, sesion: Sesion) -> None:
+    def abrir(self, sesion: Sesion) -> None:
         with self._bd.conexion() as conexion:
             conexion.execute(
                 "INSERT INTO sesion (hash_token, usuario_id, vence_en) VALUES (?, ?, ?)",
                 (sesion.hash_token, sesion.usuario_id, sesion.vence_en.isoformat()),
             )
 
-    def por_huella(self, huella: str) -> Sesion | None:
+    def abierta(self, huella: str) -> Sesion | None:
         with self._bd.conexion() as conexion:
             fila = conexion.execute(
                 "SELECT hash_token, usuario_id, vence_en FROM sesion WHERE hash_token = ?", (huella,)
@@ -86,10 +86,10 @@ class RepositorioSesionesSqlite(RepositorioSesiones):
             return None
         return Sesion(fila["hash_token"], fila["usuario_id"], datetime.fromisoformat(fila["vence_en"]))
 
-    def eliminar(self, huella: str) -> None:
+    def cerrar(self, huella: str) -> None:
         with self._bd.conexion() as conexion:
             conexion.execute("DELETE FROM sesion WHERE hash_token = ?", (huella,))
 
-    def eliminar_de_usuario(self, usuario_id: int) -> None:
+    def cerrar_de_usuario(self, usuario_id: int) -> None:
         with self._bd.conexion() as conexion:
             conexion.execute("DELETE FROM sesion WHERE usuario_id = ?", (usuario_id,))

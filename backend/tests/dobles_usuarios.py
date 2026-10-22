@@ -23,15 +23,18 @@ from dominio.historial import RegistroMedicion
 from dominio.plantas import Planta
 from dominio.puertos_usuarios import (
     Cifrador,
+    ConsultaCuentas,
+    ConsultaPlantas,
     GeneradorSecretos,
     HistorialMediciones,
+    ListadoCuentas,
     NotificadorDiagnosticos,
+    RegistroCuentas,
     RegistroEspecies,
+    RegistroPlantas,
     Reloj,
-    RepositorioPlantas,
-    RepositorioSensores,
-    RepositorioSesiones,
-    RepositorioUsuarios,
+    SensoresVinculados,
+    SesionesAbiertas,
 )
 from dominio.sensores import CodigoSensor, Sensor
 from dominio.usuarios import Correo, ResumenUsuario, Sesion, Usuario
@@ -47,11 +50,11 @@ class EspeciesEditablesEnMemoria(RepositorioEspeciesEnMemoria, RegistroEspecies)
         self._especies[especie.nombre] = especie
 
 
-class RepositorioSensoresEnMemoria(RepositorioSensores):
+class RepositorioSensoresEnMemoria(SensoresVinculados):
     def __init__(self):
         self._sensores: dict[str, Sensor] = {}
-        # Lo conecta RepositorioPlantasEnMemoria: el dueno de una planta, como el JOIN de la base.
-        self.dueno_de = lambda planta_id: None
+        # Lo conecta RepositorioPlantasEnMemoria: la planta guardada con ese id, como el JOIN de la base.
+        self.planta_con_id = lambda planta_id: None
 
     def por_codigo(self, codigo: CodigoSensor) -> Sensor | None:
         return self._sensores.get(codigo.valor)
@@ -59,26 +62,36 @@ class RepositorioSensoresEnMemoria(RepositorioSensores):
     def de_planta(self, planta_id: int) -> Sensor | None:
         return next((s for s in self._sensores.values() if s.planta_id == planta_id), None)
 
-    def reemplazar(self, usuario_id: int, sensor: Sensor) -> None:
-        if self.dueno_de(sensor.planta_id) != usuario_id:
-            raise PlantaNoEncontrada(sensor.planta_id)
+    def reemplazar(self, planta: Planta, sensor: Sensor) -> None:
+        # Como la base: la planta tiene que seguir siendo la que se leyo (mismo id y mismo dueno).
+        guardada = self.planta_con_id(planta.id)
+        if guardada is None or guardada.usuario_id != planta.usuario_id:
+            raise PlantaNoEncontrada(planta.id)
         en_uso = self._sensores.get(sensor.codigo.valor)
         if en_uso is not None and en_uso.planta_id != sensor.planta_id:
             raise SensorYaVinculado(sensor.codigo.valor)
         self.quitar_de_planta(sensor.planta_id)
         self._sensores[sensor.codigo.valor] = sensor
 
+    def planta_de(self, sensor: Sensor) -> Planta | None:
+        # Solo si el sensor guardado sigue siendo ese mismo (codigo, planta y huella). Lee lo guardado
+        # y no por_codigo(), que una prueba puede reemplazar para simular una lectura vieja.
+        guardado = self._sensores.get(sensor.codigo.valor)
+        return self.planta_con_id(sensor.planta_id) if guardado == sensor else None
+
     def quitar_de_planta(self, planta_id: int) -> None:
         """No es del puerto: imita la cascada de la base al borrar una planta."""
         self._sensores = {c: s for c, s in self._sensores.items() if s.planta_id != planta_id}
 
 
-class RepositorioPlantasEnMemoria(RepositorioPlantas):
+class RepositorioPlantasEnMemoria(ConsultaPlantas, RegistroPlantas):
+    """Como la base, no filtra por dueno: si una prueba pide la planta de otro, la regla del dominio la rechaza."""
+
     def __init__(self, sensores: RepositorioSensoresEnMemoria | None = None):
         self._plantas: dict[int, Planta] = {}
         self._siguiente_id = 1
         self._sensores = sensores or RepositorioSensoresEnMemoria()
-        self._sensores.dueno_de = lambda planta_id: getattr(self._plantas.get(planta_id), "usuario_id", None)
+        self._sensores.planta_con_id = self._plantas.get
 
     def guardar_con_sensor(self, planta: Planta, codigo: CodigoSensor, hash_clave: str) -> Planta:
         # Revisa todo antes de guardar nada, como la transaccion de la base.
@@ -89,26 +102,20 @@ class RepositorioPlantasEnMemoria(RepositorioPlantas):
         guardada = replace(planta, id=self._siguiente_id)
         self._plantas[guardada.id] = guardada
         self._siguiente_id += 1
-        self._sensores.reemplazar(guardada.usuario_id, Sensor(codigo, guardada.id, hash_clave))
+        self._sensores.reemplazar(guardada, Sensor(codigo, guardada.id, hash_clave))
         return guardada
 
     def de_usuario(self, usuario_id: int) -> list[Planta]:
         return [p for p in self._plantas.values() if p.es_de(usuario_id)]
 
-    def por_id(self, usuario_id: int, planta_id: int) -> Planta | None:
-        planta = self._plantas.get(planta_id)
-        return planta if planta is not None and planta.es_de(usuario_id) else None
+    def por_id(self, planta_id: int) -> Planta | None:
+        return self._plantas.get(planta_id)
 
-    def vinculada_a(self, sensor: Sensor) -> Planta | None:
-        # Solo si el sensor guardado sigue siendo ese mismo (codigo, planta y huella). Lee lo guardado
-        # y no por_codigo(), que una prueba puede reemplazar para simular una lectura vieja.
-        guardado = self._sensores._sensores.get(sensor.codigo.valor)
-        return self._plantas.get(sensor.planta_id) if guardado == sensor else None
-
-    def eliminar(self, usuario_id: int, planta_id: int) -> None:
-        if self.por_id(usuario_id, planta_id) is not None:
-            del self._plantas[planta_id]
-            self._sensores.quitar_de_planta(planta_id)
+    def eliminar(self, planta: Planta) -> None:
+        guardada = self._plantas.get(planta.id)
+        if guardada is not None and guardada.usuario_id == planta.usuario_id:
+            del self._plantas[planta.id]
+            self._sensores.quitar_de_planta(planta.id)
 
 
 def codigo(numero: int) -> CodigoSensor:
@@ -116,7 +123,7 @@ def codigo(numero: int) -> CodigoSensor:
     return CodigoSensor(f"MT-{numero:04d}-AA")
 
 
-class RepositorioUsuariosEnMemoria(RepositorioUsuarios):
+class RepositorioUsuariosEnMemoria(ConsultaCuentas, RegistroCuentas, ListadoCuentas):
     def __init__(self, plantas: RepositorioPlantasEnMemoria | None = None):
         self._usuarios: dict[int, Usuario] = {}
         self._siguiente_id = 1
@@ -148,20 +155,20 @@ class RepositorioUsuariosEnMemoria(RepositorioUsuarios):
         self._usuarios.pop(usuario_id, None)
 
 
-class RepositorioSesionesEnMemoria(RepositorioSesiones):
+class RepositorioSesionesEnMemoria(SesionesAbiertas):
     def __init__(self):
         self.sesiones: dict[str, Sesion] = {}
 
-    def guardar(self, sesion: Sesion) -> None:
+    def abrir(self, sesion: Sesion) -> None:
         self.sesiones[sesion.hash_token] = sesion
 
-    def por_huella(self, huella: str) -> Sesion | None:
+    def abierta(self, huella: str) -> Sesion | None:
         return self.sesiones.get(huella)
 
-    def eliminar(self, huella: str) -> None:
+    def cerrar(self, huella: str) -> None:
         self.sesiones.pop(huella, None)
 
-    def eliminar_de_usuario(self, usuario_id: int) -> None:
+    def cerrar_de_usuario(self, usuario_id: int) -> None:
         self.sesiones = {h: s for h, s in self.sesiones.items() if s.usuario_id != usuario_id}
 
 

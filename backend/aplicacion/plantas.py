@@ -4,17 +4,24 @@ from dominio.errores import EspecieNoSoportada
 from dominio.errores_usuarios import ApodoRepetido, PlantaNoEncontrada, SensorYaVinculado
 from dominio.plantas import Planta
 from dominio.puertos import ConsultaRangos
-from dominio.puertos_usuarios import GeneradorSecretos, HistorialMediciones, RepositorioPlantas, RepositorioSensores
+from dominio.puertos_usuarios import (
+    ConsultaPlantas,
+    GeneradorSecretos,
+    HistorialMediciones,
+    RegistroPlantas,
+    SensoresVinculados,
+)
 from dominio.resultados import PlantaConEstado, SensorVinculado
 from dominio.sensores import CodigoSensor
 from dominio.usuarios import Usuario
 
 
-def buscar_planta_propia(plantas: RepositorioPlantas, usuario_id: int, planta_id: int) -> Planta:
-    """La planta solo se encuentra junto con su dueno. Una ajena da el mismo error que una inexistente."""
-    planta = plantas.por_id(usuario_id, planta_id)
+def buscar_planta_propia(plantas: ConsultaPlantas, usuario_id: int, planta_id: int) -> Planta:
+    """La planta, si es de ese usuario. El puerto la busca; quien puede verla lo decide el dominio."""
+    planta = plantas.por_id(planta_id)
     if planta is None:
         raise PlantaNoEncontrada(planta_id)
+    planta.exigir_dueno(usuario_id)
     return planta
 
 
@@ -26,12 +33,14 @@ class RegistrarPlanta(entrada.RegistrarPlanta):
 
     def __init__(
         self,
-        plantas: RepositorioPlantas,
-        sensores: RepositorioSensores,
+        plantas: ConsultaPlantas,
+        registro: RegistroPlantas,
+        sensores: SensoresVinculados,
         especies: ConsultaRangos,
         secretos: GeneradorSecretos,
     ):
         self._plantas = plantas
+        self._registro = registro
         self._sensores = sensores
         self._especies = especies
         self._secretos = secretos
@@ -47,12 +56,12 @@ class RegistrarPlanta(entrada.RegistrarPlanta):
             raise SensorYaVinculado(codigo_valido.valor)
 
         clave = self._secretos.nuevo()
-        planta = self._plantas.guardar_con_sensor(nueva, codigo_valido, self._secretos.huella(clave))
+        planta = self._registro.guardar_con_sensor(nueva, codigo_valido, self._secretos.huella(clave))
         return SensorVinculado(planta, codigo_valido, clave)
 
 
 class ListarPlantas(entrada.ListarPlantas):
-    def __init__(self, plantas: RepositorioPlantas, sensores: RepositorioSensores, historial: HistorialMediciones):
+    def __init__(self, plantas: ConsultaPlantas, sensores: SensoresVinculados, historial: HistorialMediciones):
         self._plantas = plantas
         self._sensores = sensores
         self._historial = historial
@@ -67,9 +76,9 @@ class ListarPlantas(entrada.ListarPlantas):
 class EliminarPlanta(entrada.EliminarPlanta):
     """Borra la planta con su sensor y su historial."""
 
-    def __init__(self, plantas: RepositorioPlantas):
+    def __init__(self, plantas: ConsultaPlantas, registro: RegistroPlantas):
         self._plantas = plantas
+        self._registro = registro
 
     def ejecutar(self, usuario: Usuario, planta_id: int) -> None:
-        buscar_planta_propia(self._plantas, usuario.id, planta_id)
-        self._plantas.eliminar(usuario.id, planta_id)
+        self._registro.eliminar(buscar_planta_propia(self._plantas, usuario.id, planta_id))

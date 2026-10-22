@@ -15,7 +15,7 @@ from dominio.diagnostico import Diagnostico
 from dominio.historial import RegistroMedicion
 from dominio.medicion import Medicion
 from dominio.plantas import Planta
-from dominio.puertos_usuarios import HistorialMediciones, NotificadorDiagnosticos, Reloj, RepositorioPlantas
+from dominio.puertos_usuarios import ConsultaPlantas, HistorialMediciones, NotificadorDiagnosticos, Reloj
 from dominio.resultados import ResultadoMedicion
 from dominio.servicio_diagnostico import ServicioDiagnostico
 
@@ -26,7 +26,7 @@ class DiagnosticarPlantaDeUsuario:
     """Sin puerto de entrada: ningun adaptador lo llama, solo otros casos de uso."""
     def __init__(
         self,
-        plantas: RepositorioPlantas,
+        plantas: ConsultaPlantas,
         servicio: ServicioDiagnostico,
         historial: HistorialMediciones,
         reloj: Reloj,

@@ -77,6 +77,13 @@ class EspecieYaExiste(ErrorDominio):
         self.nombre = nombre
 
 
+class TablaDeSoloLectura(ErrorDominio):
+    """La tabla de referencia que se esta usando no admite cambios, como la copia en CSV."""
+
+    def __init__(self):
+        super().__init__("La tabla de especies que se está usando es de solo lectura: no se pueden agregar especies.")
+
+
 class PlantaNoEncontrada(ErrorDominio):
     """Tambien cuando la planta existe pero es de otro usuario: no se confirma que exista."""
 

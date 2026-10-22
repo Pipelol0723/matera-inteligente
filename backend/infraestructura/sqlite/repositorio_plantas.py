@@ -1,11 +1,13 @@
 """Plantas y sensores en SQLite.
 
-Toda consulta de plantas filtra por usuario_id, salvo vinculada_a(), que solo
-se usa despues de verificar la clave del sensor y exige que el sensor sea el mismo.
+Las consultas no deciden quien puede ver una planta: eso lo decide
+Planta.exigir_dueno, en el dominio. Las escrituras si exigen que la fila siga
+siendo la planta que se leyo (el mismo id y el mismo dueno), porque SQLite
+reutiliza el id mas alto despues de borrarlo: sin eso, una planta borrada por
+otra pestana podria confundirse con la planta nueva de otro usuario.
 
-SQLite no dice que restriccion fallo en un error de llave foranea, y reutiliza
-el id mas alto despues de borrarlo. Por eso las escrituras que dependen de otra
-fila la revisan dentro de la misma operacion.
+SQLite tampoco dice que restriccion fallo en un error de llave foranea. Por eso
+las escrituras que dependen de otra fila la revisan dentro de la misma operacion.
 """
 import sqlite3
 from dataclasses import replace
@@ -13,19 +15,21 @@ from dataclasses import replace
 from dominio.errores import EspecieNoSoportada
 from dominio.errores_usuarios import ApodoRepetido, PlantaNoEncontrada, SensorYaVinculado, SesionInvalida
 from dominio.plantas import Planta
-from dominio.puertos_usuarios import RepositorioPlantas, RepositorioSensores
+from dominio.puertos_usuarios import ConsultaPlantas, RegistroPlantas, SensoresVinculados
 from dominio.sensores import CodigoSensor, Sensor
 from infraestructura.sqlite.base_datos import BaseDatos
 
 _COLUMNAS_PLANTA = "p.id, p.usuario_id, p.apodo, p.especie"
 _INSERTAR_SENSOR = "INSERT INTO sensor (codigo, planta_id, hash_clave) VALUES (?, ?, ?)"
+# La misma planta que se leyo: mismo id y mismo dueno.
+_LA_MISMA_PLANTA = "SELECT id FROM planta WHERE id = ? AND usuario_id = ?"
 
 
 def _planta(fila: sqlite3.Row) -> Planta:
     return Planta(fila["id"], fila["usuario_id"], fila["apodo"], fila["especie"])
 
 
-class RepositorioPlantasSqlite(RepositorioPlantas):
+class RepositorioPlantasSqlite(ConsultaPlantas, RegistroPlantas):
     def __init__(self, bd: BaseDatos):
         self._bd = bd
 
@@ -65,30 +69,18 @@ class RepositorioPlantasSqlite(RepositorioPlantas):
             ).fetchall()
         return [_planta(fila) for fila in filas]
 
-    def por_id(self, usuario_id: int, planta_id: int) -> Planta | None:
+    def por_id(self, planta_id: int) -> Planta | None:
         with self._bd.conexion() as conexion:
-            fila = conexion.execute(
-                f"SELECT {_COLUMNAS_PLANTA} FROM planta p WHERE p.id = ? AND p.usuario_id = ?", (planta_id, usuario_id)
-            ).fetchone()
+            fila = conexion.execute(f"SELECT {_COLUMNAS_PLANTA} FROM planta p WHERE p.id = ?", (planta_id,)).fetchone()
         return _planta(fila) if fila else None
 
-    def vinculada_a(self, sensor: Sensor) -> Planta | None:
-        # Codigo, planta y huella: si entre tanto se cambio el sensor, la fila ya no coincide.
-        with self._bd.conexion() as conexion:
-            fila = conexion.execute(
-                f"SELECT {_COLUMNAS_PLANTA} FROM planta p JOIN sensor s ON s.planta_id = p.id"
-                " WHERE s.codigo = ? AND s.planta_id = ? AND s.hash_clave = ?",
-                (sensor.codigo.valor, sensor.planta_id, sensor.hash_clave),
-            ).fetchone()
-        return _planta(fila) if fila else None
-
-    def eliminar(self, usuario_id: int, planta_id: int) -> None:
+    def eliminar(self, planta: Planta) -> None:
         # El sensor y el historial de la planta se borran en cascada.
         with self._bd.conexion() as conexion:
-            conexion.execute("DELETE FROM planta WHERE id = ? AND usuario_id = ?", (planta_id, usuario_id))
+            conexion.execute("DELETE FROM planta WHERE id = ? AND usuario_id = ?", (planta.id, planta.usuario_id))
 
 
-class RepositorioSensoresSqlite(RepositorioSensores):
+class RepositorioSensoresSqlite(SensoresVinculados):
     def __init__(self, bd: BaseDatos):
         self._bd = bd
 
@@ -98,24 +90,35 @@ class RepositorioSensoresSqlite(RepositorioSensores):
     def de_planta(self, planta_id: int) -> Sensor | None:
         return self._uno("SELECT codigo, planta_id, hash_clave FROM sensor WHERE planta_id = ?", (planta_id,))
 
-    def reemplazar(self, usuario_id: int, sensor: Sensor) -> None:
+    def reemplazar(self, planta: Planta, sensor: Sensor) -> None:
         # Una sola transaccion: si el codigo nuevo es de otra planta, esta conserva su sensor. Las dos
-        # sentencias exigen que la planta siga siendo del usuario: otra pestana pudo borrarla, y su id
+        # sentencias exigen que la planta siga siendo la que se leyo: otra pestana pudo borrarla, y su id
         # pudo pasar a la planta nueva de otro usuario.
-        propia = "SELECT id FROM planta WHERE id = ? AND usuario_id = ?"
         try:
             with self._bd.conexion() as conexion:
-                conexion.execute(f"DELETE FROM sensor WHERE planta_id IN ({propia})", (sensor.planta_id, usuario_id))
+                conexion.execute(
+                    f"DELETE FROM sensor WHERE planta_id IN ({_LA_MISMA_PLANTA})", (planta.id, planta.usuario_id)
+                )
                 insertado = conexion.execute(
-                    f"INSERT INTO sensor (codigo, planta_id, hash_clave) SELECT ?, id, ? FROM ({propia})",
-                    (sensor.codigo.valor, sensor.hash_clave, sensor.planta_id, usuario_id),
+                    f"INSERT INTO sensor (codigo, planta_id, hash_clave) SELECT ?, id, ? FROM ({_LA_MISMA_PLANTA})",
+                    (sensor.codigo.valor, sensor.hash_clave, planta.id, planta.usuario_id),
                 )
                 if insertado.rowcount == 0:
-                    raise PlantaNoEncontrada(sensor.planta_id)  # deshace el DELETE
+                    raise PlantaNoEncontrada(planta.id)  # deshace el DELETE
         except sqlite3.IntegrityError as error:
             if "sensor.codigo" in str(error):
                 raise SensorYaVinculado(sensor.codigo.valor) from None
             raise
+
+    def planta_de(self, sensor: Sensor) -> Planta | None:
+        # Codigo, planta y huella: si entre tanto se cambio el sensor, la fila ya no coincide.
+        with self._bd.conexion() as conexion:
+            fila = conexion.execute(
+                f"SELECT {_COLUMNAS_PLANTA} FROM planta p JOIN sensor s ON s.planta_id = p.id"
+                " WHERE s.codigo = ? AND s.planta_id = ? AND s.hash_clave = ?",
+                (sensor.codigo.valor, sensor.planta_id, sensor.hash_clave),
+            ).fetchone()
+        return _planta(fila) if fila else None
 
     def _uno(self, consulta: str, parametros: tuple) -> Sensor | None:
         with self._bd.conexion() as conexion:
