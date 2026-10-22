@@ -22,6 +22,8 @@ _TABLA: dict[type[ErrorDominio], tuple[int, str]] = {
     e.SesionInvalida: (401, "SESION_INVALIDA"),
     e.ClaveSensorInvalida: (401, "CLAVE_SENSOR_INVALIDA"),
     e.CuentaDesactivada: (403, "CUENTA_DESACTIVADA"),
+    # Un token valido pero de otro alcance (el de un sensor en una ruta de usuario): 403, no 401.
+    e.AlcanceInvalido: (403, "ALCANCE_INVALIDO"),
     e.PermisoDenegado: (403, "PERMISO_DENEGADO"),
     # Una planta ajena tambien da 404: un 403 confirmaria que existe.
     e.PlantaNoEncontrada: (404, "PLANTA_NO_ENCONTRADA"),

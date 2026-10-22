@@ -30,8 +30,10 @@ CREATE TABLE IF NOT EXISTS usuario (
     creado_en       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
+-- Una sesion abierta por cada JWT de usuario. Se guarda su id (el reclamo jti), no el token:
+-- cerrar la sesion borra la fila, y el token deja de servir aunque no haya vencido.
 CREATE TABLE IF NOT EXISTS sesion (
-    hash_token TEXT PRIMARY KEY,                -- SHA-256 del token: el token no se guarda
+    token_id   TEXT PRIMARY KEY,
     usuario_id INTEGER NOT NULL REFERENCES usuario (id) ON DELETE CASCADE,
     creada_en  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     vence_en   TEXT NOT NULL

@@ -26,6 +26,13 @@ class Configuracion:
     # Por defecto la API solo responde en este PC. Para que un ESP32 del mismo WiFi la alcance,
     # MATERA_HOST=0.0.0.0 la abre a la red (y hay que permitir el puerto en el firewall).
     host: str = "127.0.0.1"
+    # Con que se firman los JWT. Si falta, se usa el del archivo ruta_secreto_jwt (y se crea si no existe).
+    secreto_jwt: str | None = None
+
+    @property
+    def ruta_secreto_jwt(self) -> Path:
+        """Junto a la base: matera.sqlite -> matera.sqlite.secreto-jwt. Git lo ignora."""
+        return self.ruta_bd.with_name(self.ruta_bd.name + ".secreto-jwt")
 
     @classmethod
     def desde_entorno(cls) -> "Configuracion":
@@ -36,4 +43,5 @@ class Configuracion:
             origenes_cors=tuple(origen.strip() for origen in origenes.split(",") if origen.strip()),
             duracion_sesion=timedelta(days=float(os.environ.get("MATERA_DIAS_SESION", "7"))),
             host=os.environ.get("MATERA_HOST", "127.0.0.1").strip(),
+            secreto_jwt=os.environ.get("MATERA_JWT_SECRETO", "").strip() or None,
         )

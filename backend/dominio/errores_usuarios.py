@@ -49,10 +49,18 @@ class CuentaDesactivada(ErrorDominio):
 
 
 class SesionInvalida(ErrorDominio):
-    """El token no existe, ya vencio o es de una cuenta desactivada."""
+    """Falta el token, su firma no es valida, ya vencio, se cerro la sesion o la cuenta esta desactivada."""
 
     def __init__(self):
         super().__init__("La sesión no es válida o ya venció. Inicie sesión de nuevo.")
+
+
+class AlcanceInvalido(ErrorDominio):
+    """El token es valido, pero es para otra cosa: por ejemplo, el de un sensor en una ruta de usuario."""
+
+    def __init__(self, esperado: str):
+        super().__init__(f"Este token no sirve aquí: se necesita uno de {esperado}.")
+        self.esperado = esperado
 
 
 class PermisoDenegado(ErrorDominio):

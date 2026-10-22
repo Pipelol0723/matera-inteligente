@@ -17,14 +17,17 @@ from dominio.errores_usuarios import (
     EspecieYaExiste,
     PlantaNoEncontrada,
     SensorYaVinculado,
+    SesionInvalida,
 )
 from dominio.especie import Especie
 from dominio.historial import RegistroMedicion
+from dominio.identidad import IdentidadUsuario
 from dominio.plantas import Planta
 from dominio.puertos_usuarios import (
     Cifrador,
     ConsultaCuentas,
     ConsultaPlantas,
+    EmisorTokens,
     GeneradorSecretos,
     HistorialMediciones,
     ListadoCuentas,
@@ -35,6 +38,7 @@ from dominio.puertos_usuarios import (
     Reloj,
     SensoresVinculados,
     SesionesAbiertas,
+    VerificadorTokens,
 )
 from dominio.sensores import CodigoSensor, Sensor
 from dominio.usuarios import Correo, ResumenUsuario, Sesion, Usuario
@@ -160,13 +164,13 @@ class RepositorioSesionesEnMemoria(SesionesAbiertas):
         self.sesiones: dict[str, Sesion] = {}
 
     def abrir(self, sesion: Sesion) -> None:
-        self.sesiones[sesion.hash_token] = sesion
+        self.sesiones[sesion.token_id] = sesion
 
-    def abierta(self, huella: str) -> Sesion | None:
-        return self.sesiones.get(huella)
+    def abierta(self, token_id: str) -> Sesion | None:
+        return self.sesiones.get(token_id)
 
-    def cerrar(self, huella: str) -> None:
-        self.sesiones.pop(huella, None)
+    def cerrar(self, token_id: str) -> None:
+        self.sesiones.pop(token_id, None)
 
     def cerrar_de_usuario(self, usuario_id: int) -> None:
         self.sesiones = {h: s for h, s in self.sesiones.items() if s.usuario_id != usuario_id}
@@ -237,6 +241,25 @@ class GeneradorSecretosFalso(GeneradorSecretos):
 
     def coincide(self, secreto: str, huella: str) -> bool:
         return self.huella(secreto) == huella
+
+
+class TokensFalsos(EmisorTokens, VerificadorTokens):
+    """Tokens legibles a proposito, sin firma: token(usuario 1, secreto-1).
+
+    Sirven para probar los casos de uso, que nunca ven un JWT. La firma, el
+    vencimiento y el alcance de los tokens de verdad los prueban las pruebas de
+    infraestructura.tokens_jwt.
+    """
+
+    def emitir(self, identidad: IdentidadUsuario, vence_en: datetime) -> str:
+        return f"token(usuario {identidad.usuario_id}, {identidad.token_id})"
+
+    def verificar_usuario(self, token: str) -> IdentidadUsuario:
+        prefijo, _, resto = token.partition("token(usuario ")
+        usuario_id, _, token_id = resto.removesuffix(")").partition(", ")
+        if prefijo or not usuario_id.isdigit() or not token_id:
+            raise SesionInvalida()
+        return IdentidadUsuario(int(usuario_id), token_id)
 
 
 class RelojFijo(Reloj):

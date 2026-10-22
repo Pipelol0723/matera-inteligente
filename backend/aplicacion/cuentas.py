@@ -1,8 +1,9 @@
-"""Casos de uso de la cuenta: registrarse, iniciar y cerrar sesion, e identificar por token.
+"""Casos de uso de la cuenta: registrarse, iniciar y cerrar sesion, e identificar a quien pide algo.
 
 Reciben textos ya sacados del borde (nunca un request) y trabajan solo con
-puertos: no saben si la contrasena se cifra con PBKDF2 ni si la sesion se
-guarda en SQLite.
+puertos: no saben si la contrasena se cifra con PBKDF2, si el token es un JWT
+ni si la sesion se guarda en SQLite. Fuera del inicio de sesion, que lo emite,
+ninguno ve el token: reciben la identidad que el adaptador ya verifico.
 """
 from datetime import timedelta
 
@@ -14,10 +15,12 @@ from dominio.errores_usuarios import (
     CuentaDesactivada,
     SesionInvalida,
 )
+from dominio.identidad import IdentidadUsuario
 from dominio.puertos_usuarios import (
     Cifrador,
     ConsultaCuentas,
     ConsultaPlantas,
+    EmisorTokens,
     GeneradorSecretos,
     RegistroCuentas,
     Reloj,
@@ -44,12 +47,15 @@ class RegistrarUsuario(entrada.RegistrarUsuario):
 
 
 class IniciarSesion(entrada.IniciarSesion):
+    """Aqui se emite el token de usuario: lo firma el puerto EmisorTokens con un id nuevo, y la sesion guarda ese id."""
+
     def __init__(
         self,
         cuentas: ConsultaCuentas,
         sesiones: SesionesAbiertas,
         cifrador: Cifrador,
         secretos: GeneradorSecretos,
+        emisor: EmisorTokens,
         reloj: Reloj,
         duracion: timedelta,
     ):
@@ -57,6 +63,7 @@ class IniciarSesion(entrada.IniciarSesion):
         self._sesiones = sesiones
         self._cifrador = cifrador
         self._secretos = secretos
+        self._emisor = emisor
         self._reloj = reloj
         self._duracion = duracion
 
@@ -74,43 +81,40 @@ class IniciarSesion(entrada.IniciarSesion):
         if not usuario.activo:
             raise CuentaDesactivada()
 
-        token = self._secretos.nuevo()
-        sesion = Sesion.abrir(self._secretos.huella(token), usuario.id, self._reloj.ahora(), self._duracion)
+        sesion = Sesion.abrir(self._secretos.nuevo(), usuario.id, self._reloj.ahora(), self._duracion)
         self._sesiones.abrir(sesion)
+        token = self._emisor.emitir(IdentidadUsuario(usuario.id, sesion.token_id), sesion.vence_en)
         return SesionIniciada(token, sesion.vence_en, usuario)
 
 
 class CerrarSesion(entrada.CerrarSesion):
-    def __init__(self, sesiones: SesionesAbiertas, secretos: GeneradorSecretos):
-        self._sesiones = sesiones
-        self._secretos = secretos
+    """El token ya firmado no se puede borrar, pero sin su sesion deja de servir."""
 
-    def ejecutar(self, token: str) -> None:
-        self._sesiones.cerrar(self._secretos.huella(token))
+    def __init__(self, sesiones: SesionesAbiertas):
+        self._sesiones = sesiones
+
+    def ejecutar(self, identidad: IdentidadUsuario) -> None:
+        self._sesiones.cerrar(identidad.token_id)
 
 
 class IdentificarUsuario(entrada.IdentificarUsuario):
-    """De un token a un Usuario. Aqui se rechaza una sesion vencida o de una cuenta desactivada."""
+    """De la identidad verificada a un Usuario.
 
-    def __init__(
-        self,
-        sesiones: SesionesAbiertas,
-        cuentas: ConsultaCuentas,
-        secretos: GeneradorSecretos,
-        reloj: Reloj,
-    ):
+    El adaptador ya reviso la firma y el vencimiento del token. Aqui se rechaza una
+    sesion cerrada, vencida o de una cuenta desactivada o borrada.
+    """
+
+    def __init__(self, sesiones: SesionesAbiertas, cuentas: ConsultaCuentas, reloj: Reloj):
         self._sesiones = sesiones
         self._cuentas = cuentas
-        self._secretos = secretos
         self._reloj = reloj
 
-    def ejecutar(self, token: str) -> Usuario:
-        huella = self._secretos.huella(token)
-        sesion = self._sesiones.abierta(huella)
-        if sesion is None:
+    def ejecutar(self, identidad: IdentidadUsuario) -> Usuario:
+        sesion = self._sesiones.abierta(identidad.token_id)
+        if sesion is None or sesion.usuario_id != identidad.usuario_id:
             raise SesionInvalida()
         if not sesion.vigente(self._reloj.ahora()):
-            self._sesiones.cerrar(huella)
+            self._sesiones.cerrar(identidad.token_id)
             raise SesionInvalida()
         usuario = self._cuentas.por_id(sesion.usuario_id)
         if usuario is None or not usuario.activo:

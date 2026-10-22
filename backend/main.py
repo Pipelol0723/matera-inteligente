@@ -39,6 +39,7 @@ from infraestructura.sqlite import (
     RepositorioUsuariosSqlite,
 )
 from infraestructura.tiempo_real import CanalesTiempoReal, NotificadorWebSocket
+from infraestructura.tokens_jwt import TokensJwt, secreto_guardado
 from presentacion import esquemas_usuarios
 from presentacion.autenticacion import Autenticacion
 from presentacion.rutas import crear_blueprint
@@ -74,13 +75,15 @@ def construir_app(config: Configuracion) -> Flask:
     cifrador = CifradorPbkdf2(config.iteraciones_contrasena)
     secretos = GeneradorSecretosSeguro()
     reloj = RelojSistema()
-    identificar = IdentificarUsuario(sesiones, usuarios, secretos, reloj)
-    autenticacion = Autenticacion(identificar)
+    # Los JWT: los emite IniciarSesion y los verifican el decorador de las rutas y el WebSocket.
+    tokens = TokensJwt(config.secreto_jwt or secreto_guardado(config.ruta_secreto_jwt), reloj)
+    identificar = IdentificarUsuario(sesiones, usuarios, reloj)
+    autenticacion = Autenticacion(tokens, identificar)
 
     cuentas = crear_blueprint_usuarios(
         registrar=RegistrarUsuario(usuarios, usuarios, cifrador),
-        iniciar=IniciarSesion(usuarios, sesiones, cifrador, secretos, reloj, config.duracion_sesion),
-        cerrar=CerrarSesion(sesiones, secretos),
+        iniciar=IniciarSesion(usuarios, sesiones, cifrador, secretos, tokens, reloj, config.duracion_sesion),
+        cerrar=CerrarSesion(sesiones),
         consultar=ConsultarCuenta(plantas),
         autenticacion=autenticacion,
     )
@@ -109,7 +112,7 @@ def construir_app(config: Configuracion) -> Flask:
     )
     entrada_sensor = crear_blueprint_sensores(RecibirMedicionDeSensor(sensores, secretos, diagnosticar_planta))
     # El WebSocket del front registra sus conexiones en los mismos canales que usa el notificador.
-    en_vivo = crear_blueprint_tiempo_real(identificar, canales, config.origenes_cors)
+    en_vivo = crear_blueprint_tiempo_real(tokens, identificar, canales, config.origenes_cors)
 
     return crear_app([api, cuentas, administracion, mis_plantas, entrada_sensor, en_vivo], config)
 

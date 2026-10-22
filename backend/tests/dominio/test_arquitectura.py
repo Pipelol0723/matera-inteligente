@@ -9,8 +9,9 @@ PROHIBIDOS_EN_DOMINIO = {
     "flask", "flask_cors", "flask_sock", "simple_websocket", "werkzeug", "http", "urllib", "requests", "json",
     # persistencia
     "csv", "pandas", "sqlite3", "sqlalchemy", "psycopg2",
-    # criptografia: el dominio la pide por los puertos Cifrador y GeneradorSecretos
-    "hashlib", "secrets", "hmac",
+    # criptografia y tokens: el dominio los pide por los puertos Cifrador, GeneradorSecretos,
+    # EmisorTokens y VerificadorTokens
+    "hashlib", "secrets", "hmac", "jwt",
     # otras capas
     "aplicacion", "presentacion", "infraestructura",
 }
@@ -65,6 +66,15 @@ def test_los_adaptadores_de_entrada_conocen_los_puertos_y_no_los_casos_de_uso():
     assert _violaciones(archivos, {"aplicacion"}) == {}
 
 
+def test_solo_el_adaptador_de_tokens_importa_la_libreria_jwt():
+    """Ni el dominio, ni los casos de uso, ni el decorador de las rutas conocen JWT: lo piden por los puertos."""
+    archivos = [archivo for archivo in sorted(BACKEND.rglob("*.py")) if "tests" not in archivo.relative_to(BACKEND).parts]
+
+    con_jwt = sorted(archivo.relative_to(BACKEND).as_posix() for archivo in archivos if "jwt" in _modulos_importados(archivo))
+
+    assert con_jwt == ["infraestructura/tokens_jwt.py"]
+
+
 def test_las_pruebas_de_dominio_y_aplicacion_no_dependen_de_infraestructura_ni_de_flask():
     """Si se borra la carpeta infraestructura, estas pruebas tienen que seguir pasando."""
     archivos = (
@@ -73,4 +83,4 @@ def test_las_pruebas_de_dominio_y_aplicacion_no_dependen_de_infraestructura_ni_d
         + [BACKEND / "tests" / "dobles.py", BACKEND / "tests" / "dobles_usuarios.py"]
     )
 
-    assert _violaciones(archivos, {"flask", "flask_sock", "infraestructura", "presentacion", "main"}) == {}
+    assert _violaciones(archivos, {"flask", "flask_sock", "jwt", "infraestructura", "presentacion", "main"}) == {}

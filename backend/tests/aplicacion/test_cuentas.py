@@ -11,6 +11,7 @@ from dominio.errores_usuarios import (
     CuentaDesactivada,
     SesionInvalida,
 )
+from dominio.identidad import IdentidadUsuario
 from dominio.plantas import Planta
 from dominio.usuarios import Rol
 from tests.dobles_usuarios import (
@@ -20,6 +21,7 @@ from tests.dobles_usuarios import (
     RepositorioPlantasEnMemoria,
     RepositorioSesionesEnMemoria,
     RepositorioUsuariosEnMemoria,
+    TokensFalsos,
     codigo,
 )
 
@@ -35,12 +37,18 @@ class Cuentas:
         self.usuarios = RepositorioUsuariosEnMemoria(self.plantas)
         self.sesiones = RepositorioSesionesEnMemoria()
         self.reloj = RelojFijo(AHORA)
-        secretos = GeneradorSecretosFalso()
+        self.tokens = TokensFalsos()
         self.registrar = RegistrarUsuario(self.usuarios, self.usuarios, CifradorFalso())
-        self.iniciar = IniciarSesion(self.usuarios, self.sesiones, CifradorFalso(), secretos, self.reloj, SIETE_DIAS)
-        self.cerrar = CerrarSesion(self.sesiones, secretos)
-        self.identificar = IdentificarUsuario(self.sesiones, self.usuarios, secretos, self.reloj)
+        self.iniciar = IniciarSesion(
+            self.usuarios, self.sesiones, CifradorFalso(), GeneradorSecretosFalso(), self.tokens, self.reloj, SIETE_DIAS
+        )
+        self.cerrar = CerrarSesion(self.sesiones)
+        self.identificar = IdentificarUsuario(self.sesiones, self.usuarios, self.reloj)
         self.consultar = ConsultarCuenta(self.plantas)
+
+    def entrar(self) -> IdentidadUsuario:
+        """Inicia sesion como Ana y devuelve la identidad que el adaptador sacaria de su token."""
+        return self.tokens.verificar_usuario(self.iniciar.ejecutar("ana@correo.co", "clave-segura").token)
 
 
 @pytest.fixture
@@ -73,12 +81,13 @@ def test_una_contrasena_debil_no_crea_la_cuenta():
     assert cuentas.usuarios.resumenes() == []
 
 
-def test_iniciar_sesion_entrega_el_token_y_guarda_solo_su_huella(cuentas):
+def test_iniciar_sesion_emite_el_token_con_un_id_nuevo_y_la_sesion_guarda_solo_ese_id(cuentas):
     iniciada = cuentas.iniciar.ejecutar("ana@correo.co", "clave-segura")
 
-    assert iniciada.token == "secreto-1"
+    assert iniciada.token == "token(usuario 1, secreto-1)"
     assert iniciada.vence_en == AHORA + SIETE_DIAS
-    assert list(cuentas.sesiones.sesiones) == ["huella(secreto-1)"]
+    assert list(cuentas.sesiones.sesiones) == ["secreto-1"]
+    assert cuentas.sesiones.sesiones["secreto-1"].usuario_id == 1
 
 
 @pytest.mark.parametrize(
@@ -98,41 +107,47 @@ def test_una_cuenta_desactivada_no_inicia_sesion(cuentas):
         cuentas.iniciar.ejecutar("ana@correo.co", "clave-segura")
 
 
-def test_identificar_devuelve_el_usuario_del_token(cuentas):
-    token = cuentas.iniciar.ejecutar("ana@correo.co", "clave-segura").token
-
-    assert cuentas.identificar.ejecutar(token).nombre == "Ana"
+def test_identificar_recibe_la_identidad_y_devuelve_su_usuario(cuentas):
+    assert cuentas.identificar.ejecutar(cuentas.entrar()).nombre == "Ana"
 
 
-def test_un_token_vencido_no_sirve_y_su_sesion_se_borra(cuentas):
-    token = cuentas.iniciar.ejecutar("ana@correo.co", "clave-segura").token
+def test_una_sesion_vencida_no_sirve_y_se_borra(cuentas):
+    identidad = cuentas.entrar()
     cuentas.reloj.avanzar(SIETE_DIAS)
 
     with pytest.raises(SesionInvalida):
-        cuentas.identificar.ejecutar(token)
+        cuentas.identificar.ejecutar(identidad)
     assert cuentas.sesiones.sesiones == {}
 
 
-def test_un_token_que_nunca_existio_no_sirve(cuentas):
+def test_un_token_sin_sesion_abierta_no_sirve_aunque_su_firma_sea_valida(cuentas):
     with pytest.raises(SesionInvalida):
-        cuentas.identificar.ejecutar("inventado")
+        cuentas.identificar.ejecutar(IdentidadUsuario(1, "nunca-se-abrio"))
 
 
-def test_cerrar_sesion_invalida_el_token(cuentas):
-    token = cuentas.iniciar.ejecutar("ana@correo.co", "clave-segura").token
-
-    cuentas.cerrar.ejecutar(token)
+def test_el_id_de_la_sesion_de_ana_no_sirve_para_otro_usuario(cuentas):
+    identidad = cuentas.entrar()
+    beto = cuentas.registrar.ejecutar("Beto", "beto@correo.co", "clave-segura")
 
     with pytest.raises(SesionInvalida):
-        cuentas.identificar.ejecutar(token)
+        cuentas.identificar.ejecutar(IdentidadUsuario(beto.id, identidad.token_id))
+
+
+def test_cerrar_sesion_hace_que_el_token_deje_de_servir_aunque_no_haya_vencido(cuentas):
+    identidad = cuentas.entrar()
+
+    cuentas.cerrar.ejecutar(identidad)
+
+    with pytest.raises(SesionInvalida):
+        cuentas.identificar.ejecutar(identidad)
 
 
 def test_el_token_de_una_cuenta_desactivada_deja_de_servir_aunque_no_haya_vencido(cuentas):
-    token = cuentas.iniciar.ejecutar("ana@correo.co", "clave-segura").token
+    identidad = cuentas.entrar()
     cuentas.usuarios.guardar(cuentas.usuarios.por_id(1).con_estado(False))
 
     with pytest.raises(SesionInvalida):
-        cuentas.identificar.ejecutar(token)
+        cuentas.identificar.ejecutar(identidad)
 
 
 def test_mi_cuenta_cuenta_solo_las_plantas_propias(cuentas):

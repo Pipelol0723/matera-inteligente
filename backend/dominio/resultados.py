@@ -25,7 +25,7 @@ class SolicitudDiagnostico:
 
 @dataclass(frozen=True)
 class SesionIniciada:
-    """El token solo sale de aqui; la base guarda su huella."""
+    """El token firmado solo sale de aqui; la base guarda solo su id, para poder cerrar la sesion."""
 
     token: str
     vence_en: datetime

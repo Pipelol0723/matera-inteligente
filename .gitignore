@@ -16,6 +16,9 @@ firmware/**/config.h
 # Base de datos de desarrollo (en una carpeta sincronizada, mejor apuntarla afuera con MATERA_RUTA_BD)
 backend/datos/*.sqlite
 backend/datos/*.sqlite-journal
+# El secreto con que se firman los JWT, junto a la base, y la copia que se saca antes de migrarla
+backend/datos/*.secreto-jwt
+backend/datos/*.respaldo-v*.sqlite
 
 # Archivos que Windows y Google Drive crean en cada carpeta
 desktop.ini

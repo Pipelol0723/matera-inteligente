@@ -45,6 +45,7 @@ from tests.dobles_usuarios import (
     RepositorioSensoresEnMemoria,
     RepositorioSesionesEnMemoria,
     RepositorioUsuariosEnMemoria,
+    TokensFalsos,
     codigo,
 )
 
@@ -69,8 +70,11 @@ class Sistema:
         secretos, reloj = GeneradorSecretosFalso(), RelojFijo(AHORA)
 
         registrar = RegistrarUsuario(self.usuarios, self.usuarios, CifradorFalso())
-        self.iniciar = IniciarSesion(self.usuarios, self.sesiones, CifradorFalso(), secretos, reloj, timedelta(days=7))
-        self.identificar = IdentificarUsuario(self.sesiones, self.usuarios, secretos, reloj)
+        self.tokens = TokensFalsos()
+        self.iniciar = IniciarSesion(
+            self.usuarios, self.sesiones, CifradorFalso(), secretos, self.tokens, reloj, timedelta(days=7)
+        )
+        self.identificar = IdentificarUsuario(self.sesiones, self.usuarios, reloj)
         self.convertir = ConvertirEnAdministrador(self.usuarios, self.usuarios)
         self.listar = ListarUsuarios(self.usuarios)
         self.cambiar_estado = CambiarEstadoUsuario(self.usuarios, self.usuarios, self.sesiones)
@@ -132,13 +136,13 @@ def test_el_admin_ve_cuantas_plantas_tiene_cada_usuario(sistema):
 
 
 def test_desactivar_cierra_las_sesiones_y_bloquea_el_login(sistema):
-    token = sistema.iniciar.ejecutar("beto@correo.co", "clave-segura").token
+    identidad = sistema.tokens.verificar_usuario(sistema.iniciar.ejecutar("beto@correo.co", "clave-segura").token)
 
     sistema.cambiar_estado.ejecutar(sistema.ada, sistema.beto.id, False)
 
     assert sistema.sesiones.sesiones == {}
     with pytest.raises(SesionInvalida):
-        sistema.identificar.ejecutar(token)
+        sistema.identificar.ejecutar(identidad)
     with pytest.raises(CuentaDesactivada):
         sistema.iniciar.ejecutar("beto@correo.co", "clave-segura")
 

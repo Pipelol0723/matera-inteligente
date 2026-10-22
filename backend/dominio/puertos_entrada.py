@@ -12,6 +12,7 @@ from abc import ABC, abstractmethod
 
 from dominio.diagnostico import Diagnostico
 from dominio.especie import Especie
+from dominio.identidad import IdentidadUsuario
 from dominio.medicion import Medicion
 from dominio.parametros import Parametro
 from dominio.resultados import (
@@ -64,14 +65,17 @@ class IniciarSesion(ABC):
 
 class CerrarSesion(ABC):
     @abstractmethod
-    def ejecutar(self, token: str) -> None: ...
+    def ejecutar(self, identidad: IdentidadUsuario) -> None: ...
 
 
 class IdentificarUsuario(ABC):
-    """De la sesion al Usuario. Lo usan los adaptadores que exigen sesion."""
+    """De la identidad ya verificada al Usuario. Lo usan los adaptadores que exigen sesion.
+
+    Recibe la identidad que saco el adaptador del token, nunca el token.
+    """
 
     @abstractmethod
-    def ejecutar(self, token: str) -> Usuario: ...
+    def ejecutar(self, identidad: IdentidadUsuario) -> Usuario: ...
 
 
 class ConsultarCuenta(ABC):

@@ -2,8 +2,9 @@
 
 El navegador no deja poner la cabecera Authorization en un WebSocket, y un
 token en la URL quedaria en registros e historiales. Por eso el token llega en
-el primer mensaje: {"tipo": "autenticar", "token": "..."}. Si no llega a
-tiempo o no sirve, el servidor responde un error y cierra.
+el primer mensaje: {"tipo": "autenticar", "token": "..."}. Aqui se verifica,
+como en el decorador de las rutas; si no llega a tiempo o no sirve, el servidor
+responde un error y cierra. Despues, cada revision usa la identidad, no el token.
 
 Despues de eso solo habla el servidor: {"tipo": "listo"} y luego un mensaje
 {"tipo": "medicion"} por cada medicion nueva de las plantas del usuario. Todo
@@ -28,7 +29,9 @@ from werkzeug.routing.exceptions import WebsocketMismatch
 from wsproto.utilities import RemoteProtocolError
 
 from dominio import puertos_entrada as entrada
-from dominio.errores_usuarios import SesionInvalida
+from dominio.errores_usuarios import AlcanceInvalido, SesionInvalida
+from dominio.identidad import IdentidadUsuario
+from dominio.puertos_usuarios import VerificadorTokens
 from presentacion.errores_http import respuesta_error
 
 _log = logging.getLogger(__name__)
@@ -188,7 +191,10 @@ class Suscripciones(Protocol):
 
 
 def crear_blueprint_tiempo_real(
-    identificar: entrada.IdentificarUsuario, suscripciones: Suscripciones, origenes: Iterable[str]
+    verificador: VerificadorTokens,
+    identificar: entrada.IdentificarUsuario,
+    suscripciones: Suscripciones,
+    origenes: Iterable[str],
 ) -> Blueprint:
     bp = Blueprint("api_v1_tiempo_real", __name__)
     permitidos = frozenset(origenes)
@@ -211,7 +217,7 @@ def crear_blueprint_tiempo_real(
     def tiempo_real(ws):
         canal = CanalWebSocket(ws)
         try:
-            _atender(canal, identificar, suscripciones)
+            _atender(canal, verificador, identificar, suscripciones)
         except ConnectionClosed:
             raise  # el cliente cerro: flask-sock termina la conexion
         except Exception:
@@ -243,21 +249,30 @@ def crear_blueprint_tiempo_real(
     return bp
 
 
-def _atender(canal: CanalWebSocket, identificar: entrada.IdentificarUsuario, suscripciones: Suscripciones) -> None:
+def _atender(
+    canal: CanalWebSocket,
+    verificador: VerificadorTokens,
+    identificar: entrada.IdentificarUsuario,
+    suscripciones: Suscripciones,
+) -> None:
     token = _token_del_primer_mensaje(canal)
     if token is None:
         return
     try:
-        usuario = identificar.ejecutar(token)
+        identidad = verificador.verificar_usuario(token)
+        usuario = identificar.ejecutar(identidad)
     except SesionInvalida as error:
         canal.cerrar_con_error("SESION_INVALIDA", str(error))
         return
+    except AlcanceInvalido as error:
+        canal.cerrar_con_error("ALCANCE_INVALIDO", str(error))
+        return
 
-    canal.autenticado(lambda: identificar.ejecutar(token))
+    canal.autenticado(lambda: identificar.ejecutar(identidad))
     # Primero se registra y despues se dice "listo": desde ese mensaje no se pierde ninguna medicion.
     with suscripciones.conectado(usuario.id, canal):
         canal.enviar_json({"tipo": "listo", "usuario": {"id": usuario.id, "nombre": usuario.nombre}})
-        _esperar_hasta_que_cierre(canal, identificar, token)
+        _esperar_hasta_que_cierre(canal, identificar, identidad)
 
 
 def _token_del_primer_mensaje(canal: CanalWebSocket) -> str | None:
@@ -282,7 +297,9 @@ def _token_del_primer_mensaje(canal: CanalWebSocket) -> str | None:
     return token.strip()
 
 
-def _esperar_hasta_que_cierre(canal: CanalWebSocket, identificar: entrada.IdentificarUsuario, token: str) -> None:
+def _esperar_hasta_que_cierre(
+    canal: CanalWebSocket, identificar: entrada.IdentificarUsuario, identidad: IdentidadUsuario
+) -> None:
     """El front no manda nada mas: cualquier otro mensaje se ignora.
 
     Cada REVISION_SESION segundos se revisa la sesion, aunque el cliente mande
@@ -299,7 +316,7 @@ def _esperar_hasta_que_cierre(canal: CanalWebSocket, identificar: entrada.Identi
         if time.monotonic() - revisada < REVISION_SESION:
             continue
         try:
-            identificar.ejecutar(token)
+            identificar.ejecutar(identidad)
         except SesionInvalida as error:
             canal.cerrar_con_error("SESION_INVALIDA", str(error))
             return

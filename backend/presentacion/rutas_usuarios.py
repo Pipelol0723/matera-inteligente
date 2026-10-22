@@ -28,16 +28,16 @@ def crear_blueprint_usuarios(
         return jsonify(esquemas_usuarios.sesion_a_json(iniciar.ejecutar(correo, contrasena))), 201
 
     @bp.delete("/sesiones/actual")
-    def cerrar_sesion():
-        autenticacion.usuario_actual()  # 401 si el token ya no sirve
-        cerrar.ejecutar(autenticacion.token())
+    @autenticacion.con_identidad
+    def cerrar_sesion(identidad):
+        cerrar.ejecutar(identidad)
         # 200 con un mensaje, no 204 sin cuerpo: toda respuesta es JSON (RA1).
         return jsonify({"mensaje": "Sesión cerrada."})
 
     @bp.get("/usuarios/yo")
-    def mi_cuenta():
-        cuenta = consultar.ejecutar(autenticacion.usuario_actual())
-        return jsonify(esquemas_usuarios.cuenta_a_json(cuenta))
+    @autenticacion.con_usuario
+    def mi_cuenta(usuario):
+        return jsonify(esquemas_usuarios.cuenta_a_json(consultar.ejecutar(usuario)))
 
     registrar_manejadores_usuarios(bp)
     return bp

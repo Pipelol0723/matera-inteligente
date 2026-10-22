@@ -105,15 +105,15 @@ class ResumenUsuario:
 
 @dataclass(frozen=True)
 class Sesion:
-    """Sesion abierta. Se guarda la huella del token, nunca el token."""
+    """Sesion abierta. Se guarda el id del token que la abrio, nunca el token: con el id se puede cerrar antes de que venza."""
 
-    hash_token: str
+    token_id: str
     usuario_id: int
     vence_en: datetime
 
     @classmethod
-    def abrir(cls, hash_token: str, usuario_id: int, ahora: datetime, duracion: timedelta) -> "Sesion":
-        return cls(hash_token, usuario_id, ahora + duracion)
+    def abrir(cls, token_id: str, usuario_id: int, ahora: datetime, duracion: timedelta) -> "Sesion":
+        return cls(token_id, usuario_id, ahora + duracion)
 
     def vigente(self, ahora: datetime) -> bool:
         return ahora < self.vence_en

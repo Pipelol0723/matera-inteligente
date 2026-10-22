@@ -73,22 +73,22 @@ class RepositorioSesionesSqlite(SesionesAbiertas):
     def abrir(self, sesion: Sesion) -> None:
         with self._bd.conexion() as conexion:
             conexion.execute(
-                "INSERT INTO sesion (hash_token, usuario_id, vence_en) VALUES (?, ?, ?)",
-                (sesion.hash_token, sesion.usuario_id, sesion.vence_en.isoformat()),
+                "INSERT INTO sesion (token_id, usuario_id, vence_en) VALUES (?, ?, ?)",
+                (sesion.token_id, sesion.usuario_id, sesion.vence_en.isoformat()),
             )
 
-    def abierta(self, huella: str) -> Sesion | None:
+    def abierta(self, token_id: str) -> Sesion | None:
         with self._bd.conexion() as conexion:
             fila = conexion.execute(
-                "SELECT hash_token, usuario_id, vence_en FROM sesion WHERE hash_token = ?", (huella,)
+                "SELECT token_id, usuario_id, vence_en FROM sesion WHERE token_id = ?", (token_id,)
             ).fetchone()
         if fila is None:
             return None
-        return Sesion(fila["hash_token"], fila["usuario_id"], datetime.fromisoformat(fila["vence_en"]))
+        return Sesion(fila["token_id"], fila["usuario_id"], datetime.fromisoformat(fila["vence_en"]))
 
-    def cerrar(self, huella: str) -> None:
+    def cerrar(self, token_id: str) -> None:
         with self._bd.conexion() as conexion:
-            conexion.execute("DELETE FROM sesion WHERE hash_token = ?", (huella,))
+            conexion.execute("DELETE FROM sesion WHERE token_id = ?", (token_id,))
 
     def cerrar_de_usuario(self, usuario_id: int) -> None:
         with self._bd.conexion() as conexion:

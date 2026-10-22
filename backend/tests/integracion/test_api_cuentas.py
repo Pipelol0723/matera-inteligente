@@ -1,7 +1,13 @@
 """Cuentas y administracion de punta a punta: HTTP, casos de uso y SQLite."""
+import base64
+import json
+import sqlite3
+from datetime import datetime, timedelta, timezone
+
+import jwt
 import pytest
 
-from tests.integracion.conftest import ORIGEN_FRONT, es_error
+from tests.integracion.conftest import ORIGEN_FRONT, ClienteApi, es_error
 
 ESPECIE_NUEVA = {
     "nombre": "Cinta",
@@ -83,6 +89,47 @@ def test_cerrar_sesion_invalida_el_token(api):
 
     assert api.pedir("DELETE", "/sesiones/actual", token).status_code == 200
     assert es_error(api.pedir("GET", "/usuarios/yo", token), 401, "SESION_INVALIDA")
+
+
+def _reclamos(token: str) -> dict:
+    """Lo que trae un JWT, sin verificar la firma: cualquiera puede leerlo, por eso no lleva nada secreto."""
+    cuerpo = token.split(".")[1]
+    return json.loads(base64.urlsafe_b64decode(cuerpo + "=" * (-len(cuerpo) % 4)))
+
+
+def test_el_token_es_un_jwt_de_usuario_y_la_base_guarda_solo_su_id(api, config):
+    token = api.cuenta()
+
+    reclamos = _reclamos(token)
+    assert (reclamos["alcance"], reclamos["sub"]) == ("usuario", "1")
+    with sqlite3.connect(config.ruta_bd) as conexion:
+        assert conexion.execute("SELECT token_id, usuario_id FROM sesion").fetchall() == [(reclamos["jti"], 1)]
+
+
+def test_un_token_valido_de_otro_alcance_responde_403_en_una_ruta_de_usuario(api, config):
+    api.cuenta()
+    secreto = config.ruta_secreto_jwt.read_text(encoding="utf-8")
+    ahora = datetime.now(timezone.utc)
+    reclamos = {"iss": "matera-inteligente", "alcance": "lecturas", "jti": "x", "iat": ahora, "exp": ahora + timedelta(hours=1)}
+    del_sensor = jwt.encode({**reclamos, "sub": "MT-0001-AA"}, secreto, algorithm="HS256")
+
+    assert es_error(api.pedir("GET", "/usuarios/yo", del_sensor), 403, "ALCANCE_INVALIDO")
+
+
+def test_un_token_firmado_con_otro_secreto_responde_401(api):
+    token = api.cuenta()
+    reclamos = {**_reclamos(token), "iat": datetime.now(timezone.utc)}
+    falso = jwt.encode(reclamos, "un-secreto-que-el-servidor-no-conoce-xxxx", algorithm="HS256")
+
+    assert es_error(api.pedir("GET", "/usuarios/yo", falso), 401, "SESION_INVALIDA")
+
+
+def test_reiniciar_el_backend_no_cierra_las_sesiones(api, config):
+    token = api.cuenta()
+
+    otra_vez = ClienteApi(config)  # otra app, con la misma base y el mismo archivo de secreto
+
+    assert otra_vez.pedir("GET", "/usuarios/yo", token).status_code == 200
 
 
 @pytest.mark.parametrize(

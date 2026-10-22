@@ -12,6 +12,7 @@ from datetime import datetime
 from dominio.diagnostico import Diagnostico
 from dominio.especie import Especie
 from dominio.historial import RegistroMedicion
+from dominio.identidad import IdentidadUsuario
 from dominio.plantas import Planta
 from dominio.sensores import CodigoSensor, Sensor
 from dominio.usuarios import Correo, ResumenUsuario, Sesion, Usuario
@@ -63,15 +64,17 @@ class ListadoCuentas(ABC):
 
 
 class SesionesAbiertas(ABC):
+    """Las sesiones que siguen abiertas, por el id del token que las abrio."""
+
     @abstractmethod
     def abrir(self, sesion: Sesion) -> None: ...
 
     @abstractmethod
-    def abierta(self, huella: str) -> Sesion | None:
-        """La sesion con esa huella de token, o None si nunca se abrio o ya se cerro."""
+    def abierta(self, token_id: str) -> Sesion | None:
+        """La sesion de ese token, o None si nunca se abrio o ya se cerro."""
 
     @abstractmethod
-    def cerrar(self, huella: str) -> None: ...
+    def cerrar(self, token_id: str) -> None: ...
 
     @abstractmethod
     def cerrar_de_usuario(self, usuario_id: int) -> None:
@@ -161,6 +164,28 @@ class NotificadorDiagnosticos(ABC):
         """Se llama despues de guardar la medicion. Si el dueno no tiene la pantalla abierta, no hace nada."""
 
 
+# --- Tokens: los implementa la libreria JWT, en infraestructura ---
+
+
+class EmisorTokens(ABC):
+    """Firma el token de una identidad. El caso de uso lo pide; no sabe que es un JWT."""
+
+    @abstractmethod
+    def emitir(self, identidad: IdentidadUsuario, vence_en: datetime) -> str: ...
+
+
+class VerificadorTokens(ABC):
+    """Revisa la firma, el vencimiento y el alcance de un token, y dice de quien es.
+
+    Lo usan los adaptadores de entrada (el decorador de las rutas y el WebSocket):
+    el caso de uso recibe la identidad, nunca el token.
+    """
+
+    @abstractmethod
+    def verificar_usuario(self, token: str) -> IdentidadUsuario:
+        """Lanza SesionInvalida si el token no sirve y AlcanceInvalido si no es de un usuario."""
+
+
 # --- Criptografia y tiempo ---
 
 
@@ -175,7 +200,7 @@ class Cifrador(ABC):
 
 
 class GeneradorSecretos(ABC):
-    """Tokens de sesion y claves de sensor: aleatorios, y guardados solo como huella."""
+    """Ids de token y claves de sensor, aleatorios. La clave del sensor se guarda solo como huella."""
 
     @abstractmethod
     def nuevo(self) -> str: ...
