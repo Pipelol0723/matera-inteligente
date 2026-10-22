@@ -282,6 +282,18 @@ def test_el_historial_se_lee_igual_mas_reciente_primero_y_con_limite(repos):
     assert repos.historial.ultimo_de(planta.id) == registros[0]
 
 
+def test_el_historial_guarda_en_utc_y_ordena_bien_horas_de_otra_zona_horaria(repos):
+    planta = repos.planta(repos.registrar().id)
+    bogota = timezone(timedelta(hours=-5))
+    # 10:30 en Bogota son las 15:30 en UTC: es posterior a las 15:00 UTC aunque el texto diga 10:30.
+    repos.historial.agregar(repos.registro(planta.id, datetime(2026, 10, 22, 10, 30, tzinfo=bogota)))
+    repos.historial.agregar(repos.registro(planta.id, datetime(2026, 10, 22, 15, 0, tzinfo=timezone.utc)))
+
+    registros = repos.historial.de_planta(planta.id, limite=2)
+
+    assert [r.momento.isoformat() for r in registros] == ["2026-10-22T15:30:00+00:00", "2026-10-22T15:00:00+00:00"]
+
+
 def test_borrar_una_planta_borra_su_sensor_y_su_historial(repos):
     ana = repos.registrar()
     planta = repos.planta(ana.id, codigo=CODIGO)

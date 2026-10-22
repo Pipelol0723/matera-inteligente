@@ -16,11 +16,11 @@ from dominio.identidad import IdentidadUsuario
 from dominio.puertos_usuarios import VerificadorTokens
 
 
-def token_bearer() -> str:
-    """El texto despues de 'Bearer '. Sin cabecera, o con otro esquema, es una sesion invalida."""
+def token_bearer(error: type[Exception] = SesionInvalida) -> str:
+    """El texto despues de 'Bearer '. Sin cabecera, o con otro esquema, lanza error (por defecto, sesion invalida)."""
     esquema, _, token = request.headers.get("Authorization", "").partition(" ")
     if esquema.lower() != "bearer" or not token.strip():
-        raise SesionInvalida()
+        raise error()
     return token.strip()
 
 

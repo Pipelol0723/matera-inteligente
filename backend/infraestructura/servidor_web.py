@@ -17,8 +17,8 @@ def crear_app(blueprints: Iterable[Blueprint], config: Configuracion) -> Flask:
     app.config["SOCK_SERVER_OPTIONS"] = {"ping_interval": 25, "max_message_size": 4096}
 
     # El front vive en otro origen (RA2); solo esos origenes pueden leer la API (RA7),
-    # mandar el token de sesion y usar PUT, PATCH y DELETE. La clave del sensor
-    # (X-Clave-Sensor) no se permite: solo la manda el ESP32, que no es un navegador.
+    # mandar el token de sesion y usar PUT, PATCH y DELETE. Las rutas de dispositivos las
+    # usan la ESP32 y el simulador, que no son navegadores y no pasan por CORS.
     CORS(
         app,
         resources={r"/api/*": {"origins": list(config.origenes_cors)}},

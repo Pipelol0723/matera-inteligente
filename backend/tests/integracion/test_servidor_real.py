@@ -8,6 +8,7 @@ habla por HTTP.
 """
 from concurrent.futures import ThreadPoolExecutor
 
+from tests.integracion.conftest import medir_http
 from tests.integracion.conftest import pedir_http as _pedir
 
 
@@ -19,7 +20,7 @@ def test_el_servidor_real_atiende_un_recorrido_completo_con_la_misma_base(base_u
     assert estado == 201
 
     lecturas = {"humedad": 50, "luz": 800, "temperatura": 20}
-    estado, medicion = _pedir(base_url, "POST", "/sensores/MT-0001-AA/mediciones", lecturas, clave_sensor=matera["clave"])
+    estado, medicion = medir_http(base_url, "MT-0001-AA", matera["clave"], lecturas)
 
     assert estado == 201 and medicion["diagnostico"]["estado"] == "SALUDABLE"
     assert _pedir(base_url, "GET", "/plantas", token=token)[1][0]["ultimaMedicion"]["estado"] == "SALUDABLE"

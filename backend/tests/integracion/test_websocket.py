@@ -14,7 +14,7 @@ from simple_websocket import ConnectionError as ConexionRechazada
 from crear_admin import main as crear_admin
 from dominio.errores_usuarios import SesionInvalida
 from presentacion import tiempo_real
-from tests.integracion.conftest import ORIGEN_FRONT, es_error, pedir_http
+from tests.integracion.conftest import ORIGEN_FRONT, es_error, medir_http, pedir_http
 
 LECTURAS = {"humedad": 18, "luz": 800, "temperatura": 25}
 NADA = 0.5  # segundos que se espera para confirmar que no llega ningun mensaje
@@ -68,8 +68,7 @@ def _cuenta_con_matera(base_url, nombre="Ana", codigo="MT-0001-AA"):
 
 
 def _medir(base_url, matera, lecturas=LECTURAS):
-    ruta = f"/sensores/{matera['codigo']}/mediciones"
-    return pedir_http(base_url, "POST", ruta, lecturas, clave_sensor=matera["clave"])
+    return medir_http(base_url, matera["codigo"], matera["clave"], lecturas)
 
 
 def test_el_dueno_recibe_en_vivo_cada_medicion_de_su_planta(base_url, abrir):

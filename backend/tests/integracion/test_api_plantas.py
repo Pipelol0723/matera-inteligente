@@ -32,9 +32,9 @@ def _cambiar_sensor(api, token, planta_id, codigo):
     return api.pedir("PUT", f"/plantas/{planta_id}/sensor", token, json={"codigo": codigo})
 
 
-def _desde_sensor(api, codigo, clave, cuerpo=MEDICION):
-    cabeceras = {"X-Clave-Sensor": clave} if clave is not None else {}
-    return api.pedir("POST", f"/sensores/{codigo}/mediciones", json=cuerpo, cabeceras=cabeceras)
+def _desde_sensor(api, codigo, clave, lecturas=MEDICION):
+    """Como la placa: canjea la clave y reporta la lectura. La ruta de dispositivos la prueba test_api_dispositivos.py."""
+    return api.medir(codigo, clave, lecturas)
 
 
 def _historial(api, token, planta_id):
@@ -141,7 +141,7 @@ def test_una_medicion_imposible_del_sensor_responde_400_y_no_se_guarda(api, ana,
 
 @pytest.mark.parametrize(
     ("codigo", "clave"),
-    [("MT-0001-AA", None), ("MT-0001-AA", "clave-inventada"), ("MT-9999-ZZ", "clave-inventada"), ("cualquiera", "x")],
+    [("MT-0001-AA", "clave-inventada"), ("MT-9999-ZZ", "clave-inventada"), ("cualquiera", "x")],
 )
 def test_el_sensor_recibe_el_mismo_401_sin_importar_que_fallo_y_no_se_guarda_nada(api, ana, planta, codigo, clave):
     assert es_error(_desde_sensor(api, codigo, clave), 401, "CLAVE_SENSOR_INVALIDA")
@@ -246,16 +246,3 @@ def test_cors_deja_al_front_cambiar_el_sensor_con_put(api):
     assert respuesta.headers["Access-Control-Allow-Origin"] == ORIGEN_FRONT
     assert "PUT" in respuesta.headers["Access-Control-Allow-Methods"]
 
-
-def test_cors_no_deja_que_una_pagina_mande_la_clave_de_un_sensor(api):
-    # Sin el simulador del front, la clave solo la manda el ESP32, que no pasa por CORS.
-    respuesta = api.http.options(
-        "/api/v1/sensores/MT-0001-AA/mediciones",
-        headers={
-            "Origin": ORIGEN_FRONT,
-            "Access-Control-Request-Method": "POST",
-            "Access-Control-Request-Headers": "Content-Type, X-Clave-Sensor",
-        },
-    )
-
-    assert "x-clave-sensor" not in respuesta.headers.get("Access-Control-Allow-Headers", "").lower()

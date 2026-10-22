@@ -1,6 +1,6 @@
 """Historial de mediciones en SQLite: una fila por medicion y una por cada lectura."""
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 
 from dominio.estados import EstadoGlobal, EstadoParametro
 from dominio.historial import LecturaRegistrada, RegistroMedicion
@@ -50,8 +50,9 @@ class HistorialMedicionesSqlite(HistorialMediciones):
 
 
 def _texto(momento: datetime) -> str:
-    # Siempre con microsegundos: asi el texto se ordena igual que la fecha.
-    return momento.isoformat(timespec="microseconds")
+    # Siempre en UTC y con microsegundos: asi el texto se ordena igual que la fecha, aunque el
+    # dispositivo mande su hora con otra zona horaria.
+    return momento.astimezone(timezone.utc).isoformat(timespec="microseconds")
 
 
 def _registro(medicion: sqlite3.Row, lecturas: list[sqlite3.Row]) -> RegistroMedicion:

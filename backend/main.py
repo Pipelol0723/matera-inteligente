@@ -61,8 +61,8 @@ from presentacion import esquemas_usuarios
 from presentacion.autenticacion import Autenticacion
 from presentacion.rutas import crear_blueprint
 from presentacion.rutas_admin import crear_blueprint_admin
+from presentacion.rutas_dispositivos import crear_blueprint_dispositivos
 from presentacion.rutas_plantas import crear_blueprint_plantas
-from presentacion.rutas_sensores import crear_blueprint_sensores
 from presentacion.rutas_usuarios import crear_blueprint_usuarios
 from presentacion.tiempo_real import crear_blueprint_tiempo_real
 
@@ -139,14 +139,14 @@ def construir_app(config: Configuracion) -> Flask:
         consultar_historial=ConsultarHistorial(plantas, historial),
         autenticacion=autenticacion,
     )
-    # El dispositivo canjea su clave por un JWT de alcance «lecturas» y reporta con el.
+    # R2: la ESP32 y el simulador canjean su clave por un JWT de alcance «lecturas» y reportan con el.
     canjear = CanjearClaveDispositivo(sensores, sensores, secretos, tokens, reloj, config.duracion_token_dispositivo)
     registrar_lectura = RegistrarLectura(sensores, diagnosticar_planta, reloj)
-    entrada_sensor = crear_blueprint_sensores(canjear, tokens, registrar_lectura)
+    dispositivos = crear_blueprint_dispositivos(canjear, registrar_lectura, tokens)
     # El WebSocket del front registra sus conexiones en los mismos canales que usa el notificador.
     en_vivo = crear_blueprint_tiempo_real(tokens, identificar, canales, config.origenes_cors)
 
-    return crear_app([api, cuentas, administracion, mis_plantas, entrada_sensor, en_vivo], config)
+    return crear_app([api, cuentas, administracion, mis_plantas, dispositivos, en_vivo], config)
 
 
 @dataclass(frozen=True)

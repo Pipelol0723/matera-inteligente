@@ -1,12 +1,13 @@
 """Un cliente de la API armado con main.construir_app sobre una base temporal, para las pruebas del corte 2.
 
 Tambien levanta el servidor real, con hilos, para las pruebas que necesitan
-hablarle por la red: el recorrido completo, el WebSocket y el script de desarrollo.
+hablarle por la red: el recorrido completo, el WebSocket y el simulador del ESP32.
 """
 import json
 import threading
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
 
 import pytest
 from werkzeug.serving import make_server
@@ -18,8 +19,13 @@ from main import construir_app
 ORIGEN_FRONT = "http://localhost:5500"
 
 
+def ahora_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
 class ClienteApi:
-    """Atajos sobre el test_client de Flask: registrar, entrar, crear un admin y pedir rutas con token."""
+    """Atajos sobre el test_client de Flask: registrar, entrar, crear un admin, pedir rutas con token
+    y reportar lecturas como un dispositivo."""
 
     def __init__(self, config: Configuracion):
         self.config = config
@@ -50,6 +56,21 @@ class ClienteApi:
         assert crear_admin([correo], self.config) == 0
         return self.entrar(correo)
 
+    def canjear(self, codigo, clave):
+        """Como la placa: cambia la clave del sensor por su token."""
+        return self.pedir("POST", f"/dispositivos/{codigo}/token", json={"clave": clave})
+
+    def reportar(self, codigo, token, lecturas, momento=None, dispositivo=None):
+        cuerpo = {"dispositivo": dispositivo or codigo, "momento": momento or ahora_iso(), "lecturas": lecturas}
+        return self.pedir("POST", f"/dispositivos/{codigo}/lecturas", token, json=cuerpo)
+
+    def medir(self, codigo, clave, lecturas):
+        """Canje y lectura, como la placa la primera vez. Si el canje falla, devuelve esa respuesta."""
+        canje = self.canjear(codigo, clave)
+        if canje.status_code != 200:
+            return canje
+        return self.reportar(codigo, canje.get_json()["token"], lecturas)
+
 
 @pytest.fixture
 def config(tmp_path):
@@ -75,13 +96,11 @@ def base_url(config):
     hilo.join()
 
 
-def pedir_http(base_url, metodo, ruta, cuerpo=None, token=None, clave_sensor=None):
+def pedir_http(base_url, metodo, ruta, cuerpo=None, token=None):
     """Una peticion de verdad por la red. Devuelve (estado, cuerpo JSON)."""
     cabeceras = {"Content-Type": "application/json"}
     if token:
         cabeceras["Authorization"] = f"Bearer {token}"
-    if clave_sensor:
-        cabeceras["X-Clave-Sensor"] = clave_sensor
     datos = json.dumps(cuerpo).encode() if cuerpo is not None else None
     peticion = urllib.request.Request(f"{base_url}{ruta}", data=datos, headers=cabeceras, method=metodo)
     try:
@@ -89,6 +108,13 @@ def pedir_http(base_url, metodo, ruta, cuerpo=None, token=None, clave_sensor=Non
             return respuesta.status, json.load(respuesta)
     except urllib.error.HTTPError as error:
         return error.code, json.load(error)
+
+
+def medir_http(base_url, codigo, clave, lecturas):
+    """Canje y lectura por la red, como la placa. Devuelve (estado, cuerpo JSON) de la lectura."""
+    _, canje = pedir_http(base_url, "POST", f"/dispositivos/{codigo}/token", {"clave": clave})
+    cuerpo = {"dispositivo": codigo, "momento": ahora_iso(), "lecturas": lecturas}
+    return pedir_http(base_url, "POST", f"/dispositivos/{codigo}/lecturas", cuerpo, canje.get("token"))
 
 
 def es_error(respuesta, estado: int, codigo: str) -> bool:
