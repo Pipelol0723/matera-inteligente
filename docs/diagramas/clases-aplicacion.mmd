@@ -1,7 +1,9 @@
-%% Presentación y aplicación: el diagnóstico y, desde el corte 2, las plantas, los sensores, el historial
-%% y el aviso en vivo. Las cuentas y la administración están en clases-cuentas.mmd.
-%% Morado: presentación. Amarillo: aplicación. Verde: clase del dominio que se reutiliza o puerto.
-%% Borde grueso: se agregó en el corte 2.
+%% Presentación y aplicación: el diagnóstico y, desde el corte 2, las plantas, los sensores, los dispositivos,
+%% el historial y el aviso en vivo. Las cuentas y la administración están en clases-cuentas.mmd.
+%% Hexagonal: la ruta depende del puerto de entrada (en dominio, con prefijo entrada.) y el caso de uso lo hereda.
+%% El caso de uso y su puerto se llaman igual: entrada.ListarPlantas es el puerto, ListarPlantas el caso de uso.
+%% Morado: presentación. Amarillo: aplicación. Verde: dominio (puerto, dato o clase que se reutiliza).
+%% Borde grueso: se agregó en el corte 2 (la fase 2 hexagonal incluida).
 classDiagram
     direction LR
 
@@ -29,39 +31,169 @@ classDiagram
             +detalle: dict
         }
         class Autenticacion {
-            +token() str
-            +usuario_actual() Usuario
+            -verificador: VerificadorTokens
+            -identificar: entrada.IdentificarUsuario
+            +con_usuario(vista) Callable
+            +con_identidad(vista) Callable
+        }
+        class token_bearer {
+            <<función>>
+            +token_bearer(error) str
         }
         class rutas_plantas {
             <<módulo>>
-            +crear_blueprint_plantas(...) Blueprint
+            +crear_blueprint_plantas(registrar, listar, eliminar, reemplazar_sensor, consultar_historial, autenticacion) Blueprint
             todas exigen sesión
         }
-        class rutas_sensores {
+        class rutas_dispositivos {
             <<módulo>>
-            +crear_blueprint_sensores(recibir) Blueprint
-            exige la clave del sensor
+            +crear_blueprint_dispositivos(canjear, registrar, verificador) Blueprint
+            -con_dispositivo(verificador) decorador
+            POST .../token canjea la clave
+            POST .../lecturas exige el JWT del dispositivo
+        }
+        class esquemas_dispositivos {
+            <<módulo>>
+            +clave_desde_json(cuerpo) str
+            +reporte_desde_json(cuerpo) ReporteDeDispositivo
+            +token_a_json(token) dict
         }
         class tiempo_real {
             <<módulo>>
-            +crear_blueprint_tiempo_real(identificar, suscripciones, origenes) Blueprint
+            +crear_blueprint_tiempo_real(verificador, identificar, suscripciones, origenes) Blueprint
             WebSocket /api/v1/tiempo-real
         }
         class CanalWebSocket {
             -cola: Queue, con su hilo emisor
+            +cortado: bool
             +autenticado(revisar_sesion)
             +enviar(texto: str)
+            +enviar_json(mensaje: dict)
             +recibir(espera) str o None
             +cerrar_con_error(error, mensaje, codigo)
             +terminar()
         }
+        class Suscripciones {
+            <<interface>>
+            +conectado(usuario_id: int, canal: CanalWebSocket) ContextManager
+        }
     }
 
-    namespace aplicacion {
+    namespace dominio {
+        class entrada_DiagnosticarPlanta["entrada.DiagnosticarPlanta"] {
+            <<interface>>
+            +ejecutar(solicitud: SolicitudDiagnostico) Diagnostico
+        }
+        class entrada_ListarEspecies["entrada.ListarEspecies"] {
+            <<interface>>
+            +ejecutar() list~Especie~
+        }
+        class entrada_ListarParametros["entrada.ListarParametros"] {
+            <<interface>>
+            +ejecutar() tuple~Parametro~
+        }
+        class entrada_RegistrarPlanta["entrada.RegistrarPlanta"] {
+            <<interface>>
+            +ejecutar(usuario, apodo, especie, codigo) SensorVinculado
+        }
+        class entrada_ListarPlantas["entrada.ListarPlantas"] {
+            <<interface>>
+            +ejecutar(usuario) list~PlantaConEstado~
+        }
+        class entrada_EliminarPlanta["entrada.EliminarPlanta"] {
+            <<interface>>
+            +ejecutar(usuario, planta_id)
+        }
+        class entrada_ReemplazarSensor["entrada.ReemplazarSensor"] {
+            <<interface>>
+            +ejecutar(usuario, planta_id, codigo) SensorVinculado
+        }
+        class entrada_ConsultarHistorial["entrada.ConsultarHistorial"] {
+            <<interface>>
+            +ejecutar(usuario, planta_id, limite) HistorialPlanta
+        }
+        class entrada_CanjearClaveDispositivo["entrada.CanjearClaveDispositivo"] {
+            <<interface>>
+            +ejecutar(codigo, clave) TokenDispositivo
+        }
+        class entrada_RegistrarLectura["entrada.RegistrarLectura"] {
+            <<interface>>
+            +ejecutar(identidad: IdentidadDispositivo, reporte: ReporteDeDispositivo) ResultadoMedicion
+        }
+        class entrada_IdentificarUsuario["entrada.IdentificarUsuario"] {
+            <<interface>>
+            +ejecutar(identidad: IdentidadUsuario) Usuario
+        }
         class SolicitudDiagnostico {
+            <<resultado>>
             +especie: str
             +medicion: Medicion
         }
+        class SensorVinculado {
+            <<resultado>>
+            +planta: Planta
+            +codigo: CodigoSensor
+            +clave: str
+        }
+        class PlantaConEstado {
+            <<resultado>>
+            +planta: Planta
+            +sensor: Sensor o None
+            +ultima_medicion: RegistroMedicion o None
+        }
+        class HistorialPlanta {
+            <<resultado>>
+            +planta: Planta
+            +registros: list~RegistroMedicion~
+        }
+        class TokenDispositivo {
+            <<resultado>>
+            +token: str
+            +vence_en: datetime
+        }
+        class ResultadoMedicion {
+            <<resultado>>
+            +planta: Planta
+            +diagnostico: Diagnostico
+            +registro: RegistroMedicion
+        }
+        class IdentidadUsuario {
+            +usuario_id: int
+            +token_id: str
+        }
+        class IdentidadDispositivo {
+            +codigo: CodigoSensor
+            +token_id: str
+        }
+        class ReporteDeDispositivo {
+            +dispositivo: CodigoSensor
+            +momento: datetime
+            +medicion: Medicion
+        }
+        class ServicioDiagnostico {
+            <<dominio>>
+            +diagnosticar(especie, medicion) Diagnostico
+        }
+        class Medicion {
+            <<dominio>>
+            +lecturas: tuple~Lectura~
+        }
+        class NotificadorDiagnosticos {
+            <<interface>>
+            +publicar(usuario_id, planta, registro, diagnostico)
+        }
+        class EmisorTokens {
+            <<interface>>
+            +emitir(identidad, vence_en) str
+        }
+        class VerificadorTokens {
+            <<interface>>
+            +verificar_usuario(token: str) IdentidadUsuario
+            +verificar_dispositivo(token: str) IdentidadDispositivo
+        }
+    }
+
+    namespace aplicacion {
         class DiagnosticarPlanta {
             -servicio: ServicioDiagnostico
             +ejecutar(solicitud: SolicitudDiagnostico) Diagnostico
@@ -75,108 +207,177 @@ classDiagram
             +ejecutar() tuple~Parametro~
         }
         class RegistrarPlanta {
+            -plantas: ConsultaPlantas
+            -registro: RegistroPlantas
+            -sensores: SensoresVinculados
+            -especies: ConsultaRangos
+            -secretos: GeneradorSecretos
             +ejecutar(usuario, apodo, especie, codigo) SensorVinculado
         }
         class ListarPlantas {
+            -plantas: ConsultaPlantas
+            -sensores: SensoresVinculados
+            -historial: HistorialMediciones
             +ejecutar(usuario) list~PlantaConEstado~
         }
         class EliminarPlanta {
+            -plantas: ConsultaPlantas
+            -registro: RegistroPlantas
             +ejecutar(usuario, planta_id)
         }
         class ReemplazarSensor {
+            -plantas: ConsultaPlantas
+            -sensores: SensoresVinculados
+            -secretos: GeneradorSecretos
             +ejecutar(usuario, planta_id, codigo) SensorVinculado
         }
-        class SensorVinculado {
-            +planta: Planta
-            +codigo: CodigoSensor
-            +clave: str
-        }
         class ConsultarHistorial {
+            -plantas: ConsultaPlantas
+            -historial: HistorialMediciones
             +ejecutar(usuario, planta_id, limite) HistorialPlanta
         }
-        class RecibirMedicionDeSensor {
-            +ejecutar(codigo, clave, medicion) ResultadoMedicion
+        class CanjearClaveDispositivo {
+            -sensores: SensoresVinculados
+            -credenciales: CredencialesSensor
+            -secretos: GeneradorSecretos
+            -emisor: EmisorTokens
+            -reloj: Reloj
+            -duracion: timedelta
+            +ejecutar(codigo, clave) TokenDispositivo
+        }
+        class RegistrarLectura {
+            -credenciales: CredencialesSensor
+            -diagnosticar: DiagnosticarPlantaDeUsuario
+            -reloj: Reloj
+            +ejecutar(identidad: IdentidadDispositivo, reporte: ReporteDeDispositivo) ResultadoMedicion
         }
         class DiagnosticarPlantaDeUsuario {
-            -plantas: RepositorioPlantas
+            -plantas: ConsultaPlantas
             -servicio: ServicioDiagnostico
             -historial: HistorialMediciones
-            -reloj: Reloj
             -notificador: NotificadorDiagnosticos
-            +ejecutar(usuario_id, planta_id, medicion, origen) ResultadoMedicion
+            +ejecutar(usuario_id, planta_id, medicion, origen, momento) ResultadoMedicion
+            sin puerto de entrada
         }
         class IdentificarUsuario {
-            +ejecutar(token: str) Usuario
+            -sesiones: SesionesAbiertas
+            -cuentas: ConsultaCuentas
+            -reloj: Reloj
+            +ejecutar(identidad: IdentidadUsuario) Usuario
         }
     }
 
-    class ServicioDiagnostico {
-        <<dominio>>
-        +diagnosticar(especie, medicion) Diagnostico
-    }
-    class Medicion {
-        <<dominio>>
-        +lecturas: tuple~Lectura~
-    }
-    class NotificadorDiagnosticos {
-        <<interface>>
-        +publicar(usuario_id, planta, registro, diagnostico)
-    }
-
-    rutas ..> DiagnosticarPlanta
-    rutas ..> ListarEspecies
-    rutas ..> ListarParametros
+    rutas ..> entrada_DiagnosticarPlanta
+    rutas ..> entrada_ListarEspecies
+    rutas ..> entrada_ListarParametros
     rutas ..> esquemas
     rutas ..> errores_http
     esquemas ..> SolicitudDiagnostico : crea
     esquemas ..> Medicion : crea, desde aquí el dato ya no sabe de HTTP
     esquemas ..> EntradaInvalida : lanza
     errores_http ..> EntradaInvalida : atrapa
+    entrada_DiagnosticarPlanta <|.. DiagnosticarPlanta
+    entrada_ListarEspecies <|.. ListarEspecies
+    entrada_ListarParametros <|.. ListarParametros
     DiagnosticarPlanta --> ServicioDiagnostico : servicio
     DiagnosticarPlanta ..> SolicitudDiagnostico
 
     rutas_plantas ..> Autenticacion
-    rutas_plantas ..> RegistrarPlanta
-    rutas_plantas ..> ListarPlantas
-    rutas_plantas ..> EliminarPlanta
-    rutas_plantas ..> ReemplazarSensor : PUT /plantas/{id}/sensor
-    rutas_plantas ..> ConsultarHistorial
+    rutas_plantas ..> entrada_RegistrarPlanta
+    rutas_plantas ..> entrada_ListarPlantas
+    rutas_plantas ..> entrada_EliminarPlanta
+    rutas_plantas ..> entrada_ReemplazarSensor : PUT /plantas/{id}/sensor
+    rutas_plantas ..> entrada_ConsultarHistorial
+    entrada_RegistrarPlanta <|.. RegistrarPlanta
+    entrada_ListarPlantas <|.. ListarPlantas
+    entrada_EliminarPlanta <|.. EliminarPlanta
+    entrada_ReemplazarSensor <|.. ReemplazarSensor
+    entrada_ConsultarHistorial <|.. ConsultarHistorial
     RegistrarPlanta ..> SensorVinculado : crea, con la clave
     ReemplazarSensor ..> SensorVinculado : crea, con la clave nueva
-    rutas_sensores ..> esquemas : medicion_desde_json
-    rutas_sensores ..> RecibirMedicionDeSensor
-    RecibirMedicionDeSensor --> DiagnosticarPlantaDeUsuario : diagnosticar
+    ListarPlantas ..> PlantaConEstado : crea
+    ConsultarHistorial ..> HistorialPlanta : crea
+
+    Autenticacion ..> token_bearer
+    Autenticacion ..> VerificadorTokens : verifica el JWT de usuario
+    Autenticacion ..> entrada_IdentificarUsuario : le pasa la identidad, no el token
+    entrada_IdentificarUsuario <|.. IdentificarUsuario
+    VerificadorTokens ..> IdentidadUsuario : devuelve
+    VerificadorTokens ..> IdentidadDispositivo : devuelve
+
+    rutas_dispositivos ..> esquemas_dispositivos
+    rutas_dispositivos ..> token_bearer
+    rutas_dispositivos ..> VerificadorTokens : con_dispositivo verifica el JWT del dispositivo
+    rutas_dispositivos ..> entrada_CanjearClaveDispositivo : POST /dispositivos/{codigo}/token
+    rutas_dispositivos ..> entrada_RegistrarLectura : POST /dispositivos/{codigo}/lecturas
+    esquemas_dispositivos ..> esquemas : medicion_desde_json
+    esquemas_dispositivos ..> ReporteDeDispositivo : crea
+    entrada_CanjearClaveDispositivo <|.. CanjearClaveDispositivo
+    entrada_RegistrarLectura <|.. RegistrarLectura
+    CanjearClaveDispositivo --> EmisorTokens : emisor, firma el token del dispositivo
+    CanjearClaveDispositivo ..> TokenDispositivo : crea
+    RegistrarLectura ..> IdentidadDispositivo
+    RegistrarLectura ..> ReporteDeDispositivo
+    RegistrarLectura --> DiagnosticarPlantaDeUsuario : diagnosticar
     DiagnosticarPlantaDeUsuario --> ServicioDiagnostico : reutiliza, sin cambios
     DiagnosticarPlantaDeUsuario --> NotificadorDiagnosticos : avisa después de guardar
-    tiempo_real ..> IdentificarUsuario : el token del primer mensaje
+    DiagnosticarPlantaDeUsuario ..> ResultadoMedicion : crea
+
+    tiempo_real ..> VerificadorTokens : verifica el token del primer mensaje
+    tiempo_real ..> entrada_IdentificarUsuario : la identidad del token
+    tiempo_real ..> Suscripciones : registra cada canal
     tiempo_real ..> CanalWebSocket : uno por pestaña abierta
-    CanalWebSocket ..> IdentificarUsuario : revisa la sesión antes de cada mensaje
+    CanalWebSocket ..> entrada_IdentificarUsuario : revisa la sesión antes de cada mensaje
     tiempo_real ..> errores_http : 403 y 400 en JSON
 
-    note "rutas_plantas y rutas_sensores usan esquemas_usuarios.py<br>(JSON a dominio) y errores_usuarios.py (errores a HTTP),<br>igual que rutas.py usa esquemas.py y errores_http.py.<br>esquemas_usuarios.medicion_en_vivo_a_json arma el mensaje del WebSocket.<br>NotificadorDiagnosticos lo implementa NotificadorWebSocket (ver clases-puertos)."
+    note "rutas_plantas y rutas_dispositivos usan esquemas_usuarios.py<br>(JSON a dominio) y errores_usuarios.py (errores a HTTP),<br>igual que rutas.py usa esquemas.py y errores_http.py.<br>esquemas_usuarios.medicion_en_vivo_a_json arma el mensaje del WebSocket.<br>NotificadorDiagnosticos lo implementa NotificadorWebSocket, y Suscripciones<br>lo cumple CanalesTiempoReal (ver clases-puertos). Los datos de resultado<br>viven en dominio/resultados.py y los puertos en dominio/puertos_entrada.py."
 
     style rutas fill:#E1D5E7,stroke:#8a6d99,color:#16231b
     style esquemas fill:#E1D5E7,stroke:#8a6d99,color:#16231b
     style errores_http fill:#E1D5E7,stroke:#8a6d99,color:#16231b
     style EntradaInvalida fill:#E1D5E7,stroke:#8a6d99,color:#16231b
-    style SolicitudDiagnostico fill:#FFF2CC,stroke:#b59a45,color:#16231b
     style DiagnosticarPlanta fill:#FFF2CC,stroke:#b59a45,color:#16231b
     style ListarEspecies fill:#FFF2CC,stroke:#b59a45,color:#16231b
     style ListarParametros fill:#FFF2CC,stroke:#b59a45,color:#16231b
+    style SolicitudDiagnostico fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
     style ServicioDiagnostico fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
     style Medicion fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
+    style entrada_DiagnosticarPlanta fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style entrada_ListarEspecies fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style entrada_ListarParametros fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style entrada_RegistrarPlanta fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style entrada_ListarPlantas fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style entrada_EliminarPlanta fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style entrada_ReemplazarSensor fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style entrada_ConsultarHistorial fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style entrada_CanjearClaveDispositivo fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style entrada_RegistrarLectura fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style entrada_IdentificarUsuario fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style SensorVinculado fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style PlantaConEstado fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style HistorialPlanta fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style TokenDispositivo fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style ResultadoMedicion fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style IdentidadUsuario fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style IdentidadDispositivo fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style ReporteDeDispositivo fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
     style NotificadorDiagnosticos fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style EmisorTokens fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style VerificadorTokens fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
     style Autenticacion fill:#E1D5E7,stroke:#6a3d80,stroke-width:2px,color:#16231b
+    style token_bearer fill:#E1D5E7,stroke:#6a3d80,stroke-width:2px,color:#16231b
     style rutas_plantas fill:#E1D5E7,stroke:#6a3d80,stroke-width:2px,color:#16231b
-    style rutas_sensores fill:#E1D5E7,stroke:#6a3d80,stroke-width:2px,color:#16231b
+    style rutas_dispositivos fill:#E1D5E7,stroke:#6a3d80,stroke-width:2px,color:#16231b
+    style esquemas_dispositivos fill:#E1D5E7,stroke:#6a3d80,stroke-width:2px,color:#16231b
     style tiempo_real fill:#E1D5E7,stroke:#6a3d80,stroke-width:2px,color:#16231b
     style CanalWebSocket fill:#E1D5E7,stroke:#6a3d80,stroke-width:2px,color:#16231b
+    style Suscripciones fill:#E1D5E7,stroke:#6a3d80,stroke-width:2px,color:#16231b
     style RegistrarPlanta fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,color:#16231b
     style ListarPlantas fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,color:#16231b
     style EliminarPlanta fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,color:#16231b
     style ReemplazarSensor fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,color:#16231b
-    style SensorVinculado fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,color:#16231b
     style ConsultarHistorial fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,color:#16231b
-    style RecibirMedicionDeSensor fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,color:#16231b
+    style CanjearClaveDispositivo fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,color:#16231b
+    style RegistrarLectura fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,color:#16231b
     style DiagnosticarPlantaDeUsuario fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,color:#16231b
     style IdentificarUsuario fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,color:#16231b

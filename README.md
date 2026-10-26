@@ -1,8 +1,13 @@
 # Matera inteligente
 
-Matera inteligente: una API que diagnostica el estado de una planta a partir de su especie y de una medición de humedad del sustrato, luz y temperatura, y un front web estático que la consume. Desde el corte 2, cada persona tiene su cuenta y sus materas, y un administrador gestiona las cuentas y agrega especies. Cada matera nace con su sensor (un ESP32), y solo el sensor escribe en el historial: cuando envía una medición, la pantalla del dueño se actualiza sola por WebSocket.
+Matera inteligente es una API que diagnostica el estado de una planta a partir de su especie y de una medición de humedad del sustrato, luz y temperatura, con un front web estático que la consume.
 
-Proyecto de Arquitectura de Software, semestre 2026-03. El corte 1, tal como se entregó, está en el tag `corte-1`.
+- **Corte 2:** cada persona tiene su cuenta (con JWT) y sus materas, y un administrador gestiona las cuentas y agrega especies.
+- **Sensor:** cada matera nace con su sensor, que puede ser un ESP32 o el simulador. El sensor canjea su clave por un token propio y reporta lecturas con la hora en que las tomó.
+- **Historial:** solo el sensor escribe en él.
+- **Pantalla del dueño:** se actualiza sola. Consulta la API cada 10 segundos y, además, recibe cada lectura al instante por WebSocket.
+
+Proyecto de Arquitectura de Software, semestre 2026-03. El corte 1, tal como se entregó, está en el tag `corte-1`. La fase 2 organiza el backend en puertos y adaptadores (arquitectura hexagonal): ver [Arquitectura](#arquitectura-puertos-y-adaptadores).
 
 ## Estructura
 
@@ -10,20 +15,25 @@ Proyecto de Arquitectura de Software, semestre 2026-03. El corte 1, tal como se 
 backend/
   main.py            raíz de composición: el único archivo que elige clases concretas
   crear_admin.py     da el rol de administrador a una cuenta, desde la consola
-  datos/             esquema.sql y carga.sql de la base SQLite
-  dominio/           entidades y reglas de negocio; no importa flask, sqlite3, hashlib ni http
-  aplicacion/        casos de uso
-  presentacion/      rutas REST, el WebSocket, autenticación y conversión entre JSON y objetos del dominio
-  infraestructura/   SQLite, contraseñas y secretos, reloj, configuración, Flask, CORS y el aviso en vivo
-  herramientas/      enviar_medicion.py: manda mediciones como el ESP32 (solo para desarrollo)
+  exportar_especies_csv.py  escribe la copia en CSV de la tabla de especies, desde la base
+  datos/             esquema.sql y carga.sql de la base SQLite, y especies.csv (la copia de solo lectura)
+  dominio/           entidades, reglas de negocio y puertos; no importa flask, sqlite3, csv, jwt, json ni http
+  aplicacion/        casos de uso: cada uno implementa su puerto de entrada
+  presentacion/      adaptadores de entrada: rutas REST del front y de los dispositivos, el WebSocket,
+                     los decoradores que verifican el JWT y la conversión entre JSON y objetos del dominio
+  infraestructura/   adaptadores de salida: SQLite, la copia en CSV, JWT (PyJWT), contraseñas, reloj,
+                     el aviso en vivo, configuración, Flask y CORS
   tests/
     dominio/         reglas de negocio con dobles de prueba, sin servidor ni base de datos
     aplicacion/      casos de uso con dobles de prueba
-    integracion/     API, repositorios SQLite, seguridad, el servidor real y el WebSocket
+    integracion/     API, repositorios, JWT, migración, CSV, el servidor real, el WebSocket y el simulador
+simulador/
+  simulador_esp32.py manda lecturas a la API como el ESP32, sin hardware (ver «Simulador del ESP32»)
 frontend/            HTML, CSS y JavaScript estáticos, servidos aparte
   js/api.js          peticiones a la API, con el token en las rutas privadas
   js/app.js          arranque, navegación, pantallas públicas y privadas
   js/sesion.js       token de la sesión, en sessionStorage
+  js/consulta-periodica.js  vuelve a pedir los datos de la pantalla cada 10 s
   js/tiempo-real.js  el WebSocket que trae las mediciones en vivo, con su reconexión
   js/diagnostico.js  pantalla de diagnóstico
   js/especies.js     catálogo de especies
@@ -39,12 +49,38 @@ frontend/            HTML, CSS y JavaScript estáticos, servidos aparte
 firmware/
   matera-sensor/     el programa de la ESP32, para el Arduino IDE 2 (ver firmware/README.md)
 docs/
-  diagramas/         casos de uso, paquetes, clases, entidad-relación y secuencias,
-                     del corte 1 y del diseño del corte 2 (fuente .mmd, SVG y PNG)
+  diagramas/         la vista hexagonal, casos de uso, paquetes, clases, entidad-relación y secuencias
+                     (fuente .mmd, SVG y PNG)
   entrega/           documento de arquitectura y bitácora de uso de IA (PDF)
 ```
 
-Las dependencias apuntan hacia el dominio: `presentacion → aplicacion → dominio ← infraestructura`. Los puertos están declarados en `dominio/puertos.py` (corte 1) y `dominio/puertos_usuarios.py` (corte 2), y los implementan las clases de `infraestructura/sqlite/`, `infraestructura/seguridad.py`, `infraestructura/reloj.py` e `infraestructura/tiempo_real.py`. Este último implementa `NotificadorDiagnosticos`, el puerto con el que el caso de uso avisa cada medición sin saber que existe un WebSocket.
+## Arquitectura: puertos y adaptadores
+
+Las carpetas son las del corte 1, y cada una tiene su lugar en la vista hexagonal:
+
+| Carpeta | En la vista hexagonal |
+|---|---|
+| `dominio/` y `aplicacion/` | El núcleo: reglas de negocio y casos de uso. No conocen Flask, SQLite, el CSV, JWT, JSON ni HTTP. |
+| `dominio/puertos_entrada.py` | Los puertos de entrada: una clase abstracta por caso de uso, con el mismo nombre que el caso de uso de `aplicacion/` que la implementa. Lo que entra y sale de ellos está en `dominio/resultados.py`. |
+| `dominio/puertos.py` y `dominio/puertos_usuarios.py` | Los puertos de salida: lo que el núcleo necesita de afuera, cada uno con pocos métodos. |
+| `presentacion/` | Los adaptadores de entrada: las rutas del front, las de los dispositivos y el WebSocket. Dependen de los puertos de entrada, nunca de los casos de uso. |
+| `infraestructura/` | Los adaptadores de salida: implementan los puertos de salida con SQLite, el CSV, PyJWT, PBKDF2, el reloj y el WebSocket. |
+| `main.py` | El único punto de composición: elige qué adaptador se conecta a cada puerto. `crear_admin.py` y `exportar_especies_csv.py` le piden sus piezas (`construir_consola`). |
+
+Las dependencias apuntan hacia el núcleo. `tests/dominio/test_arquitectura.py` lo comprueba en cada corrida:
+- El dominio y la aplicación no importan ni el framework, ni la persistencia, ni la criptografía, ni las otras capas.
+- `presentacion/` no importa `aplicacion/` ni `infraestructura/`.
+- Solo `infraestructura/tokens_jwt.py` importa `jwt`, y solo `infraestructura/repositorio_especies_csv.py` importa `csv`.
+
+El diagrama está en [docs/diagramas](docs/diagramas/README.md#vista-hexagonal) (`hexagonal.mmd`).
+
+**La prueba de cambio.** El adaptador de dispositivos y el simulador entraron en el commit `d41ca34` sin tocar ningún archivo del núcleo. Lo muestra este comando, que no lista ningún archivo:
+
+```bash
+git show --stat d41ca34 -- backend/dominio backend/aplicacion
+```
+
+El núcleo ya tenía, desde el commit `13a3c1b`, los puertos de entrada `RegistrarLectura` y `CanjearClaveDispositivo`, probados con dobles. Lo mismo pasó con la tabla en CSV (commit `9c7ce5e`), que es otro adaptador de los puertos del corte 1.
 
 ## Requisitos
 
@@ -70,9 +106,15 @@ La API queda en `http://127.0.0.1:5000/api/v1`. Se puede configurar con variable
 | `MATERA_PUERTO` | `5000` |
 | `MATERA_RUTA_BD` | `backend/datos/matera.sqlite` |
 | `MATERA_ORIGENES_CORS` | `http://localhost:5500,http://127.0.0.1:5500` |
-| `MATERA_DIAS_SESION` | `7` |
+| `MATERA_DIAS_SESION` | `7`: cuánto dura el token de una sesión |
+| `MATERA_HORAS_TOKEN_DISPOSITIVO` | `24`: cuánto dura el token de un sensor; después, el sensor vuelve a canjear su clave |
+| `MATERA_JWT_SECRETO` | Sin valor: el secreto con que se firman los JWT se genera la primera vez y se guarda junto a la base (`matera.sqlite.secreto-jwt`, que Git ignora). Así un reinicio no cierra las sesiones. Si se pierde, todos vuelven a ingresar. |
+| `MATERA_TABLA_REFERENCIA` | `bd`: la tabla de especies sale de la base. Con `csv`, sale de la copia en CSV (ver [Tabla de referencia](#tabla-de-referencia-csv-o-base-de-datos)) |
+| `MATERA_RUTA_CSV` | `backend/datos/especies.csv` |
 
-Al arrancar, el backend crea las tablas que falten y, si no hay ninguna especie, carga las de `datos/carga.sql`. Git ignora el archivo de la base.
+Al arrancar, el backend escribe en la consola qué tabla de referencia usa, crea las tablas que falten y, si no hay ninguna especie, carga las de `datos/carga.sql`. Git ignora el archivo de la base.
+
+Una base de antes de la fase 2 se migra sola la primera vez. Antes de migrarla, el backend saca una copia al lado (`matera.respaldo-v0.sqlite`). Usuarios, plantas, sensores, especies e historial no cambian, pero las sesiones abiertas se cierran, porque los tokens de antes no eran JWT: cada usuario vuelve a ingresar. La clave de cada sensor sigue sirviendo.
 
 Si el repositorio está en una carpeta sincronizada (Google Drive, OneDrive), ponga la base afuera: SQLite escribe a cada rato y la sincronización puede bloquear el archivo. En PowerShell:
 
@@ -88,6 +130,26 @@ El registro siempre crea usuarios comunes, y la API no tiene ninguna ruta que d�
 ```bash
 python crear_admin.py correo@ejemplo.com
 ```
+
+### Tabla de referencia: CSV o base de datos
+
+La tabla de especies sale de la base de datos (`MATERA_TABLA_REFERENCIA=bd`, por defecto) o de su copia en CSV (`csv`). Se cambia con la variable y reiniciando, sin tocar código. Desde `backend/`, en PowerShell:
+
+```powershell
+python exportar_especies_csv.py
+```
+
+```powershell
+$env:MATERA_TABLA_REFERENCIA = "csv"
+python main.py
+```
+
+El CSV es una copia de la base, de solo lectura:
+- **Con `csv`:** el diagnóstico, el catálogo y las materas usan el archivo. Agregar una especie responde `409 TABLA_SOLO_LECTURA`.
+- **Con `bd`:** cada especie que agrega el admin también se escribe en la copia, así el CSV queda al día.
+- **`exportar_especies_csv.py`:** escribe la copia desde la base de `MATERA_RUTA_BD`. Conviene correrlo antes de cambiar a `csv`, para que el archivo tenga las mismas especies que la base.
+
+Para volver a la base, se borra la variable (`Remove-Item Env:MATERA_TABLA_REFERENCIA`) o se pone en `bd`, y se reinicia.
 
 ### Mediciones de un ESP32 en la red
 
@@ -118,30 +180,60 @@ Para cerrarlo después de la demo:
 Remove-NetFirewallRule -DisplayName "Matera API 5000"
 ```
 
-El ESP32 manda la medición así, con el código de su matera y la clave que entregó Mis materas al crearla:
+El ESP32 le habla a la API en dos pasos, con el código de su matera y la clave que entregó Mis materas al crearla. Primero canjea la clave por su token, de alcance «lecturas», que vence a las 24 horas:
 
 ```http
-POST http://192.168.x.x:5000/api/v1/sensores/MT-0001-AA/mediciones
+POST http://192.168.x.x:5000/api/v1/dispositivos/MT-0001-AA/token
 Content-Type: application/json
-X-Clave-Sensor: <la clave del sensor>
 
-{"humedad": 34.5, "luz": 820, "temperatura": 22.1}
+{"clave": "<la clave del sensor>"}
 ```
 
-Sin la cabecera `Content-Type: application/json`, la API no lee el cuerpo y responde `400 SOLICITUD_INVALIDA`. Al ESP32 no le aplica CORS, porque no es un navegador. El programa de la placa, las conexiones de los sensores y la calibración están en [firmware/README.md](firmware/README.md).
+Después manda cada lectura con ese token y la hora en que la tomó, en UTC:
 
-Con `0.0.0.0`, cualquiera en esa red puede llamar la API, y el token y la clave del sensor viajan sin cifrar, porque es HTTP. Además el servidor de Flask es de desarrollo. Sirve para la demo en una red de confianza; al terminar, cierre la terminal (la variable se borra con ella) y el puerto del firewall.
+```http
+POST http://192.168.x.x:5000/api/v1/dispositivos/MT-0001-AA/lecturas
+Content-Type: application/json
+Authorization: Bearer <el token del canje>
 
-### Probar el tiempo real sin la placa
+{"dispositivo": "MT-0001-AA", "momento": "2026-10-22T15:04:05Z", "lecturas": {"humedad": 53, "luz": 1500, "temperatura": 25.5}}
+```
 
-`herramientas/enviar_medicion.py` manda la misma petición que el ESP32, desde el PC. No es parte de la app: sirve para ver Mis materas en vivo mientras no están los sensores. Desde `backend/`, con el backend corriendo:
+Sin la cabecera `Content-Type: application/json`, la API no lee el cuerpo y responde `400 SOLICITUD_INVALIDA`. Al ESP32 no le aplica CORS, porque no es un navegador. El programa de la placa y las conexiones de los sensores están en [firmware/README.md](firmware/README.md).
+
+Con `0.0.0.0`, cualquiera en esa red puede llamar la API, y los tokens y la clave del sensor viajan sin cifrar, porque es HTTP. Además el servidor de Flask es de desarrollo. Sirve para la demo en una red de confianza; al terminar, cierre la terminal (la variable se borra con ella) y el puerto del firewall.
+
+### Simulador del ESP32
+
+`simulador/simulador_esp32.py` manda lecturas a la API como el ESP32, sin hardware. Hace lo mismo que la placa (el canje, el token y las lecturas con su hora), y además genera lecturas fuera de rango y datos inválidos. Es un script aparte: no importa nada del backend y solo usa la biblioteca estándar de Python.
+
+Conviene darle su propia matera en Mis materas, distinta de la de la placa, porque cada canje deja sin efecto el token anterior del mismo sensor. Desde la raíz del repositorio, con el backend corriendo:
 
 ```powershell
-python herramientas/enviar_medicion.py MT-0001-AA --humedad 30 --luz 900 --temperatura 21
-python herramientas/enviar_medicion.py MT-0001-AA --cada 15
+python simulador/simulador_esp32.py MT-0002-AB --clave=<clave> --intervalo 5 --fuera-de-rango 0.2 --invalidas 0.1
 ```
 
-La herramienta pide la clave del sensor en la consola sin mostrarla, así que no queda en el historial de la terminal. Con `--cada`, manda una medición cada tantos segundos, con valores que varían un poco alrededor de los pedidos y sin pasar los límites físicos, hasta que se detiene con Ctrl+C. Para un script, la clave puede ir en la variable `MATERA_CLAVE_SENSOR` o como `--clave=<clave>`, con el signo igual porque una clave puede empezar con guion; escritas en la consola, las dos quedan en el historial.
+```powershell
+python simulador/simulador_esp32.py MT-0002-AB --clave=<clave> --casos
+```
+
+- **Modo continuo** (el primero): manda una lectura cada `--intervalo` segundos (5 por defecto) hasta Ctrl+C, o `--veces` lecturas.
+  - Los valores cambian poco a poco, como en una matera de verdad: la humedad baja despacio y sube de golpe cuando se «riega».
+  - `--fuera-de-rango` y `--invalidas` son la parte de las lecturas, de 0 a 1, que sale fuera de rango (valores posibles que la especie no tolera) o con un dato inválido.
+  - Al terminar, dice cuántas mandó de cada tipo.
+- **`--casos`**: manda una vez cada caso de error y dice si la API respondió lo esperado. Los casos son:
+  - humedad de 150 %;
+  - un texto en vez de un número;
+  - un parámetro que falta;
+  - una hora en el futuro o sin zona horaria;
+  - un JSON mal formado;
+  - una lectura de otro sensor;
+  - un envío sin token o con el token alterado;
+  - una clave equivocada en el canje.
+
+  Termina con «10 de 10 como se esperaba».
+- **La clave:** si no se da `--clave`, se pide en la consola sin mostrarla, así no queda en el historial de la terminal. También sirve la variable `MATERA_CLAVE_SENSOR`. Va con signo igual (`--clave=<clave>`) porque una clave puede empezar con guion.
+- **Otras opciones:** `--api` cambia la dirección (por defecto `http://127.0.0.1:5000/api/v1`) y `--semilla` repite la misma secuencia de valores.
 
 ## Ejecutar el front
 
@@ -160,14 +252,16 @@ El front no tiene rangos, umbrales ni reglas. Los parámetros, las especies, los
 | Diagnóstico | pública | Consulta `POST /diagnosticos` mientras se escribe (espera 400 ms después de la última tecla) y muestra el estado en los anillos. Los botones Saludable, En riesgo y Crítico llenan valores de ejemplo a partir de los rangos, y la API decide el estado. El panel "Errores de la API" envía peticiones inválidas a propósito. No guarda nada. |
 | Especies | pública | Muestra el catálogo de `GET /especies` con bandas escaladas según los límites físicos de `GET /parametros`. |
 | Ingresar / Crear cuenta | pública | Dos formularios. Al entrar guarda el token y vuelve a la pantalla privada que se había pedido. |
-| Mis materas | con sesión | Las materas del usuario con su última medición, que se actualiza sola cuando llega una nueva. «Agregar matera» pide apodo, especie y código del sensor, y muestra la clave del sensor una sola vez. Cada tarjeta permite cambiar el sensor (con el mismo código, da una clave nueva), ver el historial y eliminar la matera. Desde el front no se escriben mediciones. |
-| Historial | con sesión | La lista, la gráfica y el resumen de las mediciones de una planta, con el estado que calculó la API en su momento. Una medición que llega en vivo se agrega arriba. |
+| Mis materas | con sesión | Las materas del usuario con su última medición, que se actualiza sola (ver abajo). «Agregar matera» pide apodo, especie y código del sensor, y muestra la clave del sensor una sola vez: va en `config.h` de la placa o en `--clave=` del simulador. Cada tarjeta permite cambiar el sensor (con el mismo código, da una clave nueva y la anterior deja de servir con su token), ver el historial y eliminar la matera. Desde el front no se escriben mediciones. |
+| Historial | con sesión | La lista, la gráfica y el resumen de las mediciones de una planta, con el estado que calculó la API en su momento. Se actualiza solo, igual que Mis materas. |
 | Mi cuenta | con sesión | Nombre, correo, rol, cantidad de plantas y cerrar sesión. |
 | Administración | solo admin | Activar, desactivar, dar o quitar el rol y eliminar cuentas; agregar especies. La pestaña solo aparece para un admin, pero los permisos los revisa la API. |
 
 Si la API responde `401 SESION_INVALIDA`, el front borra el token y lleva a Ingresar.
 
-Mientras hay una sesión, `js/tiempo-real.js` mantiene abierto el WebSocket `/api/v1/tiempo-real`, y la barra muestra «En vivo». Si la conexión se cae, reintenta con esperas de 1 a 30 segundos; al volver, Mis materas y el Historial piden otra vez sus datos para no perder lo que llegó mientras tanto.
+Mis materas y el Historial se actualizan solos de dos maneras:
+- **Consulta periódica.** Mientras la pantalla y la pestaña están a la vista, `js/consulta-periodica.js` vuelve a pedir `GET /plantas` (o el historial) cada 10 segundos. Solo se vuelven a pintar las tarjetas que cambiaron. Debajo del título se ve la hora de la última consulta.
+- **En vivo.** Mientras hay una sesión, `js/tiempo-real.js` mantiene abierto el WebSocket `/api/v1/tiempo-real`, y la barra muestra «En vivo». Cada lectura aparece al instante, sin esperar la próxima consulta. Si la conexión se cae, reintenta con esperas de 1 a 30 segundos, y mientras tanto la consulta periódica mantiene la pantalla al día.
 
 ## Pruebas
 
@@ -184,9 +278,23 @@ Para correr solo las pruebas del dominio:
 python -m pytest tests/dominio
 ```
 
-Las pruebas de dominio y de aplicación no levantan el servidor ni abren la base de datos: usan dobles en memoria de cada puerto (`tests/dobles.py` y `tests/dobles_usuarios.py`), y siguen pasando aunque se borre la carpeta `infraestructura/`. `tests/dominio/test_arquitectura.py` falla si algún archivo del dominio importa Flask, `sqlite3`, `hashlib`, `secrets`, HTTP u otra capa, o si la aplicación importa Flask, la base de datos o la criptografía.
+**Dominio y aplicación.**
+- No levantan el servidor ni abren la base de datos. Usan dobles en memoria de cada puerto (`tests/dobles.py` y `tests/dobles_usuarios.py`), incluidos unos tokens falsos que no son JWT, y siguen pasando aunque se borre la carpeta `infraestructura/`.
+- Cubren lecturas en rango, fuera de rango e inválidas, la regla de propiedad, la hora del reporte, el canje y los tokens anulados.
+- `tests/aplicacion/test_puertos_entrada.py` comprueba que cada puerto de entrada lo implementa el caso de uso de su mismo nombre.
+- `tests/dominio/test_arquitectura.py` comprueba las reglas de dependencias de la sección [Arquitectura](#arquitectura-puertos-y-adaptadores).
 
-Las de integración usan una base SQLite temporal. `test_servidor_real.py` levanta el servidor con hilos, como `python main.py`: es la prueba que detecta un error que el cliente de pruebas de Flask no ve, usar una misma conexión de `sqlite3` desde varios hilos. `test_websocket.py` usa ese mismo servidor y un cliente WebSocket de verdad, porque el cliente de pruebas de Flask no sabe abrir un WebSocket. `test_herramienta_enviar_medicion.py` prueba la herramienta de desarrollo contra el servidor.
+**Integración.** Usan una base SQLite temporal.
+
+| Prueba | Qué cubre |
+|---|---|
+| `test_tokens_jwt.py` | El adaptador de JWT con la librería de verdad: la firma, el vencimiento, el algoritmo (rechaza `none`), los reclamos y el alcance. |
+| `test_api_dispositivos.py` | Cada respuesta de la ruta de los dispositivos. |
+| `test_tabla_referencia.py` | El cambio entre CSV y base de datos. |
+| `test_migracion_bd.py` | La migración de una base de antes de la fase 2. |
+| `test_servidor_real.py` | Levanta el servidor con hilos, como `python main.py`, y detecta un error que el cliente de pruebas de Flask no ve: usar una misma conexión de `sqlite3` desde varios hilos. |
+| `test_websocket.py` | Ese mismo servidor, con un cliente WebSocket de verdad. |
+| `test_simulador.py` | El simulador contra ese servidor, en sus dos modos. |
 
 El firmware no tiene pruebas automáticas: se prueba en la placa, con el monitor serie.
 
@@ -245,27 +353,41 @@ Los valores pueden llegar como números o como texto numérico (`"32.5"` o `"32,
 
 ### Cuentas, plantas y sensores (corte 2)
 
-Todas van bajo `/api/v1`. Las de sesión llevan la cabecera `Authorization: Bearer <token>`; la del sensor, `X-Clave-Sensor: <clave>`.
+Todas van bajo `/api/v1`, y hay dos clases de token, los dos JWT firmados por el servidor:
+- **El del usuario:** lo entrega `POST /sesiones`, con alcance «usuario». Las rutas de sesión y de administración lo piden en la cabecera `Authorization: Bearer <token>`.
+- **El del sensor:** lo entrega `POST /dispositivos/{codigo}/token` a cambio de la clave, con alcance «lecturas». Solo sirve para reportar lecturas de ese sensor.
+
+Un token no sirve en las rutas del otro (`403 ALCANCE_INVALIDO`). El servidor guarda el id de cada token:
+- Cerrar sesión o desactivar la cuenta anula el token del usuario.
+- Un canje nuevo o un cambio de sensor anula el token del sensor.
+
+En los dos casos el token deja de servir aunque no haya vencido.
 
 | Ruta | Quién | Responde |
 |---|---|---|
 | `POST /usuarios` | pública | 201 · `{id, nombre, correo, rol}`; el rol siempre es USUARIO |
-| `POST /sesiones` | pública | 201 · `{token, venceEn, usuario}` |
+| `POST /sesiones` | pública | 201 · `{token, venceEn, usuario}`; el token es el JWT de la sesión |
 | `DELETE /sesiones/actual` | sesión | 200 · `{mensaje}` |
 | `GET /usuarios/yo` | sesión | 200 · `{id, nombre, correo, rol, plantas}` |
 | `GET /plantas` | sesión | 200 · lista con `sensor` y `ultimaMedicion` |
 | `POST /plantas` | sesión | 201 · `{planta, codigo, clave}`. El cuerpo lleva `{apodo, especie, codigo}`: la matera nace con su sensor, y la clave solo aparece aquí |
 | `DELETE /plantas/{id}` | sesión | 200 · borra también su sensor y su historial |
-| `PUT /plantas/{id}/sensor` | sesión | 200 · `{planta, codigo, clave}`. Cambia el sensor, o da una clave nueva con el mismo código; el historial se conserva y la clave anterior deja de servir |
+| `PUT /plantas/{id}/sensor` | sesión | 200 · `{planta, codigo, clave}`. Cambia el sensor, o da una clave nueva con el mismo código; el historial se conserva, y la clave anterior y su token dejan de servir |
 | `GET /plantas/{id}/historial?limite=30` | sesión | 200 · `{planta, registros}`, el más reciente primero |
-| `POST /sensores/{codigo}/mediciones` | clave del sensor | 201 · `{planta, momento, diagnostico}`; se guarda con el código como origen y se avisa en vivo |
+| `POST /dispositivos/{codigo}/token` | la clave del sensor, en el cuerpo `{clave}` | 200 · `{token, venceEn}`: el JWT del sensor. Deja sin efecto el token anterior del mismo sensor |
+| `POST /dispositivos/{codigo}/lecturas` | token del sensor | 201 · `{planta, momento, diagnostico}`. El cuerpo lleva `{dispositivo, momento, lecturas}`; se guarda con la hora del cuerpo y el código como origen, y se avisa en vivo |
 | `WS /tiempo-real` | token en el primer mensaje | WebSocket: una medición nueva de las plantas del usuario por mensaje (ver abajo) |
 | `GET /admin/usuarios` | admin | 200 · lista de `{id, correo, nombre, rol, activo, cantidadPlantas}` |
 | `PATCH /admin/usuarios/{id}` | admin | 200 · el cuerpo lleva `{activo}` o `{rol}` |
 | `DELETE /admin/usuarios/{id}` | admin | 200 · borra la cuenta con sus plantas, sensores e historial |
 | `POST /admin/especies` | admin | 201 · la especie, con la misma forma que en `GET /especies` |
 
-La medición del sensor usa el mismo cuerpo que `POST /diagnosticos`, sin la especie: la especie es la de la planta. Una planta de otro usuario responde 404, igual que una que no existe. No hay medición a mano: el historial solo guarda lo que mandó un sensor. Las mediciones a mano que se guardaron antes conservan el origen `MANUAL`.
+Las reglas de la lectura de un sensor:
+- **El cuerpo:** `{"dispositivo": "MT-0001-AA", "momento": "2026-10-22T15:04:05Z", "lecturas": {"humedad": 53, "luz": 1500, "temperatura": 25.5}}`. Las lecturas tienen la forma de `POST /diagnosticos`, sin la especie, que es la de la planta.
+- **La hora:** va en ISO 8601 con zona horaria y se guarda en UTC. La API rechaza una hora sin zona o más de 2 minutos por delante de la suya.
+- **El sensor:** `dispositivo` tiene que ser el mismo sensor del token y de la URL.
+
+Una planta de otro usuario responde 404, igual que una que no existe. No hay medición a mano: el historial solo guarda lo que mandó un sensor. Las mediciones a mano que se guardaron antes conservan el origen `MANUAL`.
 
 ### Tiempo real: `WS /api/v1/tiempo-real`
 
@@ -281,7 +403,7 @@ Después solo habla el servidor. Todos los mensajes son JSON:
 |---|---|
 | `{"tipo": "listo", "usuario": {id, nombre}}` | El token sirvió. |
 | `{"tipo": "medicion", "planta", "medicion", "diagnostico"}` | Llegó una medición de una planta del usuario. `medicion` tiene la forma de `ultimaMedicion` en `GET /plantas`, y `diagnostico`, la de `POST /diagnosticos`, con sus recomendaciones. |
-| `{"tipo": "error", "error", "mensaje"}` | El primer mensaje no era `autenticar` (`SOLICITUD_INVALIDA`), el token no sirve o no llegó en 5 segundos (`SESION_INVALIDA`), o la sesión se cerró o venció con la conexión abierta. Después el servidor cierra con el código 1008. |
+| `{"tipo": "error", "error", "mensaje"}` | Puede ser: el primer mensaje no era `autenticar` (`SOLICITUD_INVALIDA`); el token no sirve o no llegó en 5 segundos (`SESION_INVALIDA`); es el token de un sensor (`ALCANCE_INVALIDO`); o la sesión se cerró o venció con la conexión abierta. Después el servidor cierra con el código 1008. |
 
 Cada medición llega solo a las conexiones de su dueño, y cada conexión revisa la sesión antes de cada mensaje: una cuenta borrada o desactivada recibe `SESION_INVALIDA` en vez de la medición. Se avisa después de guardar: si el aviso falla o nadie está conectado, la medición igual queda en el historial. Cada pestaña tiene su propia cola, así que una que deja de leer no traba el POST del sensor; si su cola se llena, se corta esa conexión. Un error inesperado también llega en JSON (`ERROR_INTERNO`, cierre 1011). El servidor revisa el `Origin` antes de aceptar la conexión (CORS no aplica a los WebSocket) y manda un ping cada 25 segundos.
 
@@ -300,16 +422,21 @@ Todas las respuestas de error, incluidas las de rutas inexistentes, tienen la fo
 | Error inesperado | 500 | `ERROR_INTERNO` | vacío |
 | Correo, nombre, contraseña, apodo o rango inválidos | 400 | `PARAMETRO_INVALIDO` | `campo`, `motivo` |
 | Código de sensor con otra forma (no `MT-0000-XX`) al crear la matera o al cambiarle el sensor | 400 | `CODIGO_SENSOR_INVALIDO` | `campo`, `motivo`, `texto` |
+| La hora de una lectura sin zona horaria o en el futuro | 400 | `MOMENTO_INVALIDO` | `campo: "momento"` |
 | Correo o contraseña incorrectos (el mismo en los dos casos) | 401 | `CREDENCIALES_INVALIDAS` | vacío |
-| Sin token, token vencido o cuenta desactivada | 401 | `SESION_INVALIDA` | vacío |
-| Sensor inexistente, código mal formado o clave incorrecta en `POST /sensores/{codigo}/mediciones` (el mismo en los tres casos) | 401 | `CLAVE_SENSOR_INVALIDA` | vacío |
+| Sin token de usuario, con la firma alterada, vencido, con la sesión cerrada o de una cuenta desactivada | 401 | `SESION_INVALIDA` | vacío |
+| Sensor inexistente, código mal formado o clave incorrecta en el canje (el mismo en los tres casos) | 401 | `CLAVE_SENSOR_INVALIDA` | vacío |
+| Sin token del sensor, con la firma alterada, vencido o anulado por otro canje o por un cambio de sensor: la placa vuelve a canjear | 401 | `CREDENCIAL_DISPOSITIVO_INVALIDA` | vacío |
 | Cuenta desactivada al iniciar sesión | 403 | `CUENTA_DESACTIVADA` | vacío |
 | Acción de administración sin ser admin | 403 | `PERMISO_DENEGADO` | vacío |
+| Un token válido de otro alcance: el de un sensor en una ruta de usuario o al revés | 403 | `ALCANCE_INVALIDO` | `esperado` |
+| Un sensor que reporta por otro (en la URL o en el cuerpo) | 403 | `DISPOSITIVO_AJENO` | `autenticado`, `reportado` |
 | Abrir el WebSocket desde un origen que no es el del front | 403 | `ORIGEN_NO_PERMITIDO` | `origen` |
 | Un `GET` normal (sin WebSocket) a `/tiempo-real` | 400 | `SOLICITUD_INVALIDA` | `ruta` |
 | Planta inexistente o de otro usuario | 404 | `PLANTA_NO_ENCONTRADA` | `planta_id` |
 | Usuario inexistente | 404 | `USUARIO_NO_ENCONTRADO` | `referencia` |
 | Correo, apodo, especie o código de sensor repetidos (el código, si es de otra planta) | 409 | `CORREO_YA_REGISTRADO`, `APODO_REPETIDO`, `ESPECIE_YA_EXISTE`, `SENSOR_YA_VINCULADO` | el dato repetido |
+| Agregar una especie con la tabla de referencia en CSV | 409 | `TABLA_SOLO_LECTURA` | vacío |
 | Un admin actúa sobre su propia cuenta | 409 | `ACCION_SOBRE_SI_MISMO` | vacío |
 
 Límites físicos: humedad de 0 a 100 %, luz de 0 a 150 000 lux y temperatura de −50 a 60 °C.
@@ -328,7 +455,7 @@ La regla está en `dominio/reglas.py` (`ReglaHibrida`) y se elige en `main.py`.
 
 ## Tabla de referencia y fuentes
 
-`backend/datos/carga.sql` llena las tablas `especie` (nombre y nombre científico) y `rango_optimo` (una fila por especie y parámetro, con su mínimo y su máximo). Son las mismas especies y rangos que tenía el CSV del corte 1. Un administrador puede agregar otras desde la API; `carga.sql` solo se ejecuta si la tabla de especies está vacía.
+`backend/datos/carga.sql` llena las tablas `especie` (nombre y nombre científico) y `rango_optimo` (una fila por especie y parámetro, con su mínimo y su máximo). Son las mismas especies y rangos que tenía el CSV del corte 1, que volvió en la fase 2 como copia de solo lectura (`backend/datos/especies.csv`, exportado de una base nueva). Un administrador puede agregar otras desde la API; `carga.sql` solo se ejecuta si la tabla de especies está vacía.
 
 | Especie | Nombre científico de referencia | Humedad % | Luz lux | Temperatura °C |
 |---|---|---|---|---|

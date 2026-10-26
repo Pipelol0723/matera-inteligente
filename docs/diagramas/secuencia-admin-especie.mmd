@@ -1,4 +1,5 @@
-%% Secuencia del corte 2 (implementada): el administrador agrega una especie. Muestra dónde se revisa el permiso.
+%% Secuencia del corte 2, fase 2 hexagonal (implementada): el administrador agrega una especie. Muestra donde se revisa el permiso
+%% y como cambia el final segun la tabla de referencia que se configuro: la base (bd) o su copia en CSV (csv).
 sequenceDiagram
     autonumber
     actor Admin
@@ -8,11 +9,15 @@ sequenceDiagram
     participant EU as esquemas_usuarios.py<br/>(presentación)
     participant AE as AgregarEspecie<br/>(aplicación)
     participant U as Usuario<br/>(dominio)
-    participant P as ConsultaRangos y<br/>RegistroEspecies (puertos)
+    participant P as ConsultaRangos<br/>(puerto)
+    participant R as RegistroEspecies<br/>(puerto)
+    participant SQ as RepositorioEspeciesSqlite<br/>(infraestructura)
 
+    Note over AE,SQ: main.py (_tabla_de_referencia) elige al arrancar, según MATERA_TABLA_REFERENCIA.<br/>bd: ConsultaRangos es RepositorioEspeciesSqlite y RegistroEspecies es RegistroEspeciesConCopiaCsv.<br/>csv: ConsultaRangos es RepositorioEspeciesCsv y RegistroEspecies es EspeciesDeSoloLectura
     Admin ->> UI: nombre, nombre científico y un rango por parámetro
-    UI ->> RA: POST /api/v1/admin/especies<br/>Authorization: Bearer token
-    RA ->> AU: usuario_actual()
+    UI ->> RA: POST /api/v1/admin/especies<br/>Authorization: Bearer JWT
+    RA ->> AU: con_usuario (decorador de la ruta)
+    Note over AU: verifica el JWT (VerificadorTokens) y revisa la sesión (IdentificarUsuario),<br/>como en secuencia-login. Si no sirve: 401 SESION_INVALIDA
     AU -->> RA: actor
     RA ->> EU: especie_desde_json(cuerpo)
     EU -->> RA: Especie, con sus Rango ya validados (si no, 400)
@@ -22,13 +27,29 @@ sequenceDiagram
         U --x RA: PermisoDenegado
         RA -->> UI: 403 PERMISO_DENEGADO
     else es ADMIN
+        Note over AE: exige un rango por cada parámetro que se mide.<br/>Si falta uno: ParametroSinRango y 400
         AE ->> P: rangos_de(especie.nombre)
         alt ya existe
             AE --x RA: EspecieYaExiste
             RA -->> UI: 409 ESPECIE_YA_EXISTE
         else es nueva
-            AE ->> P: agregar(especie)
-            AE -->> RA: Especie
-            RA -->> UI: 201 JSON con la especie
+            AE ->> R: agregar(especie)
+            alt MATERA_TABLA_REFERENCIA = csv
+                Note over R: EspeciesDeSoloLectura:<br/>el CSV es una copia de la base y no se edita
+                R --x AE: TablaDeSoloLectura
+                AE --x RA: TablaDeSoloLectura
+                RA -->> UI: 409 TABLA_SOLO_LECTURA
+            else MATERA_TABLA_REFERENCIA = bd
+                Note over R: RegistroEspeciesConCopiaCsv<br/>envuelve al registro de la base
+                R ->> SQ: agregar(especie)
+                SQ -->> R: la especie y sus rangos quedan en la base
+                R ->> SQ: listar()
+                SQ -->> R: todas las especies
+                R ->> R: escribir_csv(especies, ruta): archivo temporal y os.replace
+                Note over R: si escribir la copia falla (OSError), solo se registra en el log.<br/>La especie ya está en la base y la petición no falla.<br/>exportar_especies_csv.py deja la copia al día
+                R -->> AE: listo
+                AE -->> RA: Especie
+                RA -->> UI: 201 JSON con la especie
+            end
         end
     end

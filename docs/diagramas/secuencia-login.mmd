@@ -1,4 +1,4 @@
-%% Secuencia del corte 2 (implementada): iniciar sesión y pedir la lista de plantas propias con el token.
+%% Secuencia del corte 2, fase 2 hexagonal (implementada): iniciar sesion, que emite un JWT, y pedir la lista de plantas propias con ese token.
 sequenceDiagram
     autonumber
     actor Persona
@@ -9,12 +9,14 @@ sequenceDiagram
     participant AU as Autenticacion<br/>(presentacion/autenticacion.py)
     participant IU as IdentificarUsuario<br/>(aplicación)
     participant LP as ListarPlantas<br/>(aplicación)
-    participant PU as Cifrador, repositorios<br/>y GeneradorSecretos (puertos)
+    participant PU as ConsultaCuentas, Cifrador, GeneradorSecretos,<br/>SesionesAbiertas y Reloj (puertos)
+    participant TK as EmisorTokens y<br/>VerificadorTokens (puertos)
+    participant PP as ConsultaPlantas, SensoresVinculados<br/>e HistorialMediciones (puertos)
 
     Persona ->> UI: correo y contraseña
     UI ->> RU: POST /api/v1/sesiones
     RU ->> IS: ejecutar(correo, contraseña)
-    IS ->> PU: por_correo(correo) y verificar(contraseña, hash)
+    IS ->> PU: ConsultaCuentas.por_correo(correo) y Cifrador.verificar(contraseña, hash)
     alt el correo no existe o la contraseña no coincide
         IS --x RU: CredencialesInvalidas
         RU -->> UI: 401 CREDENCIALES_INVALIDAS (el mismo en los dos casos)
@@ -22,24 +24,41 @@ sequenceDiagram
         IS --x RU: CuentaDesactivada
         RU -->> UI: 403 CUENTA_DESACTIVADA
     else todo bien
-        IS ->> PU: nuevo token, guardar(Sesion con su huella y vencimiento)
-        IS -->> RU: token y Usuario con su rol
+        IS ->> PU: GeneradorSecretos.nuevo(): el token_id de la sesión
+        IS ->> PU: SesionesAbiertas.abrir(Sesion con su token_id, el usuario y su vencimiento)
+        IS ->> TK: EmisorTokens.emitir(IdentidadUsuario(usuario.id, token_id), vence_en)
+        TK -->> IS: JWT firmado, con alcance «usuario»
+        Note over IS,TK: la base guarda solo el token_id y el vencimiento de la sesión. El JWT no se guarda
+        IS -->> RU: SesionIniciada: token, vencimiento y Usuario con su rol
         RU -->> UI: 201 con token, venceEn y usuario
         UI ->> UI: guarda el token en sessionStorage
-        UI ->> RP: GET /api/v1/plantas<br/>Authorization: Bearer token
-        RP ->> AU: usuario_actual()
-        AU ->> IU: ejecutar(token)
-        IU ->> PU: por_huella(huella del token)
-        alt no existe, ya venció o la cuenta está desactivada
-            IU --x AU: SesionInvalida
+        UI ->> RP: GET /api/v1/plantas<br/>Authorization: Bearer JWT
+        RP ->> AU: con_usuario (decorador de la ruta)
+        AU ->> TK: VerificadorTokens.verificar_usuario(token)
+        Note over AU,TK: token_bearer saca el texto de la cabecera.<br/>Desde aquí hacia adentro nadie más ve el token
+        alt la firma no es válida, venció o falta el Bearer
+            TK --x AU: SesionInvalida
             AU -->> UI: 401 SESION_INVALIDA
-        else sesión vigente
-            IU -->> AU: Usuario
-            AU -->> RP: Usuario
-            RP ->> LP: ejecutar(usuario)
-            LP ->> PU: de_usuario(usuario.id)
-            PU -->> LP: solo las plantas de ese usuario
-            LP -->> RP: plantas con su sensor y su última medición
-            RP -->> UI: 200 JSON
+        else el token es de otro alcance (por ejemplo, el de un sensor)
+            TK --x AU: AlcanceInvalido
+            AU -->> UI: 403 ALCANCE_INVALIDO
+        else firma, vencimiento y alcance correctos
+            TK -->> AU: IdentidadUsuario(usuario_id, token_id)
+            AU ->> IU: ejecutar(identidad)
+            IU ->> PU: SesionesAbiertas.abierta(token_id) y ConsultaCuentas.por_id(usuario_id)
+            alt la sesión se cerró, es de otro usuario o venció, o la cuenta está desactivada o borrada
+                IU --x AU: SesionInvalida
+                AU -->> UI: 401 SESION_INVALIDA
+            else sesión abierta y cuenta activa
+                IU -->> AU: Usuario
+                AU -->> RP: Usuario
+                RP ->> LP: ejecutar(usuario)
+                LP ->> PP: ConsultaPlantas.de_usuario(usuario.id)
+                PP -->> LP: las plantas de ese usuario
+                LP ->> PP: por cada planta: SensoresVinculados.de_planta(planta.id) e HistorialMediciones.ultimo_de(planta.id)
+                LP -->> RP: PlantaConEstado: la planta con su sensor y su última medición
+                RP -->> UI: 200 JSON
+                Note over UI,AU: materas.js repite este GET /plantas cada 10 s con el mismo token<br/>y cada vez vuelve a pasar por la verificación del token y de la sesión
+            end
         end
     end

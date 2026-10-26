@@ -1,0 +1,77 @@
+%% Vista hexagonal del backend (fase 2): adaptadores de entrada a la izquierda, el nucleo al centro
+%% (puertos de entrada, casos de uso, reglas y puertos de salida) y adaptadores de salida a la derecha,
+%% con los nombres reales de archivos y clases.
+%% Todas las flechas apuntan hacia el nucleo: los adaptadores conocen los puertos y el nucleo no conoce
+%% a los adaptadores. Los enlaces invisibles (~~~) solo ordenan el dibujo de izquierda a derecha.
+%% Colores por capa, los mismos de los diagramas de clases: morado presentacion, amarillo aplicacion,
+%% verde dominio y azul infraestructura.
+flowchart LR
+    NAV["Front en el navegador<br/>(fetch cada 10 s y WebSocket)"]
+    ESP["ESP32 o<br/>simulador/simulador_esp32.py<br/>(HTTP con su JWT)"]
+    MAIN["main.py<br/>único punto de composición:<br/>elige el adaptador de cada puerto<br/>(MATERA_TABLA_REFERENCIA: SQLite o CSV)"]
+
+    subgraph ENT["Entrada · presentacion/"]
+        direction TB
+        FRONT["Rutas del front<br/>rutas.py · rutas_usuarios.py<br/>rutas_plantas.py · rutas_admin.py<br/>decorador Autenticacion.con_usuario"]
+        WS["WebSocket<br/>tiempo_real.py"]
+        DISP["Rutas de dispositivos<br/>rutas_dispositivos.py<br/>decorador con_dispositivo"]
+        CONSOLA["Consola<br/>crear_admin.py<br/>exportar_especies_csv.py"]
+        PRUEBAS["Pruebas unitarias<br/>tests/dominio · tests/aplicacion<br/>(dobles de los puertos de salida)"]
+    end
+
+    subgraph NUCLEO["Núcleo · dominio/ + aplicacion/"]
+        PE["Puertos de entrada<br/>dominio/puertos_entrada.py<br/><br/>DiagnosticarPlanta · ListarEspecies<br/>ListarParametros · RegistrarUsuario<br/>IniciarSesion · CerrarSesion<br/>IdentificarUsuario · ConsultarCuenta<br/>RegistrarPlanta · ListarPlantas<br/>EliminarPlanta · ReemplazarSensor<br/>ConsultarHistorial<br/>CanjearClaveDispositivo · RegistrarLectura<br/>ListarUsuarios · CambiarEstadoUsuario<br/>CambiarRol · EliminarUsuario<br/>AgregarEspecie · ConvertirEnAdministrador"]
+        CU["Casos de uso · aplicacion/<br/>cada uno hereda el puerto<br/>de su mismo nombre<br/>(más DiagnosticarPlantaDeUsuario)"]
+        REGLAS["Reglas del dominio<br/>sin Flask, SQLite, CSV, JWT, JSON ni HTTP<br/><br/>Lectura · Medicion · Especie · Rango<br/>ServicioDiagnostico · EvaluadorPlanta<br/>ReglaHibrida · Planta.exigir_dueno<br/>Usuario.exigir_admin<br/>ReporteDeDispositivo<br/>IdentidadUsuario · IdentidadDispositivo"]
+        PS["Puertos de salida<br/>dominio/puertos.py · puertos_usuarios.py<br/><br/>ConsultaRangos · CatalogoEspecies<br/>RegistroEspecies · ConsultaCuentas<br/>RegistroCuentas · ListadoCuentas<br/>SesionesAbiertas · ConsultaPlantas<br/>RegistroPlantas · SensoresVinculados<br/>CredencialesSensor · HistorialMediciones<br/>NotificadorDiagnosticos · EmisorTokens<br/>VerificadorTokens · Cifrador<br/>GeneradorSecretos · Reloj"]
+    end
+
+    subgraph SAL["Salida · infraestructura/"]
+        direction TB
+        SQLITE["SQLite · sqlite/<br/>RepositorioUsuariosSqlite<br/>RepositorioSesionesSqlite<br/>RepositorioPlantasSqlite<br/>RepositorioSensoresSqlite<br/>HistorialMedicionesSqlite<br/>RepositorioEspeciesSqlite"]
+        CSV["CSV · repositorio_especies_csv.py<br/>RepositorioEspeciesCsv<br/>EspeciesDeSoloLectura<br/>RegistroEspeciesConCopiaCsv"]
+        JWT["JWT · tokens_jwt.py<br/>TokensJwt (PyJWT)"]
+        OTROS["seguridad.py · reloj.py · tiempo_real.py<br/>CifradorPbkdf2 · GeneradorSecretosSeguro<br/>RelojSistema · NotificadorWebSocket"]
+    end
+
+    NAV --> FRONT
+    NAV --> WS
+    ESP --> DISP
+    MAIN -. "conecta los adaptadores<br/>de entrada y de salida" .-> ENT
+
+    FRONT --> PE
+    WS --> PE
+    DISP --> PE
+    CONSOLA --> PE
+    PRUEBAS --> PE
+    FRONT -- "verificar_usuario" --> PS
+    WS -- "verificar_usuario" --> PS
+    DISP -- "verificar_dispositivo" --> PS
+
+    PE ~~~ CU
+    CU -. "implementa" .-> PE
+    CU --> REGLAS
+    CU --> PS
+
+    PS ~~~ SQLITE
+    PS ~~~ CSV
+    PS ~~~ JWT
+    PS ~~~ OTROS
+    SQLITE -. "implementa" .-> PS
+    CSV -. "implementa" .-> PS
+    JWT -. "implementa" .-> PS
+    OTROS -. "implementa" .-> PS
+
+    classDef presentacion fill:#E1D5E7,stroke:#6a3d80,stroke-width:2px,color:#16231b
+    classDef aplicacion fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,color:#16231b
+    classDef dominio fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    classDef infraestructura fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
+    classDef externo fill:#ffffff,stroke:#8a9a8e,stroke-width:1.5px,color:#16231b
+    class FRONT,DISP,WS,CONSOLA,PRUEBAS presentacion
+    class CU aplicacion
+    class PE,REGLAS,PS dominio
+    class SQLITE,CSV,JWT,OTROS infraestructura
+    class ESP,NAV,MAIN externo
+    style NUCLEO fill:#f7fbf6,stroke:#2e6a4e,stroke-width:3px,color:#16231b
+    style ENT fill:#fbf8fc,stroke:#c9b8d3,color:#16231b
+    style SAL fill:#f6f9fd,stroke:#b9cbe3,color:#16231b

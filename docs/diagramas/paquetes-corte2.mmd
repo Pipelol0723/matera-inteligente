@@ -1,27 +1,33 @@
-%% Diagrama de paquetes del corte 2 (implementado). Misma forma que paquetes.mmd:
-%% cada caja es una carpeta y dice qué archivos se agregan y cuáles se eliminan. Punteado: nodos nuevos.
+%% Diagrama de paquetes del corte 2 (implementado, con la fase 2 hexagonal). Misma forma que paquetes.mmd:
+%% cada caja es una carpeta y dice que archivos se agregan y cuales se eliminan. Punteado: nodos nuevos.
+%% Presentacion ya no importa aplicacion: las rutas y el WebSocket llaman a los puertos de entrada de
+%% dominio/puertos_entrada.py (lo exige tests/dominio/test_arquitectura.py) y main.py les entrega el caso de uso.
+%% main.py es el unico que conecta las capas, tambien para los comandos de consola (construir_consola).
 flowchart TB
-    FRONT["frontend/ · cliente estático servido aparte (puerto 5500)<br/>index.html · css/estilos.css · js/config.js · js/app.js · js/api.js<br/>js/diagnostico.js · js/especies.js · js/escala.js · js/formato.js<br/>nuevos: js/sesion.js · js/acceso.js · js/cuenta.js · js/materas.js<br/>js/tiempo-real.js · js/historial.js · js/admin.js<br/>js/formularios.js · js/lecturas.js<br/>se eliminaron js/prototipos.js, js/vincular.js y js/simulador.js"]
-    ESP["ESP32 · firmware/matera-sensor<br/>(o backend/herramientas/enviar_medicion.py)<br/>manda mediciones con su clave"]
+    FRONT["frontend/ · cliente estático servido aparte (puerto 5500)<br/>index.html · css/estilos.css · js/config.js · js/app.js · js/api.js<br/>js/diagnostico.js · js/especies.js · js/escala.js · js/formato.js<br/>nuevos: js/sesion.js · js/acceso.js · js/cuenta.js · js/materas.js<br/>js/tiempo-real.js · js/historial.js · js/admin.js<br/>js/formularios.js · js/lecturas.js · js/consulta-periodica.js<br/>se eliminaron js/prototipos.js, js/vincular.js y js/simulador.js"]
+    ESP["ESP32 · firmware/matera-sensor<br/>canjea su clave por un token: POST /api/v1/dispositivos/{codigo}/token<br/>y manda cada lectura con su hora: POST /api/v1/dispositivos/{codigo}/lecturas"]
+    SIM["simulador/simulador_esp32.py · script aparte, en la raíz del repositorio<br/>hace lo mismo que la placa y puede mandar lecturas fuera de rango e inválidas<br/>no importa nada del backend<br/>usa: solo la biblioteca estándar de Python"]
 
     subgraph BACKEND["backend/ (Flask, puerto 5000)"]
-        MAIN["main.py · raíz de composición<br/>nuevo: crear_admin.py, para la consola"]
-        PRES["presentacion/<br/>rutas.py · esquemas.py · errores_http.py<br/>nuevos: autenticacion.py · rutas_usuarios.py · rutas_plantas.py<br/>rutas_sensores.py · rutas_admin.py · tiempo_real.py<br/>esquemas_usuarios.py · errores_usuarios.py<br/>usa: flask, werkzeug, flask-sock"]
-        APP["aplicacion/<br/>diagnosticar_planta.py · listar_especies.py · listar_parametros.py<br/>nuevos: cuentas.py · plantas.py · sensores.py · historial.py<br/>diagnosticar_planta_de_usuario.py · administracion.py"]
-        DOM["dominio/<br/>los 12 módulos del corte 1, sin cambios<br/>nuevos: usuarios.py · plantas.py · sensores.py · historial.py<br/>puertos_usuarios.py · errores_usuarios.py<br/>usa: solo la biblioteca estándar de Python"]
-        INFRA["infraestructura/<br/>configuracion.py · servidor_web.py<br/>nuevos: sqlite/ · seguridad.py · reloj.py · tiempo_real.py<br/>se eliminó repositorio_especies_csv.py<br/>usa: sqlite3, hashlib, secrets, hmac, flask, flask-cors"]
-        SQL["datos/esquema.sql · datos/carga.sql<br/>reemplazan a especies.csv"]
+        MAIN["main.py · raíz de composición, la única que conecta las capas<br/>nuevos: crear_admin.py · exportar_especies_csv.py<br/>comandos de consola, que piden sus piezas a construir_consola"]
+        PRES["presentacion/<br/>rutas.py · esquemas.py · errores_http.py<br/>nuevos: autenticacion.py · rutas_usuarios.py · rutas_plantas.py<br/>rutas_dispositivos.py · rutas_admin.py · tiempo_real.py<br/>esquemas_usuarios.py · esquemas_dispositivos.py · errores_usuarios.py<br/>se eliminó rutas_sensores.py<br/>usa: flask, werkzeug, flask-sock"]
+        APP["aplicacion/<br/>diagnosticar_planta.py · listar_especies.py · listar_parametros.py<br/>nuevos: cuentas.py · plantas.py · sensores.py · historial.py<br/>diagnosticar_planta_de_usuario.py · administracion.py<br/>cada caso de uso hereda de su puerto de entrada"]
+        DOM["dominio/<br/>los 12 módulos del corte 1, sin cambios<br/>nuevos: usuarios.py · plantas.py · sensores.py · historial.py<br/>identidad.py · reportes.py · resultados.py · errores_usuarios.py<br/>puertos_entrada.py (lo que ofrece el núcleo)<br/>puertos_usuarios.py (lo que necesita de afuera)<br/>usa: solo la biblioteca estándar de Python"]
+        INFRA["infraestructura/<br/>configuracion.py · servidor_web.py<br/>repositorio_especies_csv.py, que vuelve como copia de solo lectura<br/>nuevos: sqlite/ (base_datos.py · repositorio_usuarios.py · repositorio_plantas.py<br/>repositorio_especies.py · historial_mediciones.py)<br/>seguridad.py · reloj.py · tiempo_real.py · tokens_jwt.py<br/>usa: sqlite3, hashlib, secrets, hmac, csv, PyJWT, flask, flask-cors"]
+        SQL["datos/esquema.sql · datos/carga.sql<br/>las tablas y las especies de partida"]
+        CSV["datos/especies.csv<br/>copia de solo lectura de la tabla de especies<br/>la usa MATERA_TABLA_REFERENCIA=csv<br/>la escribe exportar_especies_csv.py"]
         TESTS["tests/<br/>dominio/ · aplicacion/ · integracion/<br/>dobles.py · dobles_usuarios.py"]
     end
-    BD[("matera.sqlite<br/>ruta en MATERA_RUTA_BD,<br/>fuera de Google Drive")]
+    BD[("matera.sqlite<br/>ruta en MATERA_RUTA_BD, fuera de Google Drive<br/>junto a ella, el secreto con que se firman los JWT")]
 
-    FRONT -->|"HTTP + JSON, token Bearer en lo privado<br/>WebSocket /tiempo-real, token en el primer mensaje"| PRES
-    ESP -->|"HTTP + JSON, cabecera X-Clave-Sensor"| PRES
-    PRES -->|"importa"| APP
-    PRES -->|"importa"| DOM
-    APP -->|"importa"| DOM
-    INFRA -->|"implementa los puertos"| DOM
+    FRONT -->|"HTTP + JSON, JWT de usuario (Bearer) en lo privado, y GET /plantas cada 10 s<br/>WebSocket /tiempo-real, token en el primer mensaje"| PRES
+    ESP -->|"HTTP + JSON, token del dispositivo (Bearer)"| PRES
+    SIM -->|"HTTP + JSON, igual que la placa"| PRES
+    PRES -->|"importa los puertos de entrada y los datos del dominio"| DOM
+    APP -->|"importa · implementa los puertos de entrada"| DOM
+    INFRA -->|"implementa los puertos de salida"| DOM
     INFRA -->|"crea las tablas y carga las especies con"| SQL
+    INFRA -->|"lee (modo csv) y vuelve a escribir (modo bd)"| CSV
     INFRA -->|"lee y escribe"| BD
 
     MAIN -.-> PRES
@@ -43,5 +49,5 @@ flowchart TB
     class DOM dominio
     class INFRA infraestructura
     class FRONT,MAIN,TESTS neutro
-    class ESP,SQL,BD nuevo
+    class ESP,SIM,SQL,CSV,BD nuevo
     style BACKEND fill:#fbfcfa,stroke:#c3d3c4,stroke-dasharray:6 4,color:#56655b

@@ -1,5 +1,6 @@
-%% Modelo entidad-relación del corte 2 (implementado en backend/datos/esquema.sql): una sola base SQLite.
-%% Las líneas punteadas llegan a PARAMETRO, que sigue en el código y no es una tabla.
+%% Modelo entidad-relacion del corte 2 (implementado en backend/datos/esquema.sql): una sola base SQLite.
+%% Desde la fase 2 los tokens son JWT: SESION y SENSOR guardan el id del token (el reclamo jti), no el token ni su huella.
+%% Las lineas punteadas llegan a PARAMETRO, que sigue en el codigo y no es una tabla.
 erDiagram
     USUARIO ||--o{ SESION : "abre"
     USUARIO ||--o{ PLANTA : "es dueño de"
@@ -30,7 +31,7 @@ erDiagram
         float maximo
     }
     SESION {
-        string hash_token PK "SHA-256 del token"
+        string token_id PK "id (jti) del JWT de usuario"
         int usuario_id FK
         string creada_en
         string vence_en
@@ -45,13 +46,14 @@ erDiagram
     SENSOR {
         string codigo PK "MT-0000-XX"
         int planta_id FK "único"
-        string hash_clave
+        string hash_clave "SHA-256 de la clave"
         string vinculado_en
+        string token_id "id (jti) del JWT vigente, NULL hasta el primer canje"
     }
     MEDICION {
         int id PK
         int planta_id FK
-        string momento
+        string momento "hora de la lectura, en UTC"
         string estado "SALUDABLE, EN_RIESGO o CRITICO"
         string origen "el código del sensor (MANUAL en las de antes)"
     }

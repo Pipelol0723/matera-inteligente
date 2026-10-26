@@ -1,14 +1,18 @@
-%% Casos de uso del corte 2 (implementado): visitante, usuario registrado, administrador y sensor ESP32.
+%% Casos de uso del corte 2 (implementado): visitante, usuario registrado, administrador y sensor (la ESP32 o el simulador).
 %% Gris: casos del corte 1. Verde: casos nuevos. Oscuro: solo el administrador.
-%% Desde el 18 de octubre de 2026 la matera nace con su sensor y solo el sensor escribe mediciones.
-%% Los casos del sensor se declaran primero para que sus flechas «incluye» no crucen otros casos.
+%% Solo el sensor escribe lecturas: no hay medicion a mano. Desde la fase 2 (22 de octubre de 2026) primero canjea
+%% su clave por un token de alcance "lecturas" y con ese token reporta cada lectura con su hora.
+%% Las pantallas del usuario (materas e historial) se actualizan solas: vuelven a pedir sus datos cada 10 s y ademas reciben cada medicion por el WebSocket.
+%% Con la tabla de referencia en CSV (copia de solo lectura) el administrador no puede agregar especies: la API responde 409.
+%% Los casos del sensor se declaran primero para que sus flechas "incluye" no crucen otros casos.
 flowchart LR
-    sensor["Sensor ESP32"]
+    sensor["Sensor<br/>(ESP32 o simulador)"]
     visitante["Visitante"]
     usuario["Usuario registrado"]
     admin["Administrador"]
     subgraph SIS["Matera inteligente · corte 2"]
-        uc11(["Enviar una medición"])
+        uc16(["Canjear su clave por un token"])
+        uc11(["Reportar una lectura con su hora"])
         uc12(["Guardar en el historial"])
         uc15(["Avisar la medición al dueño"])
         uc2(["Diagnosticar una planta"])
@@ -16,14 +20,15 @@ flowchart LR
         uc1(["Consultar especies y sus rangos"])
         uc4(["Crear cuenta"])
         uc5(["Iniciar sesión"])
-        uc7(["Ver mis materas en vivo"])
+        uc7(["Ver mis materas, que se actualizan solas<br/>(cada 10 s y en vivo)"])
         uc6(["Crear una matera con su sensor y borrarla"])
         uc8(["Cambiar el sensor de una matera"])
         uc9(["Ver el historial de una planta"])
         uc10(["Ver mi cuenta y cerrar sesión"])
         uc13(["Administrar usuarios"])
-        uc14(["Agregar especies"])
+        uc14(["Agregar especies<br/>(con la tabla en CSV, 409)"])
     end
+    sensor --- uc16
     sensor --- uc11
     uc11 -.->|incluye| uc2
     uc11 -.->|incluye| uc12
@@ -50,5 +55,5 @@ flowchart LR
     classDef soloAdmin fill:#16231b,stroke:#16231b,color:#ffffff
     class visitante,usuario,admin,sensor actor
     class uc1,uc2,uc3 caso
-    class uc4,uc5,uc6,uc7,uc8,uc9,uc10,uc11,uc12,uc15 nuevo
+    class uc4,uc5,uc6,uc7,uc8,uc9,uc10,uc11,uc12,uc15,uc16 nuevo
     class uc13,uc14 soloAdmin

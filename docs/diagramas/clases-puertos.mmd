@@ -1,6 +1,6 @@
-%% Puertos del dominio (backend/dominio/) y las clases de infraestructura que los implementan.
-%% Toda flecha va de infraestructura hacia el dominio (RA5, DIP).
-%% Verde: dominio. Azul: infraestructura. Borde grueso: se agregó en el corte 2.
+%% Puertos de salida del dominio (backend/dominio/puertos.py y puertos_usuarios.py) y las clases de infraestructura que los implementan.
+%% Toda flecha va de infraestructura hacia el dominio (RA5, DIP). Los puertos de entrada (dominio/puertos_entrada.py) se dibujan en los diagramas de aplicacion.
+%% Verde: dominio. Azul: infraestructura. Borde grueso: se agrego en el corte 2 o en la fase 2 (puertos de pocos metodos, JWT y tabla en CSV).
 classDiagram
     direction LR
 
@@ -17,40 +17,66 @@ classDiagram
             <<interface>>
             +agregar(especie: Especie)
         }
-        class RepositorioUsuarios {
+        class ConsultaCuentas {
             <<interface>>
             +por_correo(correo: Correo) Usuario o None
             +por_id(usuario_id: int) Usuario o None
+        }
+        class RegistroCuentas {
+            <<interface>>
             +guardar(usuario: Usuario) Usuario
-            +resumenes() list~ResumenUsuario~
             +eliminar(usuario_id: int)
         }
-        class RepositorioSesiones {
+        class ListadoCuentas {
             <<interface>>
-            +guardar(sesion: Sesion)
-            +por_huella(huella: str) Sesion o None
-            +eliminar(huella: str)
-            +eliminar_de_usuario(usuario_id: int)
+            +resumenes() list~ResumenUsuario~
         }
-        class RepositorioPlantas {
+        class SesionesAbiertas {
             <<interface>>
-            +guardar_con_sensor(planta, codigo, hash_clave) Planta
+            +abrir(sesion: Sesion)
+            +abierta(token_id: str) Sesion o None
+            +cerrar(token_id: str)
+            +cerrar_de_usuario(usuario_id: int)
+        }
+        class ConsultaPlantas {
+            <<interface>>
+            +por_id(planta_id: int) Planta o None
             +de_usuario(usuario_id: int) list~Planta~
-            +por_id(usuario_id: int, planta_id: int) Planta o None
-            +vinculada_a(sensor: Sensor) Planta o None
-            +eliminar(usuario_id: int, planta_id: int)
         }
-        class RepositorioSensores {
+        class RegistroPlantas {
+            <<interface>>
+            +guardar_con_sensor(planta: Planta, codigo: CodigoSensor, hash_clave: str) Planta
+            +eliminar(planta: Planta)
+        }
+        class SensoresVinculados {
             <<interface>>
             +por_codigo(codigo: CodigoSensor) Sensor o None
             +de_planta(planta_id: int) Sensor o None
-            +reemplazar(usuario_id: int, sensor: Sensor)
+            +reemplazar(planta: Planta, sensor: Sensor)
+        }
+        class CredencialesSensor {
+            <<interface>>
+            +renovar(sensor: Sensor, token_id: str) bool
+            +planta_con_token(codigo: CodigoSensor, token_id: str) Planta o None
         }
         class HistorialMediciones {
             <<interface>>
             +agregar(registro: RegistroMedicion)
             +de_planta(planta_id: int, limite: int) list~RegistroMedicion~
             +ultimo_de(planta_id: int) RegistroMedicion o None
+        }
+        class NotificadorDiagnosticos {
+            <<interface>>
+            +publicar(usuario_id: int, planta: Planta, registro: RegistroMedicion, diagnostico: Diagnostico)
+        }
+        class EmisorTokens {
+            <<interface>>
+            +emitir(identidad: IdentidadUsuario o IdentidadDispositivo, vence_en: datetime) str
+        }
+        class VerificadorTokens {
+            <<interface>>
+            +verificar_usuario(token: str) IdentidadUsuario
+            +verificar_dispositivo(token: str) IdentidadDispositivo
         }
         class Cifrador {
             <<interface>>
@@ -67,13 +93,19 @@ classDiagram
             <<interface>>
             +ahora() datetime
         }
-        class NotificadorDiagnosticos {
-            <<interface>>
-            +publicar(usuario_id, planta, registro, diagnostico)
-        }
     }
 
     namespace infraestructura {
+        class RepositorioEspeciesCsv {
+            -ruta: Path
+            -especies: dict
+        }
+        class EspeciesDeSoloLectura
+        class RegistroEspeciesConCopiaCsv {
+            -registro: RegistroEspecies
+            -catalogo: CatalogoEspecies
+            -ruta: Path
+        }
         class RepositorioEspeciesSqlite {
             -bd: BaseDatos
         }
@@ -91,6 +123,10 @@ classDiagram
         }
         class HistorialMedicionesSqlite {
             -bd: BaseDatos
+        }
+        class TokensJwt {
+            -secreto: str
+            -reloj: Reloj
         }
         class CifradorPbkdf2 {
             -iteraciones: int = 600000
@@ -113,18 +149,32 @@ classDiagram
         class CanalesTiempoReal {
             -por_usuario: canales de cada usuario
             +conectado(usuario_id, canal)
+            +conectados(usuario_id) int
             +enviar(usuario_id, texto) int
         }
     }
 
+    RepositorioEspeciesCsv ..|> ConsultaRangos
+    RepositorioEspeciesCsv ..|> CatalogoEspecies
+    EspeciesDeSoloLectura ..|> RegistroEspecies
+    RegistroEspeciesConCopiaCsv ..|> RegistroEspecies
+    RegistroEspeciesConCopiaCsv --> RegistroEspecies : registro
+    RegistroEspeciesConCopiaCsv --> CatalogoEspecies : catalogo
     RepositorioEspeciesSqlite ..|> ConsultaRangos
     RepositorioEspeciesSqlite ..|> CatalogoEspecies
     RepositorioEspeciesSqlite ..|> RegistroEspecies
-    RepositorioUsuariosSqlite ..|> RepositorioUsuarios
-    RepositorioSesionesSqlite ..|> RepositorioSesiones
-    RepositorioPlantasSqlite ..|> RepositorioPlantas
-    RepositorioSensoresSqlite ..|> RepositorioSensores
+    RepositorioUsuariosSqlite ..|> ConsultaCuentas
+    RepositorioUsuariosSqlite ..|> RegistroCuentas
+    RepositorioUsuariosSqlite ..|> ListadoCuentas
+    RepositorioSesionesSqlite ..|> SesionesAbiertas
+    RepositorioPlantasSqlite ..|> ConsultaPlantas
+    RepositorioPlantasSqlite ..|> RegistroPlantas
+    RepositorioSensoresSqlite ..|> SensoresVinculados
+    RepositorioSensoresSqlite ..|> CredencialesSensor
     HistorialMedicionesSqlite ..|> HistorialMediciones
+    TokensJwt ..|> EmisorTokens
+    TokensJwt ..|> VerificadorTokens
+    TokensJwt --> Reloj : reloj
     CifradorPbkdf2 ..|> Cifrador
     GeneradorSecretosSeguro ..|> GeneradorSecretos
     RelojSistema ..|> Reloj
@@ -132,28 +182,41 @@ classDiagram
 
     note for BaseDatos "Abre una conexión por operación y activa<br>PRAGMA foreign_keys: Flask atiende cada petición<br>en un hilo y sqlite3 no comparte conexiones<br>entre hilos. La usan los seis repositorios SQLite."
     note for CanalesTiempoReal "Las conexiones abiertas de cada usuario,<br>con un candado: se usa desde varios hilos.<br>La ruta del WebSocket (presentación) registra<br>cada pestaña; main.py le pasa estos mismos canales."
+    note for TokensJwt "Firma HS256 con un secreto del servidor. El token trae<br>sub, alcance (usuario o lecturas), jti, iat y exp.<br>Es el único archivo que importa jwt (PyJWT)."
+    note for EspeciesDeSoloLectura "Con MATERA_TABLA_REFERENCIA=csv, agregar una especie<br>lanza TablaDeSoloLectura: el CSV es una copia de la base."
+    note for RegistroEspeciesConCopiaCsv "Con MATERA_TABLA_REFERENCIA=bd, envuelve a<br>RepositorioEspeciesSqlite: después de agregar, reescribe<br>la copia en CSV. El adaptador SQLite no sabe del archivo."
 
     style ConsultaRangos fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
     style CatalogoEspecies fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
     style RegistroEspecies fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
-    style RepositorioUsuarios fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
-    style RepositorioSesiones fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
-    style RepositorioPlantas fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
-    style RepositorioSensores fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style ConsultaCuentas fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style RegistroCuentas fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style ListadoCuentas fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style SesionesAbiertas fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style ConsultaPlantas fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style RegistroPlantas fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style SensoresVinculados fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style CredencialesSensor fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
     style HistorialMediciones fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style NotificadorDiagnosticos fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style EmisorTokens fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style VerificadorTokens fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
     style Cifrador fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
     style GeneradorSecretos fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
     style Reloj fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style RepositorioEspeciesCsv fill:#DAE8FC,stroke:#5b7aa6,color:#16231b
+    style EspeciesDeSoloLectura fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
+    style RegistroEspeciesConCopiaCsv fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
     style RepositorioEspeciesSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
     style RepositorioUsuariosSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
     style RepositorioSesionesSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
     style RepositorioPlantasSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
     style RepositorioSensoresSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
     style HistorialMedicionesSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
+    style TokensJwt fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
     style CifradorPbkdf2 fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
     style GeneradorSecretosSeguro fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
     style RelojSistema fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
     style BaseDatos fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
-    style NotificadorDiagnosticos fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
     style NotificadorWebSocket fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
     style CanalesTiempoReal fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b

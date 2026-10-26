@@ -1,97 +1,246 @@
 %% solo-despues
 %% Presentación y aplicación de las cuentas y la administración. Todo se agrega en el corte 2.
-%% Morado: presentación. Amarillo: aplicación. Verde: clase del dominio. Borde grueso: se agregó en el corte 2.
+%% Hexagonal: la ruta depende del puerto de entrada (en dominio, con prefijo entrada.) y el caso de uso lo hereda.
+%% El caso de uso y su puerto se llaman igual: entrada.CambiarRol es el puerto, CambiarRol el caso de uso.
+%% Morado: presentación. Amarillo: aplicación. Verde: dominio. Borde grueso: se agregó en el corte 2 (todo lo de este diagrama).
 %% La regla "solo un admin puede" vive en Usuario.exigir_admin() (dominio) y la invoca cada caso de uso.
+%% El token se verifica en el borde (Autenticacion): los casos de uso reciben la identidad o el Usuario, nunca el token.
 classDiagram
     direction LR
 
     namespace presentacion {
         class Autenticacion {
-            +token() str
-            +usuario_actual() Usuario
+            -verificador: VerificadorTokens
+            -identificar: entrada.IdentificarUsuario
+            +con_usuario(vista) Callable
+            +con_identidad(vista) Callable
+        }
+        class token_bearer {
+            <<función>>
+            +token_bearer(error) str
         }
         class rutas_usuarios {
             <<módulo>>
+            +crear_blueprint_usuarios(registrar, iniciar, cerrar, consultar, autenticacion) Blueprint
             registro, sesiones y Mi cuenta
         }
         class rutas_admin {
             <<módulo>>
+            +crear_blueprint_admin(listar, cambiar_estado, cambiar_rol, eliminar, agregar_especie, autenticacion) Blueprint
             solo para ADMIN
+        }
+    }
+
+    namespace dominio {
+        class entrada_RegistrarUsuario["entrada.RegistrarUsuario"] {
+            <<interface>>
+            +ejecutar(nombre, correo, contrasena) Usuario
+        }
+        class entrada_IniciarSesion["entrada.IniciarSesion"] {
+            <<interface>>
+            +ejecutar(correo, contrasena) SesionIniciada
+        }
+        class entrada_CerrarSesion["entrada.CerrarSesion"] {
+            <<interface>>
+            +ejecutar(identidad: IdentidadUsuario)
+        }
+        class entrada_IdentificarUsuario["entrada.IdentificarUsuario"] {
+            <<interface>>
+            +ejecutar(identidad: IdentidadUsuario) Usuario
+        }
+        class entrada_ConsultarCuenta["entrada.ConsultarCuenta"] {
+            <<interface>>
+            +ejecutar(usuario) CuentaUsuario
+        }
+        class entrada_ListarUsuarios["entrada.ListarUsuarios"] {
+            <<interface>>
+            +ejecutar(actor) list~ResumenUsuario~
+        }
+        class entrada_CambiarEstadoUsuario["entrada.CambiarEstadoUsuario"] {
+            <<interface>>
+            +ejecutar(actor, usuario_id, activo) Usuario
+        }
+        class entrada_CambiarRol["entrada.CambiarRol"] {
+            <<interface>>
+            +ejecutar(actor, usuario_id, rol) Usuario
+        }
+        class entrada_EliminarUsuario["entrada.EliminarUsuario"] {
+            <<interface>>
+            +ejecutar(actor, usuario_id)
+        }
+        class entrada_AgregarEspecie["entrada.AgregarEspecie"] {
+            <<interface>>
+            +ejecutar(actor, especie) Especie
+        }
+        class entrada_ConvertirEnAdministrador["entrada.ConvertirEnAdministrador"] {
+            <<interface>>
+            +ejecutar(correo) Usuario
+        }
+        class SesionIniciada {
+            <<resultado>>
+            +token: str
+            +vence_en: datetime
+            +usuario: Usuario
+        }
+        class CuentaUsuario {
+            <<resultado>>
+            +usuario: Usuario
+            +cantidad_plantas: int
+        }
+        class IdentidadUsuario {
+            +usuario_id: int
+            +token_id: str
+        }
+        class Usuario {
+            <<dominio>>
+            +es_admin() bool
+            +exigir_admin()
+            +exigir_otro_usuario(usuario_id)
+        }
+        class EmisorTokens {
+            <<interface>>
+            +emitir(identidad, vence_en) str
+        }
+        class VerificadorTokens {
+            <<interface>>
+            +verificar_usuario(token: str) IdentidadUsuario
+            +verificar_dispositivo(token: str) IdentidadDispositivo
         }
     }
 
     namespace aplicacion {
         class RegistrarUsuario {
+            -cuentas: ConsultaCuentas
+            -registro: RegistroCuentas
+            -cifrador: Cifrador
             +ejecutar(nombre, correo, contrasena) Usuario
         }
         class IniciarSesion {
+            -cuentas: ConsultaCuentas
+            -sesiones: SesionesAbiertas
+            -cifrador: Cifrador
+            -secretos: GeneradorSecretos
+            -emisor: EmisorTokens
+            -reloj: Reloj
+            -duracion: timedelta
             +ejecutar(correo, contrasena) SesionIniciada
         }
         class CerrarSesion {
-            +ejecutar(token)
+            -sesiones: SesionesAbiertas
+            +ejecutar(identidad: IdentidadUsuario)
         }
         class IdentificarUsuario {
-            +ejecutar(token) Usuario
+            -sesiones: SesionesAbiertas
+            -cuentas: ConsultaCuentas
+            -reloj: Reloj
+            +ejecutar(identidad: IdentidadUsuario) Usuario
         }
         class ConsultarCuenta {
+            -plantas: ConsultaPlantas
             +ejecutar(usuario) CuentaUsuario
         }
         class ListarUsuarios {
+            -listado: ListadoCuentas
             +ejecutar(actor) list~ResumenUsuario~
         }
         class CambiarEstadoUsuario {
+            -cuentas: ConsultaCuentas
+            -registro: RegistroCuentas
+            -sesiones: SesionesAbiertas
             +ejecutar(actor, usuario_id, activo) Usuario
         }
         class CambiarRol {
+            -cuentas: ConsultaCuentas
+            -registro: RegistroCuentas
             +ejecutar(actor, usuario_id, rol) Usuario
         }
         class EliminarUsuario {
+            -cuentas: ConsultaCuentas
+            -registro: RegistroCuentas
             +ejecutar(actor, usuario_id)
         }
         class AgregarEspecie {
+            -especies: ConsultaRangos
+            -registro: RegistroEspecies
             -parametros: tuple~Parametro~
             +ejecutar(actor, especie) Especie
         }
         class ConvertirEnAdministrador {
+            -cuentas: ConsultaCuentas
+            -registro: RegistroCuentas
             +ejecutar(correo) Usuario
         }
     }
 
-    class Usuario {
-        <<dominio>>
-        +es_admin() bool
-        +exigir_admin()
-        +exigir_otro_usuario(usuario_id)
-    }
     class crear_admin {
         <<script de consola>>
         python crear_admin.py correo
     }
 
-    rutas_usuarios ..> RegistrarUsuario
-    rutas_usuarios ..> IniciarSesion
-    rutas_usuarios ..> CerrarSesion
-    rutas_usuarios ..> ConsultarCuenta
+    rutas_usuarios ..> entrada_RegistrarUsuario
+    rutas_usuarios ..> entrada_IniciarSesion
+    rutas_usuarios ..> entrada_CerrarSesion : le pasa la identidad
+    rutas_usuarios ..> entrada_ConsultarCuenta
     rutas_usuarios ..> Autenticacion
     rutas_admin ..> Autenticacion
-    rutas_admin ..> ListarUsuarios
-    rutas_admin ..> CambiarEstadoUsuario
-    rutas_admin ..> CambiarRol
-    rutas_admin ..> EliminarUsuario
-    rutas_admin ..> AgregarEspecie
-    Autenticacion ..> IdentificarUsuario
-    crear_admin ..> ConvertirEnAdministrador
+    rutas_admin ..> entrada_ListarUsuarios
+    rutas_admin ..> entrada_CambiarEstadoUsuario
+    rutas_admin ..> entrada_CambiarRol
+    rutas_admin ..> entrada_EliminarUsuario
+    rutas_admin ..> entrada_AgregarEspecie
+    Autenticacion ..> token_bearer
+    Autenticacion ..> VerificadorTokens : verifica el JWT de usuario
+    Autenticacion ..> entrada_IdentificarUsuario : le pasa la identidad, no el token
+    VerificadorTokens ..> IdentidadUsuario : devuelve
+    crear_admin ..> entrada_ConvertirEnAdministrador
+
+    entrada_RegistrarUsuario <|.. RegistrarUsuario
+    entrada_IniciarSesion <|.. IniciarSesion
+    entrada_CerrarSesion <|.. CerrarSesion
+    entrada_IdentificarUsuario <|.. IdentificarUsuario
+    entrada_ConsultarCuenta <|.. ConsultarCuenta
+    entrada_ListarUsuarios <|.. ListarUsuarios
+    entrada_CambiarEstadoUsuario <|.. CambiarEstadoUsuario
+    entrada_CambiarRol <|.. CambiarRol
+    entrada_EliminarUsuario <|.. EliminarUsuario
+    entrada_AgregarEspecie <|.. AgregarEspecie
+    entrada_ConvertirEnAdministrador <|.. ConvertirEnAdministrador
+
+    IniciarSesion --> EmisorTokens : emisor, firma el JWT de usuario
+    IniciarSesion ..> SesionIniciada : crea, con el token
+    IniciarSesion ..> IdentidadUsuario : crea, para firmarla
+    CerrarSesion ..> IdentidadUsuario
+    IdentificarUsuario ..> IdentidadUsuario
+    ConsultarCuenta ..> CuentaUsuario : crea
     ListarUsuarios ..> Usuario : actor.exigir_admin()
     CambiarEstadoUsuario ..> Usuario : exigir_admin() y exigir_otro_usuario()
     CambiarRol ..> Usuario : exigir_admin() y exigir_otro_usuario()
     EliminarUsuario ..> Usuario : exigir_admin() y exigir_otro_usuario()
     AgregarEspecie ..> Usuario : actor.exigir_admin()
 
-    note "Un admin no puede desactivarse, quitarse el rol ni eliminarse<br>a sí mismo (AccionSobreSiMismo). Así siempre queda al menos<br>un admin activo. crear_admin.py no pasa por la API: se corre<br>en el servidor y convierte en admin a un usuario ya registrado."
+    note "Un admin no puede desactivarse, quitarse el rol ni eliminarse<br>a sí mismo (AccionSobreSiMismo). Así siempre queda al menos<br>un admin activo. crear_admin.py no pasa por la API: se corre<br>en el servidor y convierte en admin a un usuario ya registrado.<br>con_usuario le entrega a la ruta el Usuario; con_identidad, la<br>IdentidadUsuario (solo cerrar sesión). Ninguno entrega el token."
 
     style Autenticacion fill:#E1D5E7,stroke:#6a3d80,stroke-width:2px,color:#16231b
+    style token_bearer fill:#E1D5E7,stroke:#6a3d80,stroke-width:2px,color:#16231b
     style rutas_usuarios fill:#E1D5E7,stroke:#6a3d80,stroke-width:2px,color:#16231b
     style rutas_admin fill:#E1D5E7,stroke:#6a3d80,stroke-width:2px,color:#16231b
+    style entrada_RegistrarUsuario fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style entrada_IniciarSesion fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style entrada_CerrarSesion fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style entrada_IdentificarUsuario fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style entrada_ConsultarCuenta fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style entrada_ListarUsuarios fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style entrada_CambiarEstadoUsuario fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style entrada_CambiarRol fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style entrada_EliminarUsuario fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style entrada_AgregarEspecie fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style entrada_ConvertirEnAdministrador fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style SesionIniciada fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style CuentaUsuario fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style IdentidadUsuario fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style EmisorTokens fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style VerificadorTokens fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style Usuario fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
     style RegistrarUsuario fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,color:#16231b
     style IniciarSesion fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,color:#16231b
     style CerrarSesion fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,color:#16231b
@@ -103,5 +252,4 @@ classDiagram
     style EliminarUsuario fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,color:#16231b
     style AgregarEspecie fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,color:#16231b
     style ConvertirEnAdministrador fill:#FFF2CC,stroke:#8a6d12,stroke-width:2px,color:#16231b
-    style Usuario fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
     style crear_admin fill:#ffffff,stroke:#56665b,stroke-width:2px,color:#16231b

@@ -1,7 +1,8 @@
 %% Clases del dominio de matera-inteligente (backend/dominio/).
-%% Une el diagrama de clases de Roger (commit 3987f72) con el corte 2.
-%% Relleno verde: capa de dominio. Borde grueso: se agregó en el corte 2.
-%% Los nombres son los del código. Los puertos y quién los implementa están en clases-puertos.mmd.
+%% Une el diagrama de clases de Roger (commit 3987f72) con el corte 2 y la fase 2 hexagonal.
+%% Relleno verde: capa de dominio. Borde grueso: se agregó en el corte 2 o en la fase 2.
+%% Los nombres son los del código. Los puertos de salida y quién los implementa están en clases-puertos.mmd.
+%% Los puertos de entrada (puertos_entrada.py) están en los diagramas de aplicación.
 classDiagram
     direction LR
 
@@ -135,10 +136,10 @@ classDiagram
         +cantidad_plantas: int
     }
     class Sesion {
-        +hash_token: str
+        +token_id: str
         +usuario_id: int
         +vence_en: datetime
-        +abrir(hash_token, usuario_id, ahora, duracion)$ Sesion
+        +abrir(token_id, usuario_id, ahora, duracion)$ Sesion
         +vigente(ahora: datetime) bool
     }
     class Planta {
@@ -147,6 +148,7 @@ classDiagram
         +apodo: str
         +especie: str
         +es_de(usuario_id: int) bool
+        +exigir_dueno(usuario_id: int)
         +mismo_apodo(apodo: str) bool
     }
     class CodigoSensor {
@@ -171,6 +173,60 @@ classDiagram
         +estado: EstadoParametro
     }
 
+    %% Fase 2: quién hace el pedido (identidad.py) y lo que reporta un dispositivo (reportes.py)
+    class IdentidadUsuario {
+        +usuario_id: int
+        +token_id: str
+    }
+    class IdentidadDispositivo {
+        +codigo: CodigoSensor
+        +token_id: str
+    }
+    class ReporteDeDispositivo {
+        +dispositivo: CodigoSensor
+        +momento: datetime
+        +medicion: Medicion
+        +exigir_que_no_sea_futuro(ahora: datetime)
+    }
+
+    %% Fase 2: lo que entra y sale de los puertos de entrada (resultados.py), datos sin lógica
+    class SolicitudDiagnostico {
+        +especie: str
+        +medicion: Medicion
+    }
+    class SesionIniciada {
+        +token: str
+        +vence_en: datetime
+        +usuario: Usuario
+    }
+    class CuentaUsuario {
+        +usuario: Usuario
+        +cantidad_plantas: int
+    }
+    class SensorVinculado {
+        +planta: Planta
+        +codigo: CodigoSensor
+        +clave: str
+    }
+    class PlantaConEstado {
+        +planta: Planta
+        +sensor: Sensor o None
+        +ultima_medicion: RegistroMedicion o None
+    }
+    class HistorialPlanta {
+        +planta: Planta
+        +registros: list~RegistroMedicion~
+    }
+    class TokenDispositivo {
+        +token: str
+        +vence_en: datetime
+    }
+    class ResultadoMedicion {
+        +planta: Planta
+        +diagnostico: Diagnostico
+        +registro: RegistroMedicion
+    }
+
     Usuario *-- Correo : correo
     Usuario --> Rol : rol
     ResumenUsuario --> Rol : rol
@@ -186,8 +242,28 @@ classDiagram
     LecturaRegistrada --> Parametro : parametro
     LecturaRegistrada --> EstadoParametro : estado
     RegistroMedicion ..> Diagnostico : se construye desde
+    IdentidadDispositivo --> CodigoSensor : codigo
+    ReporteDeDispositivo --> CodigoSensor : dispositivo
+    ReporteDeDispositivo --> Medicion : medicion
+    SolicitudDiagnostico --> Medicion : medicion
+    SesionIniciada --> Usuario : usuario
+    CuentaUsuario --> Usuario : usuario
+    SensorVinculado --> Planta : planta
+    SensorVinculado --> CodigoSensor : codigo
+    PlantaConEstado --> Planta : planta
+    PlantaConEstado --> "0..1" Sensor : sensor
+    PlantaConEstado --> "0..1" RegistroMedicion : ultima_medicion
+    HistorialPlanta --> Planta : planta
+    HistorialPlanta --> "0..*" RegistroMedicion : registros
+    ResultadoMedicion --> Planta : planta
+    ResultadoMedicion --> Diagnostico : diagnostico
+    ResultadoMedicion --> RegistroMedicion : registro
 
-    note "Errores del corte 2 (errores_usuarios.py), heredan de ErrorDominio:<br>CorreoInvalido, NombreInvalido, ContrasenaDebil, CorreoYaRegistrado,<br>CredencialesInvalidas, CuentaDesactivada, SesionInvalida,<br>PermisoDenegado, AccionSobreSiMismo, UsuarioNoEncontrado,<br>EspecieYaExiste, PlantaNoEncontrada, ApodoInvalido, ApodoRepetido,<br>CodigoSensorInvalido, SensorYaVinculado, ClaveSensorInvalida"
+    note for IdentidadUsuario "token_id es el jti del JWT. Mientras exista una Sesion<br>con ese token_id el token sirve: cerrar la sesión o<br>desactivar la cuenta lo invalida aunque no haya vencido."
+    note for IdentidadDispositivo "token_id es el del último canje de la clave: un canje<br>nuevo, o cambiar el sensor de la planta, invalida los anteriores."
+    note for ReporteDeDispositivo "Al construirse exige una hora con zona horaria; después,<br>exigir_que_no_sea_futuro tolera ADELANTO_MAXIMO = 2 minutos<br>de adelanto. Las dos reglas lanzan MomentoInvalido."
+
+    note "Errores del corte 2 (errores_usuarios.py), heredan de ErrorDominio:<br>CorreoInvalido, NombreInvalido, ContrasenaDebil, CorreoYaRegistrado,<br>CredencialesInvalidas, CuentaDesactivada, SesionInvalida,<br>PermisoDenegado, AccionSobreSiMismo, UsuarioNoEncontrado,<br>EspecieYaExiste, PlantaNoEncontrada, ApodoInvalido, ApodoRepetido,<br>CodigoSensorInvalido, SensorYaVinculado, ClaveSensorInvalida<br>Errores de la fase 2, en el mismo archivo:<br>TablaDeSoloLectura, AlcanceInvalido, CredencialDispositivoInvalida,<br>DispositivoAjeno, MomentoInvalido"
 
     style Parametro fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
     style Lectura fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
@@ -215,3 +291,14 @@ classDiagram
     style Sensor fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
     style RegistroMedicion fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
     style LecturaRegistrada fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style IdentidadUsuario fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style IdentidadDispositivo fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style ReporteDeDispositivo fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style SolicitudDiagnostico fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style SesionIniciada fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style CuentaUsuario fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style SensorVinculado fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style PlantaConEstado fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style HistorialPlanta fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style TokenDispositivo fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style ResultadoMedicion fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
