@@ -1,7 +1,9 @@
-// Mis materas: cada matera nace con su sensor y muestra su última medición, que viene de GET /plantas
-// y se actualiza sola cuando el sensor envía una nueva (tiempo-real.js). El estado de cada tarjeta
-// lo calculó la API; aquí solo se ubica en pantalla. Desde el front no se escriben mediciones.
+// Mis materas: cada matera nace con su sensor y muestra su última medición, que viene de GET /plantas.
+// Se actualiza sola de dos maneras: vuelve a pedir GET /plantas cada 10 s (consulta-periodica.js) y,
+// mientras la conexión en vivo funciona, recibe cada medición al instante (tiempo-real.js). El estado
+// de cada tarjeta lo calculó la API; aquí solo se ubica en pantalla. Desde el front no se escriben mediciones.
 import { cambiarSensor, eliminarPlanta, obtenerPlantas, registrarPlanta } from "./api.js";
+import { consultarCadaRato, textoConsulta } from "./consulta-periodica.js";
 import { dominioVisual, fraccion, porcentaje } from "./escala.js";
 import { capitalizar, colorDeEstado, crear, etiqueta, numero, pastillaEstado, tono, unidad } from "./formato.js";
 import { botonDe, datosDe, fechaCorta, mostrarError, ocupado } from "./formularios.js";
@@ -41,6 +43,8 @@ export function crearPantallaMateras(contexto) {
     }
   });
   $("cerrar-clave").addEventListener("click", ocultarClave);
+
+  consultarCadaRato(() => !$("pantalla-materas").hidden, actualizar);
 
   contexto.tiempoReal.alRecibir((mensaje) => {
     if ($("pantalla-materas").hidden) return; // al volver a la pantalla se recarga todo
@@ -91,7 +95,36 @@ export function crearPantallaMateras(contexto) {
       mostrarError($("error-materas"), error);
       return;
     }
+    $("materas-consulta").textContent = textoConsulta();
     pintar();
+  }
+
+  // La consulta periódica: solo se vuelven a pintar las tarjetas que cambiaron, así no se pierde lo que
+  // el usuario está escribiendo. Si cambió la lista (una matera nueva o borrada en otra pestaña), se pinta todo.
+  async function actualizar() {
+    let nuevas;
+    try {
+      nuevas = await obtenerPlantas();
+    } catch (error) {
+      mostrarError($("error-materas"), error);
+      return;
+    }
+    mostrarError($("error-materas"), null);
+    $("materas-consulta").textContent = textoConsulta();
+    const ids = (lista) => lista.map((p) => p.id).join(",");
+    if (ids(nuevas) !== ids(plantas)) {
+      plantas = nuevas;
+      pintar();
+      return;
+    }
+    nuevas.forEach((nueva, indice) => {
+      const vieja = plantas[indice];
+      const cambio = nueva.ultimaMedicion?.momento !== vieja.ultimaMedicion?.momento
+        || nueva.sensor?.codigo !== vieja.sensor?.codigo;
+      plantas[indice] = nueva;
+      if (cambio) repintarTarjeta(nueva);
+    });
+    pintarBajada();
   }
 
   function pintarBajada() {
@@ -278,6 +311,7 @@ export function crearPantallaMateras(contexto) {
     // Al cerrar la sesión: nada de esta cuenta queda para la que entre después en la misma pestaña.
     reiniciar() {
       plantas = [];
+      $("materas-consulta").textContent = "";
       abierta = null;
       borrador = "";
       diagnosticos.clear();

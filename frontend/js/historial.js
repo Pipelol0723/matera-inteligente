@@ -1,7 +1,9 @@
 // Historial de una planta: la lista y la gráfica con los registros de GET /plantas/{id}/historial.
 // Cada registro trae el estado que la API calculó en ese momento; aquí no se recalcula nada.
-// Una medición que llega en vivo (tiempo-real.js) se agrega arriba sin volver a pedir el historial.
+// Se vuelve a pedir cada 10 s (consulta-periodica.js), y una medición que llega en vivo (tiempo-real.js)
+// se agrega arriba al instante, sin esperar la próxima consulta.
 import { obtenerHistorial, obtenerPlantas } from "./api.js";
+import { consultarCadaRato, textoConsulta } from "./consulta-periodica.js";
 import { dominioVisual, fraccion } from "./escala.js";
 import { capitalizar, crear, crearSvg, etiqueta, nombreDeEstado, pastillaEstado, tono } from "./formato.js";
 import { fechaCorta, mostrarError } from "./formularios.js";
@@ -24,6 +26,8 @@ export function crearPantallaHistorial(contexto) {
     actual = null; // hasta que llegue el historial de la nueva, no se agrega nada en vivo
     cargarHistorial();
   });
+
+  consultarCadaRato(() => !$("pantalla-historial").hidden && plantas.length > 0, cargarHistorial);
 
   contexto.tiempoReal.alRecibir((mensaje) => {
     if ($("pantalla-historial").hidden) return;
@@ -66,6 +70,7 @@ export function crearPantallaHistorial(contexto) {
     // Si mientras tanto se eligió otra planta, esta respuesta ya no sirve.
     if (pedida !== Number(selector.value)) return;
     mostrarError($("error-historial"), null);
+    $("historial-consulta").textContent = textoConsulta();
     actual = { planta: historial.planta, registros: historial.registros };
     pintar(historial.planta, historial.registros);
   }

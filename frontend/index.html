@@ -148,6 +148,7 @@
       <div>
         <h1 class="titulo">Mis materas</h1>
         <p id="materas-bajada" class="bajada bajada--sin-margen">Cargando sus plantas…</p>
+        <p id="materas-consulta" class="consulta"></p>
       </div>
     </div>
     <form id="form-planta" class="tarjeta formulario formulario--linea" novalidate>
@@ -174,7 +175,7 @@
       <code id="clave-texto" class="clave__texto"></code>
       <button id="copiar-clave" type="button" class="boton-contorno">Copiar</button>
       <button id="cerrar-clave" type="button" class="boton-contorno">Ya la guardé</button>
-      <p class="clave__ayuda">Cópiela en <code>CLAVE_SENSOR</code> de <code>config.h</code> y vuelva a subir el firmware. La API solo guarda su huella: si la pierde, use «Cambiar sensor» con el mismo código y recibirá otra.</p>
+      <p class="clave__ayuda">Cópiela en <code>CLAVE_SENSOR</code> de <code>config.h</code> y vuelva a subir el firmware: al arrancar, la placa la cambia por su token de acceso. El simulador la recibe con <code>--clave=</code>. La API solo guarda su huella: si la pierde, use «Cambiar sensor» con el mismo código y recibirá otra; la anterior y su token dejan de servir.</p>
     </div>
     <div id="error-materas" class="tarjeta-error" role="alert" hidden></div>
     <div id="materas" class="materas"></div>
@@ -188,6 +189,7 @@
         <select id="historial-planta" class="selector"></select>
       </div>
       <p id="historial-bajada" class="bajada bajada--historial"></p>
+      <p id="historial-consulta" class="consulta consulta--historial"></p>
       <div id="error-historial" class="tarjeta-error" role="alert" hidden></div>
       <div class="tarjeta grafica">
         <div id="leyenda" class="leyenda"></div>
