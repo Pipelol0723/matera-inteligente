@@ -6,7 +6,7 @@
 // Red WiFi de 2,4 GHz: la ESP32 no ve las redes de 5 GHz. Para la demo, el hotspot del celular
 // (en iPhone, con «Maximizar compatibilidad» encendido). El nombre va exacto, con sus espacios:
 // Windows puede mostrarlo sin un espacio del final. Si no conecta, el monitor serie lista las redes
-// que ve la placa, con el nombre entre «».
+// que ve la placa, con el nombre entre «». La red tiene que dar salida a internet: la hora sale de NTP.
 #define WIFI_SSID "nombre-de-la-red"
 #define WIFI_CLAVE "clave-de-la-red"
 
@@ -15,14 +15,19 @@
 #define API_BASE "http://192.168.43.10:5000/api/v1"
 
 // El código con el que se creó la matera en Mis materas y la clave que la API mostró una sola vez.
-// Si se pierde la clave, «Cambiar sensor» con el mismo código entrega otra.
+// La placa canjea la clave por su token al arrancar. Si se pierde la clave, «Cambiar sensor» con el
+// mismo código entrega otra (y la anterior, con su token, deja de servir).
 #define CODIGO_SENSOR "MT-0001-AA"
 #define CLAVE_SENSOR "pegue-aqui-la-clave"
 
-// Cada cuánto se envía una medición, en milisegundos. Para la demo se puede bajar a 15000.
-#define INTERVALO_MS 60000
+// Cada cuánto se envía una lectura, en milisegundos.
+#define INTERVALO_MS 15000
 
-// Calibración del sensor de humedad: la lectura cruda (0 a 4095) que muestra el monitor serie con
-// el sensor al aire (seco) y con el sensor en un vaso de agua hasta la línea (mojado).
-#define HUMEDAD_SECO 2800
-#define HUMEDAD_MOJADO 1300
+// El módulo LDR solo dice si hay luz: con luz, su salida queda en LDR_CON_LUZ. Para saber cuál es,
+// tape el sensor y mire la luz del módulo o el monitor serie; si da al revés, cambie LOW por HIGH.
+// La perilla azul del módulo fija desde cuánta luz cuenta como «con luz».
+#define LDR_CON_LUZ LOW
+
+// Lo que se manda a la API, en lux, con luz y sin luz.
+#define LUX_CON_LUZ 1500
+#define LUX_SIN_LUZ 50

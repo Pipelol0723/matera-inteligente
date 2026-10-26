@@ -1,48 +1,61 @@
 # Firmware del sensor (ESP32)
 
-`matera-sensor/` es el programa de la placa. Lee la humedad del sustrato, la temperatura y la luz, y cada minuto manda una medición a la API, igual que cualquier otro cliente HTTP:
+`matera-sensor/` es el programa de la placa. Lee la temperatura y la humedad del aire (DHT11) y si hay luz (módulo LDR), y le habla a la API igual que el simulador (`simulador/simulador_esp32.py`), en dos pasos:
 
-```http
-POST /api/v1/sensores/MT-0001-AA/mediciones
-Content-Type: application/json
-X-Clave-Sensor: <la clave que dio la API>
+1. **Canje.** Al arrancar, cambia la clave del sensor por un token de alcance «lecturas», que vence a las 24 horas:
 
-{"humedad":41.5,"luz":820.0,"temperatura":22.3}
-```
+   ```http
+   POST /api/v1/dispositivos/MT-0001-AA/token
+   Content-Type: application/json
 
-La placa no decide nada. El backend calcula el estado y las recomendaciones, guarda la medición y la muestra en vivo en Mis materas. Si falta uno de los tres sensores, la placa no envía nada, porque la API exige los tres valores. Lo dice por el monitor serie y vuelve a intentarlo cada 30 segundos.
+   {"clave":"<la clave que dio la API al crear la matera>"}
+   ```
+
+2. **Lecturas.** Cada 15 segundos manda una lectura con ese token y la hora en que la tomó:
+
+   ```http
+   POST /api/v1/dispositivos/MT-0001-AA/lecturas
+   Content-Type: application/json
+   Authorization: Bearer <el token del canje>
+
+   {"dispositivo":"MT-0001-AA","momento":"2026-10-22T15:04:05Z","lecturas":{"humedad":53.0,"luz":1500,"temperatura":25.5}}
+   ```
+
+Si la API responde que el token ya no sirve (venció, o lo reemplazó otro canje), la placa vuelve a canjear la clave sola. La placa no decide nada: el backend calcula el estado y las recomendaciones, guarda la lectura y la muestra en Mis materas.
 
 ## Placa y conexiones
 
-ESP32 clásica de doble núcleo (DevKit WROOM-32, con puente USB CP2102). Todo va a 3,3 V.
+ESP32 clásica de doble núcleo (DevKit, ESP32-D0WD-V3, con puente USB CH340). Todo va a 3,3 V.
 
 | Sensor | Pin del sensor | Pin de la ESP32 | Nota |
 |---|---|---|---|
-| Humedad capacitivo v1.2 | AOUT · VCC · GND | GPIO34 · 3V3 · GND | GPIO34 es del ADC1, que sigue funcionando con el WiFi encendido. Conviene una resistencia de 1 MΩ entre GPIO34 y GND (ver abajo). |
-| AHT20 (temperatura) | SDA · SCL · VCC · GND | GPIO21 · GPIO22 · 3V3 · GND | Bus I2C, dirección 0x38. |
-| BH1750 (luz) | SDA · SCL · VCC · GND · ADDR | GPIO21 · GPIO22 · 3V3 · GND · GND | El mismo bus I2C, dirección 0x23. En el modo que usa el programa mide hasta unos 54 600 lux: a pleno sol se satura. |
+| DHT11 (temperatura y humedad del aire) | DATA · VCC · GND | GPIO26 · 3V3 · GND | La primera lectura después de encenderlo sale mal: el programa la descarta. No se lee más de una vez cada 2 segundos. |
+| Módulo LDR con LM393 (luz) | DO · VCC · GND | GPIO18 · 3V3 · GND | Solo tiene salida digital: dice si hay luz o no. La perilla azul fija desde cuánta luz cuenta como «con luz». |
 | LED de estado | — | GPIO2 | El LED azul de la placa. |
+
+**Lo que se manda a la API.** La API espera la humedad del sustrato, en %, y la luz, en lux.
+- **Humedad:** el DHT11 mide la del aire, así que para la demo se manda la del aire, y se avisa en la presentación.
+- **Luz:** se manda en lux con dos valores fijos, 1500 con luz y 50 sin luz.
+
+Con el potos (humedad de 40 a 70 %, luz de 270 a 2150 lux y temperatura de 16 a 29 °C), un cuarto a 25 °C y 53 % de humedad da «saludable». Al tapar el sensor de luz llegan 50 lux, y el estado cambia en la pantalla.
 
 ## Instalación en el Arduino IDE 2
 
-1. **Placa:** el soporte de Espressif para ESP32, versión 2.0.14. Con esa versión y las librerías de abajo, el programa se probó el 19 de octubre de 2026 en la placa, todavía sin sensores: se conecta al hotspot y llega a la API. En *Herramientas → Placa* se elige **ESP32 Dev Module**, y el puerto que aparezca al conectar la placa (en este PC, COM3).
-2. **Librerías**, desde el gestor de librerías:
-   - **Adafruit AHTX0**. El gestor ofrece instalar también Adafruit BusIO y Adafruit Unified Sensor: hay que aceptarlo.
-   - **BH1750**, de Christopher Laws.
-
-   `WiFi.h` y `HTTPClient.h` vienen con la placa. El JSON se arma a mano, sin ArduinoJson.
+1. **Placa:** el soporte de Espressif para ESP32, versión 2.0.14. En *Herramientas → Placa* se elige **ESP32 Dev Module**, y el puerto que aparezca al conectar la placa (en este PC, COM4).
+2. **Librerías**, desde el gestor de librerías: **DHT sensor library**, de Adafruit (se probó con la 1.4.7). El gestor ofrece instalar también Adafruit Unified Sensor: hay que aceptarlo. `WiFi.h`, `HTTPClient.h` y la hora por NTP (`time.h`) vienen con la placa. El JSON se arma a mano, sin ArduinoJson.
 3. **Configuración:** se copia `matera-sensor/config.example.h` como `matera-sensor/config.h` y se completa. Git ignora `config.h`, porque lleva la clave del WiFi y la del sensor.
 
 | Dato | Qué va |
 |---|---|
-| `WIFI_SSID`, `WIFI_CLAVE` | La red de 2,4 GHz. Para la demo, el hotspot del celular. La ESP32 no ve las redes de 5 GHz; en iPhone hay que encender «Maximizar compatibilidad». |
+| `WIFI_SSID`, `WIFI_CLAVE` | La red de 2,4 GHz. Para la demo, el hotspot del celular. La ESP32 no ve las redes de 5 GHz; en iPhone hay que encender «Maximizar compatibilidad». La red tiene que dar salida a internet, porque la hora sale de NTP. |
 | `API_BASE` | `http://<IP del PC>:5000/api/v1`. La IP sale de `ipconfig` («Dirección IPv4» del adaptador WiFi). |
 | `CODIGO_SENSOR` | El código con el que se creó la matera en Mis materas, por ejemplo `MT-0001-AA`. |
-| `CLAVE_SENSOR` | La clave que la API mostró una sola vez al crear la matera. Si se perdió, «Cambiar sensor» con el mismo código da otra. |
-| `INTERVALO_MS` | Cada cuánto se envía: 60 000 (un minuto). Para la demo se puede bajar a 15 000. |
-| `HUMEDAD_SECO`, `HUMEDAD_MOJADO` | La calibración del sensor de humedad (ver abajo). |
+| `CLAVE_SENSOR` | La clave que la API mostró una sola vez al crear la matera. Si se perdió, «Cambiar sensor» con el mismo código da otra, y la anterior deja de servir con su token. |
+| `INTERVALO_MS` | Cada cuánto se envía una lectura: 15 000, es decir, 15 segundos. |
+| `LDR_CON_LUZ` | `LOW` o `HIGH`: lo que da la salida del módulo cuando hay luz. En la mayoría es `LOW`. Para saberlo, se tapa el sensor y se mira el monitor serie. |
+| `LUX_CON_LUZ`, `LUX_SIN_LUZ` | Los lux que se mandan con luz y sin luz: 1500 y 50. |
 
-4. **Subir el programa:** *Subir* en el IDE. Con esta placa el reinicio automático al modo de descarga no funciona: cuando aparezca `Connecting...`, hay que mantener apretado el botón **BOOT** (y, si la placa lo tiene, presionar **EN** una vez) hasta que empiece a escribir. Subir el programa borra el que tenga la placa.
+4. **Subir el programa:** *Subir* en el IDE. Esta placa reinicia sola al modo de descarga, así que no hay que apretar BOOT. Subir el programa borra el que tenga la placa.
 
 ## El backend para la demo
 
@@ -60,24 +73,19 @@ El monitor serie va a **115 200 baudios**.
 | Parpadeo lento | Conectándose al WiFi. |
 | Fijo | Conectada al WiFi. |
 | Apagado | Sin WiFi: espera 30 segundos y vuelve a intentar. |
-| Cinco parpadeos rápidos | Algo falló: sin WiFi, la API no responde, la clave fue rechazada o falta un sensor. El monitor serie dice qué. |
+| Cinco parpadeos rápidos | Algo falló, por ejemplo: sin WiFi, sin hora, la API no responde, la clave fue rechazada o el DHT11 no respondió. El monitor serie dice qué. |
 
-Si algo traba el programa más de un minuto (por ejemplo, un sensor que se suelta justo mientras mide), la placa se reinicia sola y vuelve a empezar.
+Si algo traba el programa más de un minuto, la placa se reinicia sola y vuelve a empezar.
 
-Al arrancar, la placa muestra su código y la dirección de la API, revisa los sensores, se conecta al WiFi y pide `GET /parametros` para comprobar que llega al backend. **Sin los sensores ya se puede probar todo esto**: el hotspot, la IP del PC, el firewall y que la API responda. Después, en cada vuelta, muestra la lectura cruda de la humedad, lo que envió y lo que respondió la API (`201, la planta está SALUDABLE`, o el error).
+Al arrancar, la placa:
+1. Muestra su código y la dirección de la API.
+2. Se conecta al WiFi y pide `GET /parametros`, para comprobar que llega al backend.
+3. Toma la hora por NTP y canjea la clave.
+
+Después, en cada vuelta, muestra lo que envió y lo que respondió la API: `201, la planta está SALUDABLE`, o el error con su código (por ejemplo, `400 MOMENTO_INVALIDO` si la hora de la placa está mal).
 
 Si no se conecta al WiFi, el monitor serie dice el motivo y lista las redes que ve la placa, con el nombre entre «». El nombre de `WIFI_SSID` tiene que ser exacto, con sus espacios: Windows puede mostrar el del hotspot sin un espacio del final.
 
-## Calibración de la humedad
-
-El sensor capacitivo entrega un número crudo, de 0 a 4095: más alto cuanto más seco. El monitor serie lo muestra en cada vuelta (`Humedad: lectura cruda 2795, salto 12 …`).
-
-1. Con el sensor al aire, se anota la lectura: es `HUMEDAD_SECO`.
-2. Con el sensor en un vaso de agua hasta la línea que marca la placa (sin mojar los componentes), se anota la lectura: es `HUMEDAD_MOJADO`.
-3. Se ponen los dos números en `config.h` y se vuelve a subir el programa. La placa convierte a porcentaje entre esos dos puntos. Si `HUMEDAD_SECO` no es mayor que `HUMEDAD_MOJADO`, el programa no compila y lo dice.
-
-**Sensor de humedad desconectado.** GPIO34 no tiene resistencia interna: con el cable suelto, el pin «flota» y lee cualquier cosa. La placa lo da por desconectado si la lectura cruda es menor que 200 o mayor que 3900, o si salta más de 300 entre la muestra mayor y la menor. Eso detecta casi siempre un pin flotante, pero no siempre. Para que se detecte siempre, se pone una resistencia de 1 MΩ entre GPIO34 y GND: con el cable suelto el pin lee casi 0, y con el sensor conectado la lectura no cambia. Después se vuelve a calibrar.
-
 ## Para probar sin la placa
 
-`backend/herramientas/enviar_medicion.py` manda la misma petición que la placa, desde el PC. Es una herramienta de desarrollo, no parte de la app. El README principal explica cómo usarla.
+`simulador/simulador_esp32.py` hace lo mismo que la placa, desde el PC: el canje, las lecturas con su hora y, además, los casos fuera de rango y los datos inválidos. El README principal explica cómo usarlo. Conviene darle su propia matera: cada canje deja sin efecto el token anterior del mismo sensor.

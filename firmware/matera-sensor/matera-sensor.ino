@@ -1,25 +1,30 @@
-// Matera inteligente: firmware del sensor, para una ESP32 clásica (DevKit WROOM-32) en el Arduino IDE 2.
+// Matera inteligente: firmware del sensor, para la ESP32 con DHT11 y modulo LDR (DevKit con CH340) en el Arduino IDE 2.
 //
-// Lee la humedad del sustrato (sensor capacitivo v1.2), la temperatura (AHT20) y la luz (BH1750), y
-// cada INTERVALO_MS manda una medición a la API, como cualquier otro cliente HTTP:
-//   POST {API_BASE}/sensores/{CODIGO_SENSOR}/mediciones
-//   Content-Type: application/json
-//   X-Clave-Sensor: {CLAVE_SENSOR}
-//   {"humedad":41.5,"luz":820.0,"temperatura":22.3}
-// La API diagnostica, guarda la medición y la muestra en vivo en Mis materas. Aquí no hay reglas:
-// el estado y las recomendaciones los calcula el backend.
+// Habla con la API igual que el simulador (simulador/simulador_esp32.py), en dos pasos:
+//   1. Canje: cambia la clave del sensor por un token de alcance «lecturas», que vence a las 24 horas.
+//        POST {API_BASE}/dispositivos/{CODIGO_SENSOR}/token     {"clave":"..."}
+//        -> {"token":"<JWT>","venceEn":"..."}
+//   2. Cada INTERVALO_MS, una lectura con ese token y la hora en que se tomo:
+//        POST {API_BASE}/dispositivos/{CODIGO_SENSOR}/lecturas
+//        Authorization: Bearer <JWT>
+//        {"dispositivo":"MT-0001-AA","momento":"2026-10-22T15:04:05Z","lecturas":{"humedad":53.0,"luz":1500,"temperatura":25.5}}
+// Si la API responde que el token ya no sirve (vencio, o lo reemplazo otro canje), vuelve a canjear la clave.
+// La API diagnostica, guarda la lectura y la muestra en Mis materas. Aqui no hay reglas: el estado y las
+// recomendaciones los calcula el backend.
 //
-// Solo envía si los tres sensores responden, porque la API exige los tres valores. Sin sensores, la
-// placa igual se conecta al WiFi y comprueba que llega a la API (GET /parametros).
-// La red, la API, el código, la clave y la calibración van en config.h (copia de config.example.h).
+// Sensores de esta placa:
+//   DHT11 en GPIO26: temperatura y humedad DEL AIRE. La API espera la humedad del sustrato; para la demo se
+//     manda la del aire, y se avisa en la presentacion.
+//   Modulo LDR (LM393) en GPIO18: solo dice si hay luz o no. Se manda en lux, con LUX_CON_LUZ o LUX_SIN_LUZ.
+// La hora sale de NTP: sin hora no se envia nada. La red, la API, el codigo y la clave van en config.h
+// (copia de config.example.h).
 
 #include <HTTPClient.h>
 #include <WiFi.h>
-#include <Wire.h>
 #include <esp_task_wdt.h>
+#include <time.h>
 
-#include <Adafruit_AHTX0.h>  // Adafruit AHTX0 (el gestor instala también Adafruit BusIO y Unified Sensor)
-#include <BH1750.h>          // BH1750, de Christopher Laws
+#include <DHT.h>  // DHT sensor library, de Adafruit
 
 #if __has_include("config.h")
 #include "config.h"
@@ -27,39 +32,43 @@
 #error "Falta config.h: copie config.example.h como config.h, en esta misma carpeta, y complete sus datos."
 #endif
 
-#if HUMEDAD_SECO <= HUMEDAD_MOJADO
-#error "En config.h, HUMEDAD_SECO (la lectura al aire) tiene que ser mayor que HUMEDAD_MOJADO (en agua)."
+// Lo que config.h puede omitir: los valores de la demo.
+#ifndef INTERVALO_MS
+#define INTERVALO_MS 15000
+#endif
+#ifndef LDR_CON_LUZ
+#define LDR_CON_LUZ LOW  // el LM393 baja su salida cuando hay mas luz que la que marca su perilla
+#endif
+#ifndef LUX_CON_LUZ
+#define LUX_CON_LUZ 1500
+#endif
+#ifndef LUX_SIN_LUZ
+#define LUX_SIN_LUZ 50
 #endif
 
-// ---- pines de la ESP32 DevKit ----
-const int PIN_HUMEDAD = 34;  // del ADC1: el ADC2 no funciona con el WiFi encendido
-const int PIN_SDA = 21;      // bus I2C que comparten el AHT20 (0x38) y el BH1750 (0x23)
-const int PIN_SCL = 22;
-const int PIN_LED = 2;       // el LED azul de la placa
+// ---- pines de esta placa ----
+const int PIN_DHT = 26;
+const int PIN_LUZ = 18;  // la salida digital (DO) del modulo LDR
+const int PIN_LED = 2;   // el LED azul de la placa
 
-// ---- tiempos y límites ----
-const unsigned long ESPERA_WIFI_MS = 20000;  // cuánto se intenta conectar antes de rendirse un rato
-const unsigned long REINTENTO_MS = 30000;    // si falta un sensor, no hay WiFi o falló el envío
-const int MUESTRAS_HUMEDAD = 16;             // se promedian para bajar el ruido del ADC
-// Un sensor conectado da lecturas parejas. Un pin suelto da cualquier cosa: casi 0, casi 4095 o
-// lecturas que saltan de una muestra a otra. Con una resistencia de 1 MΩ entre GPIO34 y GND, un
-// cable suelto lee casi 0 y se detecta siempre (ver firmware/README.md).
-const int CRUDO_MINIMO = 200;
-const int CRUDO_MAXIMO = 3900;
-const int SALTO_MAXIMO = 300;                // diferencia entre la muestra mayor y la menor
-// Con el modo de alta resolucion, el BH1750 entrega como mucho 65535 / 1,2 = 54 612 lux: ahi se satura.
-const float LUZ_MAXIMA = 54600.0;
-// Si algo traba el programa mas de este tiempo (un sensor que se suelta justo mientras mide), la placa
-// se reinicia sola. Tiene margen sobre las esperas normales: el WiFi (20 s) y una peticion HTTP (15 s).
+// ---- tiempos ----
+const unsigned long ESPERA_WIFI_MS = 20000;  // cuanto se intenta conectar antes de rendirse un rato
+const unsigned long ESPERA_HORA_MS = 15000;  // cuanto se espera la hora de NTP
+const unsigned long REINTENTO_MS = 30000;    // si falla el WiFi, la hora, el sensor o el envio
+// Si algo traba el programa mas de este tiempo, la placa se reinicia sola. Tiene margen sobre las
+// esperas normales: el WiFi (20 s), la hora (15 s) y una peticion HTTP (15 s).
 const int SEGUNDOS_VIGILANCIA = 60;
+// Cualquier hora anterior a esta (2024-01-01) es la de una placa que todavia no sincronizo con NTP.
+const time_t HORA_MINIMA = 1704067200;
 
-Adafruit_AHTX0 aht;
-BH1750 medidorLuz(0x23);
-bool ahtListo = false;
-bool luzListo = false;
+// Lo que paso con una lectura. Va aqui arriba: el IDE pone los prototipos de las funciones antes que el resto.
+enum Resultado { ENVIADA, TOKEN_VENCIDO, FALLO };
+
+DHT dht(PIN_DHT, DHT11);
+String token;  // el JWT del ultimo canje; vacio hasta canjear
 unsigned long proximoEnvio = 0;
 
-// ---- LED: parpadeo lento = conectando, fijo = conectado, 5 parpadeos rápidos = algo falló ----
+// ---- LED: parpadeo lento = conectando, fijo = conectado, 5 parpadeos rapidos = algo fallo ----
 
 void led(bool encendido) {
   digitalWrite(PIN_LED, encendido ? HIGH : LOW);
@@ -92,7 +101,7 @@ const char *motivoWifi(wl_status_t estado) {
   }
 }
 
-// Las redes que ve la placa: sirve para saber si el hotspot está al alcance y en 2,4 GHz.
+// Las redes que ve la placa: sirve para saber si el hotspot esta al alcance y en 2,4 GHz.
 void mostrarRedes() {
   esp_task_wdt_reset();
   int cuantas = WiFi.scanNetworks();
@@ -130,16 +139,60 @@ bool conectarWifi() {
   return true;
 }
 
+// La hora en UTC por NTP. La API rechaza una lectura sin zona horaria o del futuro, asi que sin hora no se envia.
+bool sincronizarHora() {
+  if (time(nullptr) >= HORA_MINIMA) return true;
+  Serial.print("Pidiendo la hora por NTP");
+  configTime(0, 0, "pool.ntp.org", "time.google.com");
+  unsigned long inicio = millis();
+  while (time(nullptr) < HORA_MINIMA && millis() - inicio < ESPERA_HORA_MS) {
+    esp_task_wdt_reset();
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println();
+  if (time(nullptr) < HORA_MINIMA) {
+    Serial.println("No llegó la hora: la red tiene que dar salida a internet (puerto 123 de NTP).");
+    return false;
+  }
+  Serial.printf("Hora sincronizada: %s\n", momentoAhora().c_str());
+  return true;
+}
+
+// Por ejemplo 2026-10-22T15:04:05Z, como lo pide la API.
+String momentoAhora() {
+  time_t ahora = time(nullptr);
+  struct tm utc;
+  gmtime_r(&ahora, &utc);
+  char texto[25];
+  strftime(texto, sizeof texto, "%Y-%m-%dT%H:%M:%SZ", &utc);
+  return String(texto);
+}
+
 void prepararPeticion(HTTPClient &http, const String &url) {
   http.setConnectTimeout(5000);
   http.setTimeout(10000);
   http.begin(url);
+  http.addHeader("Content-Type", "application/json");  // sin ella, la API responde 400
+}
+
+// El texto de un campo de la respuesta, buscado despues de `desde`. Sin libreria de JSON: el token
+// es un JWT, que no lleva comillas, y lo demas solo se usa para mostrarlo en el monitor serie.
+String campoDespues(const String &json, const char *desde, const char *campo) {
+  int pos = json.indexOf(desde);
+  if (pos >= 0) pos = json.indexOf(String("\"") + campo + "\"", pos);
+  if (pos >= 0) pos = json.indexOf(':', pos);
+  if (pos >= 0) pos = json.indexOf('"', pos);
+  int fin = pos >= 0 ? json.indexOf('"', pos + 1) : -1;
+  return fin > pos ? json.substring(pos + 1, fin) : String("?");
 }
 
 // Sin sensores ya se puede probar esto: el WiFi, la IP del PC, el firewall y que el backend responda.
 bool comprobarApi() {
   HTTPClient http;
-  prepararPeticion(http, String(API_BASE) + "/parametros");
+  http.setConnectTimeout(5000);
+  http.setTimeout(10000);
+  http.begin(String(API_BASE) + "/parametros");
   int estado = http.GET();
   http.end();
   if (estado == 200) {
@@ -155,90 +208,59 @@ bool comprobarApi() {
   return false;
 }
 
+// ---- canje de la clave por el token ----
+
+bool canjearClave() {
+  HTTPClient http;
+  prepararPeticion(http, String(API_BASE) + "/dispositivos/" + CODIGO_SENSOR + "/token");
+  int estado = http.POST(String("{\"clave\":\"") + CLAVE_SENSOR + "\"}");
+  String respuesta = estado > 0 ? http.getString() : String();
+  http.end();
+  if (estado == 200) {
+    token = campoDespues(respuesta, "{", "token");
+    Serial.printf("Canje listo: token del sensor hasta %s.\n", campoDespues(respuesta, "{", "venceEn").c_str());
+    return true;
+  }
+  token = "";
+  if (estado < 0) {
+    Serial.printf("Canje sin respuesta (%s). Revise la red y API_BASE.\n", HTTPClient::errorToString(estado).c_str());
+  } else if (estado == 401) {
+    Serial.println("401: la API no reconoce el código o la clave. Revise CODIGO_SENSOR y CLAVE_SENSOR en config.h;");
+    Serial.println("si la clave se perdió, «Cambiar sensor» con el mismo código da otra.");
+  } else {
+    Serial.printf("Canje: %d %s\n", estado, respuesta.c_str());
+  }
+  return false;
+}
+
 // ---- sensores ----
 
-void iniciarSensores() {
-  if (!ahtListo) {
-    ahtListo = aht.begin(&Wire);
-    Serial.println(ahtListo ? "AHT20 listo (temperatura)." : "No responde el AHT20 en el bus I2C (0x38).");
-  }
-  if (!luzListo) {
-    luzListo = medidorLuz.begin(BH1750::ONE_TIME_HIGH_RES_MODE, 0x23, &Wire);
-    Serial.println(luzListo ? "BH1750 listo (luz)." : "No responde el BH1750 en el bus I2C (0x23).");
-  }
-}
-
-// La humedad en %, entre la calibración seca y la mojada; -1 si el sensor no está conectado.
-// Siempre muestra la lectura cruda: con ella se calibra HUMEDAD_SECO y HUMEDAD_MOJADO.
-float leerHumedad() {
-  long suma = 0;
-  int menor = 4095;
-  int mayor = 0;
-  for (int i = 0; i < MUESTRAS_HUMEDAD; i++) {
-    int muestra = analogRead(PIN_HUMEDAD);
-    suma += muestra;
-    menor = min(menor, muestra);
-    mayor = max(mayor, muestra);
-    delay(5);
-  }
-  int crudo = suma / MUESTRAS_HUMEDAD;
-  Serial.printf("Humedad: lectura cruda %d, salto %d (seco %d, mojado %d).\n", crudo, mayor - menor, HUMEDAD_SECO,
-                HUMEDAD_MOJADO);
-  if (crudo < CRUDO_MINIMO || crudo > CRUDO_MAXIMO || mayor - menor > SALTO_MAXIMO) return -1;
-  float porcentaje = 100.0 * (HUMEDAD_SECO - crudo) / (HUMEDAD_SECO - HUMEDAD_MOJADO);
-  return constrain(porcentaje, 0.0, 100.0);
-}
-
-bool leerTemperatura(float &temperatura) {
-  if (!ahtListo) return false;
-  sensors_event_t humedadDelAire, temp;
-  if (!aht.getEvent(&humedadDelAire, &temp)) {
-    ahtListo = false;  // se vuelve a iniciar en la próxima vuelta
+// El DHT11 da temperatura y humedad del aire. La libreria no lo deja leer mas de una vez cada 2 s.
+bool leerAire(float &humedad, float &temperatura) {
+  humedad = dht.readHumidity();
+  temperatura = dht.readTemperature();
+  if (isnan(humedad) || isnan(temperatura)) {
+    Serial.printf("El DHT11 no respondió: revise que esté en GPIO%d y alimentado con 3V3.\n", PIN_DHT);
     return false;
   }
-  temperatura = temp.temperature;
   return true;
 }
 
-// Una medicion por lectura: se le pide al BH1750 cada vez. Si se reinicio por un falso contacto,
-// queda apagado y en modo continuo devolveria 0 lux para siempre; asi vuelve a medir.
-bool leerLuz(float &lux) {
-  if (!luzListo) return false;
-  if (!medidorLuz.configure(BH1750::ONE_TIME_HIGH_RES_MODE)) {
-    luzListo = false;
-    return false;
-  }
-  medidorLuz.measurementReady(true);  // espera lo que tarda una medicion (hasta 180 ms)
-  float valor = medidorLuz.readLightLevel();
-  if (valor < 0) {
-    luzListo = false;
-    return false;
-  }
-  if (valor >= LUZ_MAXIMA) Serial.println("Aviso: el BH1750 está saturado; la luz real puede ser mayor.");
-  lux = valor;
-  return true;
+// El modulo LDR solo dice si hay luz o no; se manda en lux con dos valores fijos.
+int leerLuz() {
+  bool hayLuz = digitalRead(PIN_LUZ) == LDR_CON_LUZ;
+  return hayLuz ? LUX_CON_LUZ : LUX_SIN_LUZ;
 }
 
-// ---- envío ----
+// ---- envio ----
 
-// El texto de un campo de la respuesta, buscado después de `desde`. Sin librería de JSON: solo
-// se usa para mostrar el estado en el monitor serie.
-String campoDespues(const String &json, const char *desde, const char *campo) {
-  int pos = json.indexOf(desde);
-  if (pos >= 0) pos = json.indexOf(String("\"") + campo + "\"", pos);
-  if (pos >= 0) pos = json.indexOf(':', pos);
-  if (pos >= 0) pos = json.indexOf('"', pos);
-  int fin = pos >= 0 ? json.indexOf('"', pos + 1) : -1;
-  return fin > pos ? json.substring(pos + 1, fin) : String("?");
-}
-
-bool enviarMedicion(float humedad, float lux, float temperatura) {
-  String cuerpo = String("{\"humedad\":") + String(humedad, 1) + ",\"luz\":" + String(lux, 1) +
-                  ",\"temperatura\":" + String(temperatura, 1) + "}";
+Resultado enviarLectura(float humedad, int lux, float temperatura) {
+  String cuerpo = String("{\"dispositivo\":\"") + CODIGO_SENSOR + "\",\"momento\":\"" + momentoAhora() +
+                  "\",\"lecturas\":{\"humedad\":" + String(humedad, 1) + ",\"luz\":" + String(lux) +
+                  ",\"temperatura\":" + String(temperatura, 1) + "}}";
   HTTPClient http;
-  prepararPeticion(http, String(API_BASE) + "/sensores/" + CODIGO_SENSOR + "/mediciones");
-  http.addHeader("Content-Type", "application/json");  // sin ella, la API responde 400
-  http.addHeader("X-Clave-Sensor", CLAVE_SENSOR);
+  prepararPeticion(http, String(API_BASE) + "/dispositivos/" + CODIGO_SENSOR + "/lecturas");
+  http.addHeader("Authorization", String("Bearer ") + token);
   int estado = http.POST(cuerpo);
   String respuesta = estado > 0 ? http.getString() : String();
   http.end();
@@ -246,16 +268,19 @@ bool enviarMedicion(float humedad, float lux, float temperatura) {
   Serial.printf("Enviado %s -> ", cuerpo.c_str());
   if (estado == 201) {
     Serial.printf("201, la planta está %s.\n", campoDespues(respuesta, "\"diagnostico\"", "estado").c_str());
-    return true;
+    return ENVIADA;
   }
   if (estado < 0) {
     Serial.printf("sin respuesta (%s). Revise la red y API_BASE.\n", HTTPClient::errorToString(estado).c_str());
-  } else if (estado == 401) {
-    Serial.println("401: la API no reconoce el código o la clave. Revise CODIGO_SENSOR y CLAVE_SENSOR en config.h.");
-  } else {
-    Serial.printf("%d: %s\n", estado, respuesta.c_str());
+    return FALLO;
   }
-  return false;
+  String error = campoDespues(respuesta, "{", "error");
+  if (estado == 401 && error == "CREDENCIAL_DISPOSITIVO_INVALIDA") {
+    Serial.println("401: el token venció o lo reemplazó otro canje. Se canjea la clave otra vez.");
+    return TOKEN_VENCIDO;
+  }
+  Serial.printf("%d %s: %s\n", estado, error.c_str(), campoDespues(respuesta, "{", "mensaje").c_str());
+  return FALLO;
 }
 
 // ---- programa ----
@@ -264,55 +289,52 @@ void setup() {
   Serial.begin(115200);
   delay(500);
   pinMode(PIN_LED, OUTPUT);
+  pinMode(PIN_LUZ, INPUT);
   led(false);
-  analogReadResolution(12);
-  analogSetPinAttenuation(PIN_HUMEDAD, ADC_11db);  // lee de 0 a casi 3,3 V
-  Wire.begin(PIN_SDA, PIN_SCL);
+  dht.begin();
   esp_task_wdt_init(SEGUNDOS_VIGILANCIA, true);  // reinicia la placa si loop() queda trabado
   esp_task_wdt_add(NULL);
 
   Serial.println();
   Serial.println("Matera inteligente · sensor " CODIGO_SENSOR);
   Serial.println("API: " API_BASE);
-  iniciarSensores();
+  // La primera lectura del DHT11 despues de encenderlo suele salir mal: se descarta.
+  delay(2000);
+  dht.readTemperature();
   if (conectarWifi() && !comprobarApi()) avisarFallo();
 }
 
 void loop() {
   esp_task_wdt_reset();
-  // Resta con signo: sigue funcionando cuando millis() da la vuelta, a los 49 días.
+  // Resta con signo: sigue funcionando cuando millis() da la vuelta, a los 49 dias.
   if ((long)(millis() - proximoEnvio) < 0) {
-    led(WiFi.status() == WL_CONNECTED);  // el LED sigue al WiFi también entre envíos
+    led(WiFi.status() == WL_CONNECTED);  // el LED sigue al WiFi tambien entre envios
     delay(50);
     return;
   }
-  if (!conectarWifi()) {
+  proximoEnvio = millis() + REINTENTO_MS;  // si algo falla abajo, se reintenta en REINTENTO_MS
+  if (!conectarWifi() || !sincronizarHora()) {
     avisarFallo();
-    proximoEnvio = millis() + REINTENTO_MS;
+    return;
+  }
+  if (token.length() == 0 && !canjearClave()) {
+    avisarFallo();
     return;
   }
 
-  iniciarSensores();
-  float humedad = leerHumedad();
-  float temperatura = 0;
-  float lux = 0;
-  bool hayTemperatura = leerTemperatura(temperatura);
-  bool hayLuz = leerLuz(lux);
-  if (humedad < 0 || !hayTemperatura || !hayLuz) {
-    String faltan[3];
-    int cuantos = 0;
-    if (humedad < 0) faltan[cuantos++] = "la humedad";
-    if (!hayTemperatura) faltan[cuantos++] = "la temperatura";
-    if (!hayLuz) faltan[cuantos++] = "la luz";
-    String lista = faltan[0];
-    for (int i = 1; i < cuantos; i++) lista += (i == cuantos - 1 ? " y " : ", ") + faltan[i];
-    Serial.printf("No se envía: falta %s. Se reintenta en %lu s.\n", lista.c_str(), REINTENTO_MS / 1000);
+  float humedad, temperatura;
+  if (!leerAire(humedad, temperatura)) {
     avisarFallo();
-    proximoEnvio = millis() + REINTENTO_MS;
     return;
   }
+  int lux = leerLuz();
 
-  bool enviada = enviarMedicion(humedad, lux, temperatura);
-  if (!enviada) avisarFallo();
-  proximoEnvio = millis() + (enviada ? (unsigned long)INTERVALO_MS : REINTENTO_MS);
+  Resultado resultado = enviarLectura(humedad, lux, temperatura);
+  if (resultado == TOKEN_VENCIDO && canjearClave()) resultado = enviarLectura(humedad, lux, temperatura);
+  if (resultado != ENVIADA) {
+    if (resultado == TOKEN_VENCIDO) token = "";
+    avisarFallo();
+    return;
+  }
+  proximoEnvio = millis() + (unsigned long)INTERVALO_MS;
 }
