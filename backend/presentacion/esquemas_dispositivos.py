@@ -60,7 +60,12 @@ def _momento(texto: str) -> datetime:
         momento = datetime.fromisoformat(texto.strip())
     except ValueError:
         raise _invalido("momento", "formato", f"'{texto}' no es una fecha y hora ISO 8601, como 2026-10-22T15:04:05Z.") from None
-    return momento.astimezone(timezone.utc) if momento.utcoffset() is not None else momento
+    if momento.utcoffset() is None:
+        return momento
+    try:
+        return momento.astimezone(timezone.utc)
+    except OverflowError:  # 0001-01-01T00:00:00+05:00 queda antes del anio 1 en UTC
+        raise _invalido("momento", "formato", f"'{texto}' no se puede expresar en UTC.") from None
 
 
 def _invalido(campo: str, motivo: str, mensaje: str) -> EntradaInvalida:

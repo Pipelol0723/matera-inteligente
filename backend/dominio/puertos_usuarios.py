@@ -151,7 +151,12 @@ class CredencialesSensor(ABC):
 
 class HistorialMediciones(ABC):
     @abstractmethod
-    def agregar(self, registro: RegistroMedicion) -> None: ...
+    def agregar(self, planta: Planta, registro: RegistroMedicion) -> None:
+        """Guarda el registro de esa planta, solo si sigue siendo la que se leyo: el mismo id y el mismo dueno.
+
+        Si mientras llegaba la lectura la planta se borro, lanza PlantaNoEncontrada: la
+        lectura no puede quedar en la planta nueva de otro usuario que tomo su id.
+        """
 
     @abstractmethod
     def de_planta(self, planta_id: int, limite: int) -> list[RegistroMedicion]:

@@ -4,6 +4,7 @@ Como en esquemas.py, aqui solo se valida la forma: que cada campo este y sea
 del tipo correcto. Las reglas (correo valido, contrasena de 8 caracteres,
 apodo, rango con minimo menor que maximo) las revisa el dominio.
 """
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -216,7 +217,7 @@ def _texto(cuerpo: dict, campo: str) -> str:
 def _numero(rango: dict, limite: str, campo: str) -> float:
     valor = rango.get(limite)
     # En Python bool es subclase de int: true no es un limite.
-    if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+    if isinstance(valor, (int, float)) and not isinstance(valor, bool) and math.isfinite(valor):
         return float(valor)
     raise _invalido(campo, "no_numerico", f"El {limite} de {campo} debe ser un número.")
 

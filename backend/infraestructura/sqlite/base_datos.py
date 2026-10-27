@@ -8,6 +8,18 @@ _DATOS = Path(__file__).resolve().parents[2] / "datos"
 ESQUEMA = _DATOS / "esquema.sql"
 CARGA = _DATOS / "carga.sql"
 
+# Un INTEGER de SQLite tiene 64 bits. Un id de la URL mas grande no existe: se busca como None, no da 500.
+_ENTERO_MAXIMO = 2**63 - 1
+
+# La planta que se leyo, con su dueno. Las escrituras la exigen: otra peticion pudo borrarla, y su id
+# pudo pasar a la planta nueva de otro usuario (SQLite reutiliza el id mas alto).
+LA_MISMA_PLANTA = "SELECT id FROM planta WHERE id = ? AND usuario_id = ?"
+
+
+def cabe_en_sqlite(numero: int) -> bool:
+    return -_ENTERO_MAXIMO - 1 <= numero <= _ENTERO_MAXIMO
+
+
 # Version del esquema, guardada en PRAGMA user_version. Una base sin numero es de antes de la fase 2.
 VERSION = 3
 # Lo que hay que hacer en una base que ya tenia tablas para llegar a cada version. Despues,

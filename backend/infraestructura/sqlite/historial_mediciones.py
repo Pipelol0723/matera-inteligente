@@ -4,9 +4,11 @@ from datetime import datetime, timezone
 
 from dominio.estados import EstadoGlobal, EstadoParametro
 from dominio.historial import LecturaRegistrada, RegistroMedicion
+from dominio.errores_usuarios import PlantaNoEncontrada
 from dominio.parametros import PARAMETROS
+from dominio.plantas import Planta
 from dominio.puertos_usuarios import HistorialMediciones
-from infraestructura.sqlite.base_datos import BaseDatos
+from infraestructura.sqlite.base_datos import LA_MISMA_PLANTA, BaseDatos
 
 _PARAMETROS_POR_NOMBRE = {parametro.nombre: parametro for parametro in PARAMETROS}
 
@@ -15,12 +17,14 @@ class HistorialMedicionesSqlite(HistorialMediciones):
     def __init__(self, bd: BaseDatos):
         self._bd = bd
 
-    def agregar(self, registro: RegistroMedicion) -> None:
+    def agregar(self, planta: Planta, registro: RegistroMedicion) -> None:
         with self._bd.conexion() as conexion:
             cursor = conexion.execute(
-                "INSERT INTO medicion (planta_id, momento, estado, origen) VALUES (?, ?, ?, ?)",
-                (registro.planta_id, _texto(registro.momento), registro.estado.value, registro.origen),
+                f"INSERT INTO medicion (planta_id, momento, estado, origen) SELECT id, ?, ?, ? FROM ({LA_MISMA_PLANTA})",
+                (_texto(registro.momento), registro.estado.value, registro.origen, planta.id, planta.usuario_id),
             )
+            if cursor.rowcount == 0:
+                raise PlantaNoEncontrada(planta.id)
             conexion.executemany(
                 "INSERT INTO lectura (medicion_id, parametro, valor, estado) VALUES (?, ?, ?, ?)",
                 [(cursor.lastrowid, l.parametro.nombre, l.valor, l.estado.value) for l in registro.lecturas],

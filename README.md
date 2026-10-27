@@ -420,12 +420,13 @@ Todas las respuestas de error, incluidas las de rutas inexistentes, tienen la fo
 | Parámetro ausente | 400 | `PARAMETRO_INVALIDO` | `campo`, `motivo: "ausente"` |
 | Valor no numérico | 400 | `PARAMETRO_INVALIDO` | `campo`, `motivo: "no_numerico"` |
 | Valor físicamente imposible | 400 | `PARAMETRO_INVALIDO` | `campo`, `motivo: "fuera_de_rango_fisico"`, `minimo`, `maximo` |
-| El cuerpo no es JSON | 400 | `SOLICITUD_INVALIDA` | vacío |
+| El cuerpo no es JSON estricto: no es JSON, trae `NaN`, `Infinity` o un número que no cabe en un float, un texto con un carácter inválido, o está anidado miles de veces | 400 | `SOLICITUD_INVALIDA` | vacío |
 | Ruta inexistente / método no permitido | 404 / 405 | `RUTA_NO_ENCONTRADA` / `METODO_NO_PERMITIDO` | `ruta` |
 | Error inesperado | 500 | `ERROR_INTERNO` | vacío |
 | Correo, nombre, contraseña, apodo o rango inválidos | 400 | `PARAMETRO_INVALIDO` | `campo`, `motivo` |
 | Código de sensor con otra forma (no `MT-0000-XX`) al crear la matera o al cambiarle el sensor | 400 | `CODIGO_SENSOR_INVALIDO` | `campo`, `motivo`, `texto` |
-| La hora de una lectura sin zona horaria o en el futuro | 400 | `MOMENTO_INVALIDO` | `campo: "momento"` |
+| La hora de una lectura que no es ISO 8601 o que no se puede pasar a UTC (por ejemplo, el año 1 con zona) | 400 | `PARAMETRO_INVALIDO` | `campo: "momento"`, `motivo: "formato"` |
+| La hora de una lectura sin zona horaria o más de 2 minutos en el futuro | 400 | `MOMENTO_INVALIDO` | `campo: "momento"`, `motivo: "invalido"` |
 | Correo o contraseña incorrectos (el mismo en los dos casos) | 401 | `CREDENCIALES_INVALIDAS` | vacío |
 | Sin token de usuario, con la firma alterada, vencido, con la sesión cerrada o de una cuenta desactivada | 401 | `SESION_INVALIDA` | vacío |
 | Sensor inexistente, código mal formado o clave incorrecta en el canje (el mismo en los tres casos) | 401 | `CLAVE_SENSOR_INVALIDA` | vacío |
@@ -436,7 +437,7 @@ Todas las respuestas de error, incluidas las de rutas inexistentes, tienen la fo
 | Un sensor que reporta por otro (en la URL o en el cuerpo) | 403 | `DISPOSITIVO_AJENO` | `autenticado`, `reportado` |
 | Abrir el WebSocket desde un origen que no es el del front | 403 | `ORIGEN_NO_PERMITIDO` | `origen` |
 | Un `GET` normal (sin WebSocket) a `/tiempo-real` | 400 | `SOLICITUD_INVALIDA` | `ruta` |
-| Planta inexistente o de otro usuario | 404 | `PLANTA_NO_ENCONTRADA` | `planta_id` |
+| Planta inexistente o de otro usuario, también si se borró mientras llegaba una lectura de su sensor | 404 | `PLANTA_NO_ENCONTRADA` | `planta_id` |
 | Usuario inexistente | 404 | `USUARIO_NO_ENCONTRADO` | `referencia` |
 | Correo, apodo, especie o código de sensor repetidos (el código, si es de otra planta) | 409 | `CORREO_YA_REGISTRADO`, `APODO_REPETIDO`, `ESPECIE_YA_EXISTE`, `SENSOR_YA_VINCULADO` | el dato repetido |
 | Agregar una especie con la tabla de referencia en CSV | 409 | `TABLA_SOLO_LECTURA` | vacío |

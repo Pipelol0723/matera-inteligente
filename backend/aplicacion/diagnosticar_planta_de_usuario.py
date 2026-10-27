@@ -45,7 +45,7 @@ class DiagnosticarPlantaDeUsuario:
         planta = buscar_planta_propia(self._plantas, usuario_id, planta_id)
         diagnostico = self._servicio.diagnosticar(planta.especie, medicion)
         registro = RegistroMedicion.desde(diagnostico, planta.id, momento, origen)
-        self._historial.agregar(registro)
+        self._historial.agregar(planta, registro)
         self._avisar(planta, registro, diagnostico)
         return ResultadoMedicion(planta, diagnostico, registro)
 

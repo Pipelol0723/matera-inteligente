@@ -194,7 +194,7 @@ Fuentes: [`clases-puertos.mmd`](clases-puertos.mmd) y [`clases-puertos-corte1.mm
   - `RegistroEspecies` depende del modo. Con la base, `RegistroEspeciesConCopiaCsv` envuelve al registro de SQLite y reescribe el CSV después de agregar. Con el CSV, `EspeciesDeSoloLectura` lanza `TablaDeSoloLectura`, que da 409.
   - `main.py` elige según `MATERA_TABLA_REFERENCIA`. El adaptador SQLite no sabe que existe un CSV. Cambiar de tabla es el escenario 5.2 del documento: ningún cambio en el dominio.
 - **`ConsultaPlantas.por_id(planta_id)` busca la planta sin mirar el dueño.** El caso de uso llama a `Planta.exigir_dueno`.
-  - Las escrituras, `RegistroPlantas.eliminar(planta)` y `SensoresVinculados.reemplazar(planta, sensor)`, repiten en el SQL el id y el dueño de la planta que se leyó.
+  - Las escrituras, `RegistroPlantas.eliminar(planta)`, `SensoresVinculados.reemplazar(planta, sensor)` y `HistorialMediciones.agregar(planta, registro)`, repiten en el SQL el id y el dueño de la planta que se leyó.
   - Así, si entre tanto la planta se borró y otra nueva tomó su id (SQLite reutiliza el id más alto), la escritura no toca la planta ajena.
 - **Una matera no existe sin sensor.** `guardar_con_sensor()` crea la planta y su sensor en una sola transacción, y `reemplazar(planta, sensor)` cambia el sensor en otra. No hay un `guardar()` que cree una planta sola.
 - **`CredencialesSensor` guarda el token vigente de cada sensor.**

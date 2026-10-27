@@ -1,5 +1,8 @@
 """R4: la tabla de referencia sale del CSV o de la base segun la configuracion, y el CSV es una copia de solo lectura."""
 import dataclasses
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -53,6 +56,49 @@ def test_con_la_base_agregar_una_especie_vuelve_a_escribir_la_copia(tmp_path):
 
     assert "cinta" in [especie.nombre for especie in RepositorioEspeciesCsv(ruta).listar()]
     assert len(RepositorioEspeciesCsv(ruta).listar()) == len(sqlite.listar())
+
+
+class TablaLenta:
+    """Registro y catalogo en memoria. La primera vez que lista, se demora despues de leer:
+    asi otro admin alcanza a agregar y escribir su copia mientras esta todavia no la escribe."""
+
+    def __init__(self):
+        self.especies = []
+        self._primera = True
+
+    def agregar(self, especie):
+        self.especies.append(especie)
+
+    def listar(self):
+        vista = list(self.especies)
+        if self._primera:
+            self._primera = False
+            time.sleep(0.3)
+        return vista
+
+
+def test_dos_admins_que_agregan_a_la_vez_dejan_la_copia_con_las_dos_especies(tmp_path):
+    tabla = TablaLenta()
+    ruta = tmp_path / "especies.csv"
+    registro = RegistroEspeciesConCopiaCsv(tabla, tabla, ruta)
+    primero = threading.Thread(target=registro.agregar, args=(LAVANDA,))
+    primero.start()
+    time.sleep(0.1)  # el primero ya leyo la tabla y se demora
+    registro.agregar(ORQUIDEA)
+    primero.join()
+
+    assert sorted(especie.nombre for especie in RepositorioEspeciesCsv(ruta).listar()) == ["lavanda", "orquidea"]
+
+
+def test_la_copia_escrita_desde_varios_hilos_nunca_queda_a_medias(tmp_path):
+    ruta = tmp_path / "especies.csv"
+    especies = [LAVANDA, ORQUIDEA]
+
+    with ThreadPoolExecutor(max_workers=8) as hilos:
+        list(hilos.map(lambda _: escribir_csv(especies, ruta), range(200)))
+
+    assert [especie.nombre for especie in RepositorioEspeciesCsv(ruta).listar()] == ["lavanda", "orquidea"]
+    assert [archivo.name for archivo in tmp_path.iterdir() if archivo.suffix == ".tmp"] == []
 
 
 def test_el_comando_exporta_la_base_y_la_api_con_el_csv_diagnostica_igual(config, capsys):

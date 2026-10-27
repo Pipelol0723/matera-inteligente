@@ -106,7 +106,7 @@ def test_eliminar_un_usuario_borra_en_cascada_sesiones_plantas_sensores_e_histor
     planta = repos.planta(ana.id)
     repos.planta(beto.id)
     repos.sesiones.abrir(Sesion("huella", ana.id, AHORA))
-    repos.historial.agregar(repos.registro(planta.id))
+    repos.historial.agregar(planta, repos.registro(planta.id))
 
     repos.usuarios.eliminar(ana.id)
 
@@ -134,6 +134,25 @@ def test_por_id_no_decide_de_quien_es_la_planta_y_eliminar_exige_la_misma_planta
     # Una planta con ese id pero de otro dueno no es la que se leyo: no se borra.
     repos.plantas.eliminar(replace(planta, usuario_id=beto.id))
     assert repos.plantas.de_usuario(ana.id) == [planta]
+
+
+def test_una_lectura_de_una_planta_borrada_no_cae_en_la_planta_nueva_que_toma_su_id(repos):
+    ana, beto = repos.registrar(), repos.registrar("beto@correo.co", "Beto")
+    de_ana = repos.planta(ana.id)
+    repos.plantas.eliminar(de_ana)
+    de_beto = repos.planta(beto.id)
+    assert de_beto.id == de_ana.id  # SQLite reutiliza el id mas alto
+
+    with pytest.raises(PlantaNoEncontrada):
+        repos.historial.agregar(de_ana, repos.registro(de_ana.id))
+
+    assert repos.historial.de_planta(de_beto.id, 30) == []
+    assert repos.contar("medicion") == 0
+
+
+def test_un_id_que_no_cabe_en_sqlite_no_existe(repos):
+    assert repos.plantas.por_id(2**63) is None
+    assert repos.usuarios.por_id(-(2**63) - 1) is None
 
 
 def test_la_planta_y_su_sensor_se_guardan_juntos(repos):
@@ -172,7 +191,7 @@ def test_no_se_puede_borrar_una_especie_que_una_planta_usa(repos):
 
 def test_reemplazar_el_sensor_deja_uno_solo_libera_el_codigo_y_conserva_el_historial(repos):
     planta = repos.planta(repos.registrar().id, codigo=CODIGO)
-    repos.historial.agregar(repos.registro(planta.id))
+    repos.historial.agregar(planta, repos.registro(planta.id))
 
     repos.sensores.reemplazar(planta, Sensor(OTRO_CODIGO, planta.id, "huella-nueva"))
 
@@ -273,7 +292,7 @@ def test_una_planta_de_una_cuenta_que_ya_no_existe_no_se_guarda_y_no_culpa_a_la_
 def test_el_historial_se_lee_igual_mas_reciente_primero_y_con_limite(repos):
     planta = repos.planta(repos.registrar().id)
     for horas in range(3):
-        repos.historial.agregar(repos.registro(planta.id, AHORA + timedelta(hours=horas, microseconds=horas)))
+        repos.historial.agregar(planta, repos.registro(planta.id, AHORA + timedelta(hours=horas, microseconds=horas)))
 
     registros = repos.historial.de_planta(planta.id, limite=2)
 
@@ -286,8 +305,8 @@ def test_el_historial_guarda_en_utc_y_ordena_bien_horas_de_otra_zona_horaria(rep
     planta = repos.planta(repos.registrar().id)
     bogota = timezone(timedelta(hours=-5))
     # 10:30 en Bogota son las 15:30 en UTC: es posterior a las 15:00 UTC aunque el texto diga 10:30.
-    repos.historial.agregar(repos.registro(planta.id, datetime(2026, 10, 22, 10, 30, tzinfo=bogota)))
-    repos.historial.agregar(repos.registro(planta.id, datetime(2026, 10, 22, 15, 0, tzinfo=timezone.utc)))
+    repos.historial.agregar(planta, repos.registro(planta.id, datetime(2026, 10, 22, 10, 30, tzinfo=bogota)))
+    repos.historial.agregar(planta, repos.registro(planta.id, datetime(2026, 10, 22, 15, 0, tzinfo=timezone.utc)))
 
     registros = repos.historial.de_planta(planta.id, limite=2)
 
@@ -297,7 +316,7 @@ def test_el_historial_guarda_en_utc_y_ordena_bien_horas_de_otra_zona_horaria(rep
 def test_borrar_una_planta_borra_su_sensor_y_su_historial(repos):
     ana = repos.registrar()
     planta = repos.planta(ana.id, codigo=CODIGO)
-    repos.historial.agregar(repos.registro(planta.id))
+    repos.historial.agregar(planta, repos.registro(planta.id))
 
     repos.plantas.eliminar(planta)
 

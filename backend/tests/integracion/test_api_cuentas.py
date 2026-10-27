@@ -183,6 +183,29 @@ def test_el_admin_da_el_rol_a_otro_pero_no_puede_actuar_sobre_si_mismo(api):
     assert es_error(api.pedir("DELETE", "/admin/usuarios/1", admin), 409, "ACCION_SOBRE_SI_MISMO")
 
 
+def test_un_id_de_usuario_que_no_cabe_en_sqlite_responde_404(api):
+    admin = api.admin()
+
+    assert es_error(api.pedir("DELETE", f"/admin/usuarios/{2**63}", admin), 404, "USUARIO_NO_ENCONTRADO")
+
+
+def test_un_limite_infinito_de_una_especie_responde_400(api):
+    admin = api.admin()
+    rangos = {**ESPECIE_NUEVA["rangos"], "luz": {"min": 0, "max": 10**400}}
+
+    respuesta = api.pedir("POST", "/admin/especies", admin, json={**ESPECIE_NUEVA, "rangos": rangos})
+
+    assert es_error(respuesta, 400, "SOLICITUD_INVALIDA")
+
+
+def test_medio_caracter_en_la_contrasena_responde_400_y_no_500(api):
+    cuerpo = '{"nombre": "Ana", "correo": "ana@correo.co", "contrasena": "clave-\\ud800-segura"}'
+
+    respuesta = api.http.post("/api/v1/usuarios", data=cuerpo, content_type="application/json")
+
+    assert es_error(respuesta, 400, "SOLICITUD_INVALIDA")
+
+
 @pytest.mark.parametrize("cuerpo", [{}, {"activo": False, "rol": "ADMIN"}, {"activo": "no"}, {"rol": "JEFE"}])
 def test_un_cambio_de_usuario_mal_formado_responde_400(api, cuerpo):
     admin = api.admin()

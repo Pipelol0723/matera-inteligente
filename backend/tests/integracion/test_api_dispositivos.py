@@ -175,6 +175,20 @@ def test_las_rutas_de_dispositivos_responden_405_en_json_a_otro_metodo(api, ruta
     assert es_error(api.pedir("GET", ruta), 405, "METODO_NO_PERMITIDO")
 
 
+@pytest.mark.parametrize("momento", ["0001-01-01T00:00:00+05:00", "9999-12-31T23:59:59-05:00"])
+def test_una_hora_que_no_cabe_en_utc_responde_400_y_no_500(api, token, momento):
+    respuesta = api.reportar("MT-0001-AA", token, LECTURAS, momento=momento)
+
+    assert es_error(respuesta, 400, "PARAMETRO_INVALIDO")
+    assert respuesta.get_json()["detalle"] == {"campo": "momento", "motivo": "formato"}
+
+
+def test_un_id_de_planta_que_no_cabe_en_sqlite_responde_404(api, ana):
+    for metodo, ruta in (("GET", "/historial"), ("DELETE", ""), ("PUT", "/sensor")):
+        respuesta = api.pedir(metodo, f"/plantas/{2**63}{ruta}", ana, json={"codigo": "MT-0009-ZZ"})
+        assert es_error(respuesta, 404, "PLANTA_NO_ENCONTRADA"), (metodo, ruta)
+
+
 def test_los_sensores_de_una_cuenta_desactivada_quedan_en_pausa(api, ana, matera, token):
     admin = api.admin()
     ana_id = api.pedir("GET", "/usuarios/yo", ana).get_json()["id"]

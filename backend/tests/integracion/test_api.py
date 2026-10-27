@@ -200,6 +200,38 @@ def test_un_error_inesperado_responde_json_sin_la_traza(tmp_path):
     assert b"detalle interno" not in respuesta.data
 
 
+@pytest.mark.parametrize(
+    "cuerpo",
+    [
+        "[" * 100_000 + "]" * 100_000,
+        '{"especie": "potos", "humedad": NaN, "luz": 800, "temperatura": 22}',
+        '{"especie": "potos", "humedad": 1e309, "luz": 800, "temperatura": 22}',
+        '{"especie": "\\ud800", "humedad": 50, "luz": 800, "temperatura": 22}',
+    ],
+    ids=["anidado 100 000 veces", "NaN", "no cabe en un float", "medio caracter"],
+)
+def test_un_json_que_la_libreria_aceptaria_de_mas_responde_400_y_no_500(cliente, cuerpo):
+    respuesta = cliente.post("/api/v1/diagnosticos", data=cuerpo, content_type="application/json")
+
+    assert respuesta.status_code == 400
+    assert _es_error_uniforme(respuesta)
+    assert respuesta.get_json()["error"] == "SOLICITUD_INVALIDA"
+
+
+def test_una_barra_doble_responde_404_en_json_y_no_una_redireccion_html(cliente):
+    respuesta = cliente.get("/api/v1//especies")
+
+    assert respuesta.status_code == 404
+    assert _es_error_uniforme(respuesta)
+
+
+def test_la_verificacion_previa_responde_json(sin_sesion):
+    respuesta = sin_sesion.options("/api/v1/especies", headers={"Origin": ORIGEN_FRONT})
+
+    assert respuesta.mimetype == "application/json"
+    assert respuesta.get_json() == {}
+
+
 def test_cors_permite_el_origen_del_front_incluso_en_errores(cliente):
     exito = cliente.get("/api/v1/especies", headers={"Origin": ORIGEN_FRONT})
     # Sin la cabecera en los errores, el front no podria leer el mensaje del 404.

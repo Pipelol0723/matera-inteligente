@@ -61,7 +61,7 @@ classDiagram
         }
         class HistorialMediciones {
             <<interface>>
-            +agregar(registro: RegistroMedicion)
+            +agregar(planta: Planta, registro: RegistroMedicion)
             +de_planta(planta_id: int, limite: int) list~RegistroMedicion~
             +ultimo_de(planta_id: int) RegistroMedicion o None
         }

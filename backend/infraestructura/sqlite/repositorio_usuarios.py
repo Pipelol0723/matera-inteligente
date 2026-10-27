@@ -6,7 +6,7 @@ from datetime import datetime
 from dominio.errores_usuarios import CorreoYaRegistrado
 from dominio.puertos_usuarios import ConsultaCuentas, ListadoCuentas, RegistroCuentas, SesionesAbiertas
 from dominio.usuarios import Correo, ResumenUsuario, Rol, Sesion, Usuario
-from infraestructura.sqlite.base_datos import BaseDatos
+from infraestructura.sqlite.base_datos import BaseDatos, cabe_en_sqlite
 
 
 class RepositorioUsuariosSqlite(ConsultaCuentas, RegistroCuentas, ListadoCuentas):
@@ -17,6 +17,8 @@ class RepositorioUsuariosSqlite(ConsultaCuentas, RegistroCuentas, ListadoCuentas
         return self._uno("SELECT * FROM usuario WHERE correo = ?", (correo.valor,))
 
     def por_id(self, usuario_id: int) -> Usuario | None:
+        if not cabe_en_sqlite(usuario_id):
+            return None
         return self._uno("SELECT * FROM usuario WHERE id = ?", (usuario_id,))
 
     def guardar(self, usuario: Usuario) -> Usuario:

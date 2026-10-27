@@ -11,7 +11,9 @@ El token va firmado con HS256 y un secreto que solo conoce el servidor. Trae:
   jti      su id: el de usuario debe tener su sesion abierta, el de sensor debe ser el vigente
   iat/exp  cuando se emitio y cuando vence
 """
+import os
 import secrets
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -96,10 +98,26 @@ def secreto_guardado(ruta: Path) -> str:
 
     Asi los tokens siguen sirviendo despues de reiniciar el backend. Va junto a la
     base de datos, fuera de Git; MATERA_JWT_SECRETO lo reemplaza.
+
+    Si dos procesos arrancan a la vez, solo uno lo crea (O_EXCL) y el otro lee ese mismo:
+    nunca quedan dos secretos distintos para la misma base.
     """
-    if ruta.exists():
-        return ruta.read_text(encoding="utf-8").strip()
     ruta.parent.mkdir(parents=True, exist_ok=True)
     secreto = secrets.token_urlsafe(48)
-    ruta.write_text(secreto, encoding="utf-8")
+    try:
+        descriptor = os.open(ruta, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        return _leer_secreto(ruta)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as archivo:
+        archivo.write(secreto)
     return secreto
+
+
+def _leer_secreto(ruta: Path) -> str:
+    # El otro proceso pudo crear el archivo y no haber escrito todavia: se espera un poco.
+    for _ in range(50):
+        secreto = ruta.read_text(encoding="utf-8").strip()
+        if secreto:
+            return secreto
+        time.sleep(0.02)
+    return secreto  # vacio: TokensJwt lo rechaza al arrancar, con un mensaje claro

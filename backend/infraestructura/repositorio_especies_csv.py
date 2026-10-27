@@ -15,6 +15,9 @@ import csv
 import logging
 import math
 import os
+import tempfile
+import threading
+import time
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -123,24 +126,43 @@ class EspeciesDeSoloLectura(RegistroEspecies):
 def escribir_csv(especies: Iterable[Especie], ruta: Path) -> int:
     """Escribe la tabla en el CSV, ordenada por nombre, y devuelve cuantas especies escribio.
 
-    Escribe primero un archivo temporal y despues lo pone en su lugar: quien lea el
-    CSV nunca ve uno a medio escribir.
+    Escribe primero un archivo temporal, con un nombre que no comparte con nadie, y despues
+    lo pone en su lugar: quien lea el CSV nunca ve uno a medio escribir, y dos escrituras a
+    la vez no se mezclan en el mismo temporal.
     """
     ordenadas = sorted(especies, key=lambda especie: especie.nombre)
-    temporal = ruta.with_name(ruta.name + ".tmp")
     ruta.parent.mkdir(parents=True, exist_ok=True)
-    with temporal.open("w", encoding="utf-8", newline="") as archivo:
-        escritor = csv.writer(archivo, lineterminator="\n")
-        escritor.writerow(_COLUMNAS)
-        for especie in ordenadas:
-            limites = [
-                f"{valor:.15g}"
-                for p in PARAMETROS
-                for valor in (especie.rango_de(p).minimo, especie.rango_de(p).maximo)
-            ]
-            escritor.writerow([especie.nombre, especie.nombre_cientifico, *limites])
-    os.replace(temporal, ruta)
+    descriptor, nombre = tempfile.mkstemp(dir=ruta.parent, prefix=ruta.name + ".", suffix=".tmp")
+    temporal = Path(nombre)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as archivo:
+            escritor = csv.writer(archivo, lineterminator="\n")
+            escritor.writerow(_COLUMNAS)
+            for especie in ordenadas:
+                limites = [
+                    f"{valor:.15g}"
+                    for p in PARAMETROS
+                    for valor in (especie.rango_de(p).minimo, especie.rango_de(p).maximo)
+                ]
+                escritor.writerow([especie.nombre, especie.nombre_cientifico, *limites])
+        _reemplazar(temporal, ruta)
+    except BaseException:
+        temporal.unlink(missing_ok=True)
+        raise
     return len(ordenadas)
+
+
+def _reemplazar(temporal: Path, ruta: Path, intentos: int = 50) -> None:
+    # En Windows, reemplazar un archivo mientras otro escritor lo reemplaza falla un instante
+    # con PermissionError: se reintenta. El archivo nunca queda a medias.
+    for intento in range(intentos):
+        try:
+            os.replace(temporal, ruta)
+            return
+        except PermissionError:
+            if intento == intentos - 1:
+                raise
+            time.sleep(0.01)
 
 
 class RegistroEspeciesConCopiaCsv(RegistroEspecies):
@@ -155,10 +177,16 @@ class RegistroEspeciesConCopiaCsv(RegistroEspecies):
         self._registro = registro
         self._catalogo = catalogo
         self._ruta = ruta
+        # Flask atiende cada peticion en un hilo: si dos admins agregan a la vez, la copia que
+        # queda es la del ultimo, con las especies de los dos.
+        self._escribiendo = threading.Lock()
 
     def agregar(self, especie: Especie) -> None:
-        self._registro.agregar(especie)
-        try:
-            escribir_csv(self._catalogo.listar(), self._ruta)
-        except OSError:
-            _log.exception("La especie %s quedo en la base, pero no se pudo escribir la copia %s.", especie.nombre, self._ruta)
+        with self._escribiendo:
+            self._registro.agregar(especie)
+            try:
+                escribir_csv(self._catalogo.listar(), self._ruta)
+            except OSError:
+                _log.exception(
+                    "La especie %s quedo en la base, pero no se pudo escribir la copia %s.", especie.nombre, self._ruta
+                )

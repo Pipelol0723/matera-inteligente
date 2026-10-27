@@ -2,6 +2,7 @@
 
 Importa jwt para fabricar tokens como los haria alguien de afuera.
 """
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
 import jwt
@@ -142,3 +143,12 @@ def test_el_secreto_se_crea_una_vez_y_despues_se_reutiliza(tmp_path):
     assert len(primero) >= 32
     assert ruta.read_text(encoding="utf-8") == primero
     assert secreto_guardado(ruta) == primero
+
+
+def test_dos_arranques_a_la_vez_quedan_con_el_mismo_secreto(tmp_path):
+    for vuelta in range(20):
+        ruta = tmp_path / f"base-{vuelta}.sqlite.secreto-jwt"
+        with ThreadPoolExecutor(max_workers=4) as hilos:
+            secretos = set(hilos.map(lambda _: secreto_guardado(ruta), range(4)))
+
+        assert secretos == {ruta.read_text(encoding="utf-8")}

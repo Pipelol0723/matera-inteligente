@@ -17,14 +17,11 @@ from dominio.errores_usuarios import ApodoRepetido, PlantaNoEncontrada, SensorYa
 from dominio.plantas import Planta
 from dominio.puertos_usuarios import ConsultaPlantas, CredencialesSensor, RegistroPlantas, SensoresVinculados
 from dominio.sensores import CodigoSensor, Sensor
-from infraestructura.sqlite.base_datos import BaseDatos
+from infraestructura.sqlite.base_datos import LA_MISMA_PLANTA, BaseDatos, cabe_en_sqlite
 
 _COLUMNAS_PLANTA = "p.id, p.usuario_id, p.apodo, p.especie"
 _INSERTAR_SENSOR = "INSERT INTO sensor (codigo, planta_id, hash_clave) VALUES (?, ?, ?)"
 # La misma planta que se leyo: mismo id y mismo dueno.
-_LA_MISMA_PLANTA = "SELECT id FROM planta WHERE id = ? AND usuario_id = ?"
-
-
 def _planta(fila: sqlite3.Row) -> Planta:
     return Planta(fila["id"], fila["usuario_id"], fila["apodo"], fila["especie"])
 
@@ -70,6 +67,8 @@ class RepositorioPlantasSqlite(ConsultaPlantas, RegistroPlantas):
         return [_planta(fila) for fila in filas]
 
     def por_id(self, planta_id: int) -> Planta | None:
+        if not cabe_en_sqlite(planta_id):
+            return None
         with self._bd.conexion() as conexion:
             fila = conexion.execute(f"SELECT {_COLUMNAS_PLANTA} FROM planta p WHERE p.id = ?", (planta_id,)).fetchone()
         return _planta(fila) if fila else None
@@ -97,10 +96,10 @@ class RepositorioSensoresSqlite(SensoresVinculados, CredencialesSensor):
         try:
             with self._bd.conexion() as conexion:
                 conexion.execute(
-                    f"DELETE FROM sensor WHERE planta_id IN ({_LA_MISMA_PLANTA})", (planta.id, planta.usuario_id)
+                    f"DELETE FROM sensor WHERE planta_id IN ({LA_MISMA_PLANTA})", (planta.id, planta.usuario_id)
                 )
                 insertado = conexion.execute(
-                    f"INSERT INTO sensor (codigo, planta_id, hash_clave) SELECT ?, id, ? FROM ({_LA_MISMA_PLANTA})",
+                    f"INSERT INTO sensor (codigo, planta_id, hash_clave) SELECT ?, id, ? FROM ({LA_MISMA_PLANTA})",
                     (sensor.codigo.valor, sensor.hash_clave, planta.id, planta.usuario_id),
                 )
                 if insertado.rowcount == 0:

@@ -196,7 +196,7 @@ class HistorialEnMemoria(HistorialMediciones):
     def __init__(self):
         self.registros: list[RegistroMedicion] = []
 
-    def agregar(self, registro: RegistroMedicion) -> None:
+    def agregar(self, planta: Planta, registro: RegistroMedicion) -> None:
         self.registros.append(registro)
 
     def de_planta(self, planta_id: int, limite: int) -> list[RegistroMedicion]:
