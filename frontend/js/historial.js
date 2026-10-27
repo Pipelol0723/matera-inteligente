@@ -34,10 +34,17 @@ export function crearPantallaHistorial(contexto) {
     if (mensaje.tipo === "reconectado") {
       if (plantas.length) cargarHistorial();
     } else if (mensaje.tipo === "medicion" && actual && mensaje.planta.id === actual.planta.id) {
-      actual.registros = [mensaje.medicion, ...actual.registros].slice(0, LIMITE);
+      actual.registros = unir([mensaje.medicion], actual.registros);
       pintar(actual.planta, actual.registros);
     }
   });
+
+  // Los registros de la consulta y los que llegaron en vivo, sin repetir, del más reciente al más antiguo.
+  // Así una respuesta que salió antes de la última medición no la borra, y una que ya la trae no la duplica.
+  function unir(unos, otros) {
+    const porClave = new Map([...otros, ...unos].map((r) => [`${r.momento}|${r.origen}`, r]));
+    return [...porClave.values()].sort((a, b) => Date.parse(b.momento) - Date.parse(a.momento)).slice(0, LIMITE);
+  }
 
   async function mostrar() {
     mostrarError($("error-historial"), null);
@@ -71,8 +78,9 @@ export function crearPantallaHistorial(contexto) {
     if (pedida !== Number(selector.value)) return;
     mostrarError($("error-historial"), null);
     $("historial-consulta").textContent = textoConsulta();
-    actual = { planta: historial.planta, registros: historial.registros };
-    pintar(historial.planta, historial.registros);
+    const enVivo = actual?.planta.id === historial.planta.id ? actual.registros : [];
+    actual = { planta: historial.planta, registros: unir(historial.registros, enVivo) };
+    pintar(actual.planta, actual.registros);
   }
 
   function pintar(planta, registros) {
@@ -148,5 +156,15 @@ export function crearPantallaHistorial(contexto) {
         crear("span", { clase: "resumen__valor", texto: valor }))));
   }
 
-  return { mostrar };
+  // Al cerrar la sesión: nada de esta cuenta queda para la que entre después en la misma pestaña.
+  function reiniciar() {
+    plantas = [];
+    actual = null;
+    selector.replaceChildren();
+    $("historial-consulta").textContent = "";
+    mostrarError($("error-historial"), null);
+    pintar(null, []);
+  }
+
+  return { mostrar, reiniciar };
 }

@@ -12,6 +12,11 @@ Dos modos:
       mezclan lecturas fuera de rango y datos invalidos, en esas proporciones (0 a 1).
   --casos: manda una vez cada caso de error y dice si la API respondio lo esperado.
 
+Si la API deja de responder a mitad del modo continuo (un corte del WiFi, o el backend
+que se reinicia para cambiar de tabla de referencia), lo dice y sigue intentando: no hay
+que volver a lanzarlo. Si el token vencio, canjea la clave otra vez, tambien antes de un
+caso de error.
+
 Uso, desde la raiz del repositorio:
     python simulador/simulador_esp32.py MT-0002-AB --clave=<clave>
     python simulador/simulador_esp32.py MT-0002-AB --clave=<clave> --intervalo 5 --fuera-de-rango 0.2 --invalidas 0.1
@@ -98,6 +103,10 @@ class Resumen:
     inesperadas: list[str] = field(default_factory=list)
 
 
+class SinConexion(Exception):
+    """La API no respondio: no esta corriendo, no se llega a ella o se corto la conexion."""
+
+
 class Simulador:
     def __init__(self, api: str, codigo: str, clave: str, salida: Callable[[str], None] = print):
         self.api = api.rstrip("/")
@@ -132,6 +141,23 @@ class Simulador:
             estado, respuesta = self.enviar(Envio(self.cuerpo(lecturas), self.token, self.codigo))
         return estado, respuesta
 
+    def probar(self, caso: Caso, lecturas: dict) -> tuple[int, dict]:
+        """Manda un caso de error. Si el token vencio antes de que la API mirara el dato, canjea y lo repite."""
+        estado, respuesta = self.enviar(caso.armar(self, lecturas))
+        if estado == 401 and respuesta.get("error") == CREDENCIAL_INVALIDA and caso.error != CREDENCIAL_INVALIDA:
+            estado_canje, respuesta_canje = self.canjear()
+            if estado_canje != 200:
+                return estado_canje, respuesta_canje
+            estado, respuesta = self.enviar(caso.armar(self, lecturas))
+        return estado, respuesta
+
+
+def _token_reemplazado(sim: Simulador, lecturas: dict) -> Envio:
+    """Canjea otra vez y manda la lectura con el token de antes, que ese canje dejo sin efecto."""
+    anterior = sim.token
+    sim.canjear()
+    return Envio(sim.cuerpo(lecturas), anterior, sim.codigo)
+
 
 def _token_alterado(sim: Simulador) -> str:
     cabecera, cuerpo, firma = (sim.token or "a.b.c").split(".")
@@ -157,10 +183,13 @@ CASOS: tuple[Caso, ...] = (
          lambda s, l: Envio(json.dumps(s.cuerpo(l)).encode()[:-5], s.token, s.codigo)),
     Caso("lectura de otro sensor", 403, "DISPOSITIVO_AJENO",
          lambda s, l: Envio(s.cuerpo(l, dispositivo="MT-9999-ZZ"), s.token, s.codigo)),
+    Caso("token en la URL de otro sensor", 403, "DISPOSITIVO_AJENO",
+         lambda s, l: Envio(s.cuerpo(l, dispositivo="MT-9999-ZZ"), s.token, "MT-9999-ZZ")),
     Caso("sin token", 401, CREDENCIAL_INVALIDA,
          lambda s, l: Envio(s.cuerpo(l), None, s.codigo)),
     Caso("token alterado", 401, CREDENCIAL_INVALIDA,
          lambda s, l: Envio(s.cuerpo(l), _token_alterado(s), s.codigo)),
+    Caso("token reemplazado por otro canje", 401, CREDENCIAL_INVALIDA, _token_reemplazado),
 )
 
 
@@ -176,6 +205,8 @@ def _pedir(url: str, cuerpo: dict | bytes | None, token: str | None = None) -> t
             return respuesta.status, json.load(respuesta)
     except urllib.error.HTTPError as error:
         return error.code, json.load(error)
+    except (urllib.error.URLError, OSError) as error:  # OSError: tiempo agotado o conexion cortada
+        raise SinConexion(getattr(error, "reason", None) or error) from error
 
 
 def _texto(lecturas: dict) -> str:
@@ -197,54 +228,67 @@ def modo_continuo(sim: Simulador, args: argparse.Namespace, azar: random.Random)
     matera = MateraSimulada(azar)
     resumen = Resumen()
     enviadas = 0
+    sin_conexion = 0
     try:
-        while args.veces is None or enviadas < args.veces:
-            if enviadas:
+        while args.veces is None or enviadas + sin_conexion < args.veces:
+            if enviadas + sin_conexion:
                 time.sleep(args.intervalo)
-            lecturas = matera.siguiente()
-            tirada = azar.random()
-            if tirada < args.invalidas:
-                caso = azar.choice(CASOS)
-                estado, respuesta = sim.enviar(caso.armar(sim, lecturas))
-                como_se_esperaba = (estado, respuesta.get("error")) == (caso.estado, caso.error)
-                resumen.invalidas += 1
-                if not como_se_esperaba:
-                    resumen.inesperadas.append(caso.nombre)
-                nota = "rechazada, como se esperaba" if como_se_esperaba else f"INESPERADO: se esperaba {caso.estado} {caso.error}"
-                sim._salida(f"{_hora()}  {estado}  invalida        {caso.nombre} -> {respuesta.get('error')} ({nota})")
-            else:
-                fuera = tirada < args.invalidas + args.fuera_de_rango
-                if fuera:
-                    parametro, valor, _ = azar.choice(FUERA_DE_RANGO)
-                    lecturas = {**lecturas, parametro: valor}
-                estado, respuesta = sim.reportar(lecturas)
-                if estado != 201:
-                    sim._salida(f"{_hora()}  {estado}  {respuesta.get('error')}: {respuesta.get('mensaje')}")
+            try:
+                if not _mandar_una(sim, args, azar, matera.siguiente(), resumen):
                     return 1
-                if fuera:
-                    resumen.fuera_de_rango += 1
-                else:
-                    resumen.normales += 1
-                tipo = "fuera de rango" if fuera else "normal        "
-                sim._salida(f"{_hora()}  201  {tipo}  {_texto(lecturas)} -> {respuesta['diagnostico']['estado']}")
-            enviadas += 1
+                enviadas += 1
+            except SinConexion as motivo:
+                sin_conexion += 1
+                sim._salida(f"{_hora()}  sin conexion con la API ({motivo}); se intenta otra vez en {args.intervalo:g} s")
     except KeyboardInterrupt:
         pass
     sim._salida(
         f"Se mandaron {enviadas} lecturas: {resumen.normales} normales, {resumen.fuera_de_rango} fuera de rango"
         f" y {resumen.invalidas} invalidas."
     )
+    if sin_conexion:
+        sim._salida(f"{sin_conexion} no se pudieron mandar porque la API no respondio.")
     if resumen.inesperadas:
         sim._salida(f"La API no respondio lo esperado en: {', '.join(resumen.inesperadas)}.")
         return 1
     return 0
 
 
+def _mandar_una(sim: Simulador, args: argparse.Namespace, azar: random.Random, lecturas: dict, resumen: Resumen) -> bool:
+    """Una lectura normal, fuera de rango o invalida. False si la API rechazo una que debia aceptar."""
+    tirada = azar.random()
+    if tirada < args.invalidas:
+        caso = azar.choice(CASOS)
+        estado, respuesta = sim.probar(caso, lecturas)
+        como_se_esperaba = (estado, respuesta.get("error")) == (caso.estado, caso.error)
+        resumen.invalidas += 1
+        if not como_se_esperaba:
+            resumen.inesperadas.append(caso.nombre)
+        nota = "rechazada, como se esperaba" if como_se_esperaba else f"INESPERADO: se esperaba {caso.estado} {caso.error}"
+        sim._salida(f"{_hora()}  {estado}  invalida        {caso.nombre} -> {respuesta.get('error')} ({nota})")
+        return True
+    fuera = tirada < args.invalidas + args.fuera_de_rango
+    if fuera:
+        parametro, valor, _ = azar.choice(FUERA_DE_RANGO)
+        lecturas = {**lecturas, parametro: valor}
+    estado, respuesta = sim.reportar(lecturas)
+    if estado != 201:
+        sim._salida(f"{_hora()}  {estado}  {respuesta.get('error')}: {respuesta.get('mensaje')}")
+        return False
+    if fuera:
+        resumen.fuera_de_rango += 1
+    else:
+        resumen.normales += 1
+    tipo = "fuera de rango" if fuera else "normal        "
+    sim._salida(f"{_hora()}  201  {tipo}  {_texto(lecturas)} -> {respuesta['diagnostico']['estado']}")
+    return True
+
+
 def modo_casos(sim: Simulador, azar: random.Random) -> int:
     lecturas = MateraSimulada(azar).siguiente()
     resultados = []
     for caso in CASOS:
-        estado, respuesta = sim.enviar(caso.armar(sim, lecturas))
+        estado, respuesta = sim.probar(caso, lecturas)
         resultados.append((caso, estado, respuesta.get("error")))
     # La clave equivocada va en el canje, no en las lecturas.
     estado, respuesta = sim.canjear("una-clave-que-no-es")
@@ -291,8 +335,8 @@ def main(argv: list[str] | None = None, salida: Callable[[str], None] = print) -
             return 1
         salida(f"Token del sensor {sim.codigo} listo; vence {respuesta['venceEn']}.")
         return modo_casos(sim, azar) if args.casos else modo_continuo(sim, args, azar)
-    except urllib.error.URLError as error:
-        salida(f"No se pudo contactar la API en {args.api}: {error.reason}")
+    except SinConexion as motivo:
+        salida(f"No se pudo contactar la API en {args.api}: {motivo}")
         return 2
 
 

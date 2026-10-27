@@ -7,7 +7,7 @@ import { consultarCadaRato, textoConsulta } from "./consulta-periodica.js";
 import { dominioVisual, fraccion, porcentaje } from "./escala.js";
 import { capitalizar, colorDeEstado, crear, etiqueta, numero, pastillaEstado, tono, unidad } from "./formato.js";
 import { botonDe, datosDe, fechaCorta, mostrarError, ocupado } from "./formularios.js";
-import { especieDe, textoOrigen } from "./lecturas.js";
+import { esMasNueva, especieDe, textoOrigen } from "./lecturas.js";
 
 export function crearPantallaMateras(contexto) {
   const $ = (id) => document.getElementById(id);
@@ -58,6 +58,7 @@ export function crearPantallaMateras(contexto) {
       cargar(); // una matera creada en otra pestaña
       return;
     }
+    if (esMasNueva(planta.ultimaMedicion, mensaje.medicion)) return; // la consulta ya trajo una posterior
     planta.ultimaMedicion = mensaje.medicion;
     diagnosticos.set(planta.id, { momento: mensaje.medicion.momento, diagnostico: mensaje.diagnostico });
     repintarTarjeta(planta);
@@ -119,6 +120,8 @@ export function crearPantallaMateras(contexto) {
     }
     nuevas.forEach((nueva, indice) => {
       const vieja = plantas[indice];
+      // Si mientras se esperaba la respuesta llegó una medición en vivo, esa es más reciente: no se retrocede.
+      if (esMasNueva(vieja.ultimaMedicion, nueva.ultimaMedicion)) nueva.ultimaMedicion = vieja.ultimaMedicion;
       const cambio = nueva.ultimaMedicion?.momento !== vieja.ultimaMedicion?.momento
         || nueva.sensor?.codigo !== vieja.sensor?.codigo;
       plantas[indice] = nueva;

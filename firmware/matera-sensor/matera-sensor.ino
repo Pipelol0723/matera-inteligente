@@ -197,6 +197,11 @@ bool canjearClave() {
   http.end();
   if (estado == 200) {
     token = campoDespues(respuesta, "{", "token");
+    if (token.length() == 0 || token == "?") {
+      token = "";
+      Serial.println("Canje: la API respondió 200 pero sin token.");
+      return false;
+    }
     Serial.printf("Canje listo: token del sensor hasta %s.\n", campoDespues(respuesta, "{", "venceEn").c_str());
     return true;
   }

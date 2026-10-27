@@ -208,7 +208,7 @@ Con `0.0.0.0`, cualquiera en esa red puede llamar la API, y los tokens y la clav
 
 `simulador/simulador_esp32.py` manda lecturas a la API como el ESP32, sin hardware. Hace lo mismo que la placa (el canje, el token y las lecturas con su hora), y además genera lecturas fuera de rango y datos inválidos. Es un script aparte: no importa nada del backend y solo usa la biblioteca estándar de Python.
 
-Conviene darle su propia matera en Mis materas, distinta de la de la placa, porque cada canje deja sin efecto el token anterior del mismo sensor. Desde la raíz del repositorio, con el backend corriendo:
+Conviene darle su propia matera en Mis materas, distinta de la de la placa, porque cada canje deja sin efecto el token anterior del mismo sensor. Créela con la especie **potos**: los valores «normales» del simulador están dentro de sus rangos, así salen saludables, y las lecturas fuera de rango se distinguen. Con otra especie, por ejemplo la sansevieria, las normales también pueden salir en riesgo. Desde la raíz del repositorio, con el backend corriendo:
 
 ```powershell
 python simulador/simulador_esp32.py MT-0002-AB --clave=<clave> --intervalo 5 --fuera-de-rango 0.2 --invalidas 0.1
@@ -222,19 +222,21 @@ python simulador/simulador_esp32.py MT-0002-AB --clave=<clave> --casos
   - Los valores cambian poco a poco, como en una matera de verdad: la humedad baja despacio y sube de golpe cuando se «riega».
   - `--fuera-de-rango` y `--invalidas` son la parte de las lecturas, de 0 a 1, que sale fuera de rango (valores posibles que la especie no tolera) o con un dato inválido.
   - Al terminar, dice cuántas mandó de cada tipo.
+  - Si la API deja de responder (un corte del WiFi, o el backend que se reinicia para cambiar a la tabla en CSV), lo dice y vuelve a intentar en la vuelta siguiente: no hay que lanzarlo otra vez. Si el token venció, canjea la clave de nuevo, también antes de un dato inválido.
 - **`--casos`**: manda una vez cada caso de error y dice si la API respondió lo esperado. Los casos son:
   - humedad de 150 %;
   - un texto en vez de un número;
   - un parámetro que falta;
   - una hora en el futuro o sin zona horaria;
   - un JSON mal formado;
-  - una lectura de otro sensor;
-  - un envío sin token o con el token alterado;
+  - una lectura de otro sensor, en el cuerpo o en la URL;
+  - un envío sin token, con el token alterado o con un token que otro canje dejó sin efecto;
   - una clave equivocada en el canje.
 
-  Termina con «10 de 10 como se esperaba».
+  Termina con «12 de 12 como se esperaba». El caso del alcance (un token de usuario en la ruta del sensor, `403 ALCANCE_INVALIDO`) no está, porque el simulador no tiene cuenta de usuario: lo cubren las pruebas de integración.
 - **La clave:** si no se da `--clave`, se pide en la consola sin mostrarla, así no queda en el historial de la terminal. También sirve la variable `MATERA_CLAVE_SENSOR`. Va con signo igual (`--clave=<clave>`) porque una clave puede empezar con guion.
 - **Otras opciones:** `--api` cambia la dirección (por defecto `http://127.0.0.1:5000/api/v1`) y `--semilla` repite la misma secuencia de valores.
+- **Código de salida:** 0 si todo salió como se esperaba; 1 si la API respondió algo inesperado o rechazó la clave; 2 si no se pudo contactar la API al empezar.
 
 ## Ejecutar el front
 
@@ -263,6 +265,7 @@ Todas las pantallas menos Ingresar exigen sesión (R7): sin ella, el front lleva
 Mis materas y el Historial se actualizan solos de dos maneras:
 - **Consulta periódica.** Mientras la pantalla y la pestaña están a la vista, `js/consulta-periodica.js` vuelve a pedir `GET /plantas` (o el historial) cada 10 segundos. Solo se vuelven a pintar las tarjetas que cambiaron. Debajo del título se ve la hora de la última consulta.
 - **En vivo.** Mientras hay una sesión, `js/tiempo-real.js` mantiene abierto el WebSocket `/api/v1/tiempo-real`, y la barra muestra «En vivo». Cada lectura aparece al instante, sin esperar la próxima consulta. Si la conexión se cae, reintenta con esperas de 1 a 30 segundos, y mientras tanto la consulta periódica mantiene la pantalla al día.
+- **Las dos a la vez.** Si una respuesta de la consulta llega después de una medición en vivo más reciente, la pantalla no retrocede, y el Historial no repite una medición que ya tenía. Una petición que no termina en 15 segundos se da por perdida, así una conexión colgada no detiene la consulta periódica.
 
 ## Pruebas
 

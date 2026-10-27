@@ -15,3 +15,6 @@ export const especieDe = (contexto, nombre) => contexto.especies.find((especie) 
 
 // Las mediciones escritas a mano antes de que solo midiera el sensor conservan el origen MANUAL.
 export const textoOrigen = (origen) => (origen === "MANUAL" ? "a mano" : origen);
+
+// La consulta periódica y el WebSocket llegan cada uno a su ritmo: gana la medición más reciente.
+export const esMasNueva = (una, otra) => Boolean(una) && (!otra || Date.parse(una.momento) > Date.parse(otra.momento));

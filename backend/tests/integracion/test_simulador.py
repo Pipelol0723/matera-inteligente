@@ -92,6 +92,44 @@ def test_con_una_clave_equivocada_el_simulador_avisa_y_termina(base_url, matera)
     assert "CLAVE_SENSOR_INVALIDA" in lineas[-1]
 
 
+def test_si_la_api_deja_de_responder_el_modo_continuo_lo_dice_y_sigue(base_url, matera, monkeypatch):
+    token, datos = matera
+    pedir = simulador._pedir
+    lecturas_pedidas = []
+
+    def con_un_corte(url, cuerpo, token=None):
+        if url.endswith("/lecturas"):
+            lecturas_pedidas.append(url)
+            if len(lecturas_pedidas) == 2:
+                raise simulador.SinConexion("el backend se esta reiniciando")
+        return pedir(url, cuerpo, token)
+
+    monkeypatch.setattr(simulador, "_pedir", con_un_corte)
+
+    codigo, lineas = _correr(base_url, datos, "--veces", "3")
+
+    assert codigo == 0
+    assert any("sin conexion con la API (el backend se esta reiniciando)" in linea for linea in lineas)
+    assert lineas[-2:] == [
+        "Se mandaron 2 lecturas: 2 normales, 0 fuera de rango y 0 invalidas.",
+        "1 no se pudieron mandar porque la API no respondio.",
+    ]
+    assert len(_historial(base_url, token, datos)) == 2
+
+
+def test_un_caso_de_error_con_el_token_vencido_canjea_y_prueba_el_dato(base_url, matera):
+    _, datos = matera
+    sim = simulador.Simulador(base_url, datos["codigo"], datos["clave"], salida=lambda _: None)
+    assert sim.canjear()[0] == 200
+    # Otro canje del mismo sensor deja sin efecto el token de sim, como si hubiera vencido.
+    assert simulador.Simulador(base_url, datos["codigo"], datos["clave"]).canjear()[0] == 200
+    [humedad_imposible] = [caso for caso in simulador.CASOS if caso.nombre.startswith("humedad imposible")]
+
+    estado, respuesta = sim.probar(humedad_imposible, {"humedad": 50, "luz": 800, "temperatura": 22})
+
+    assert (estado, respuesta["error"]) == (400, "PARAMETRO_INVALIDO")
+
+
 def test_si_la_api_no_responde_el_simulador_lo_dice():
     lineas = []
 

@@ -116,6 +116,8 @@ function pintarSesion() {
   } else {
     tiempoReal.desconectar();
     pantallas.materas.reiniciar();
+    pantallas.historial.reiniciar();
+    contexto.plantaElegida = null;
     marcarSinSesion();
   }
 }

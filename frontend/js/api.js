@@ -4,6 +4,9 @@ import { sesion } from "./sesion.js";
 
 // Dirección en la que no escucha ningún servidor: sirve para ver el error real de "sin conexión".
 const API_INALCANZABLE = "http://127.0.0.1:5999/api/v1";
+// Una petición que no termina en este tiempo se da por perdida. Sin esto, una conexión colgada
+// (el hotspot del celular, por ejemplo) dejaba la consulta periódica esperando para siempre.
+const TIEMPO_MAXIMO_MS = 15000;
 
 export class ErrorApi extends Error {
   constructor(status, { error, mensaje, detalle }) {
@@ -21,25 +24,47 @@ export function avisarAlVencerSesion(funcion) {
 }
 
 async function pedir(base, ruta, opciones = {}) {
-  let respuesta;
-  try {
-    respuesta = await fetch(`${base}${ruta}`, opciones);
-  } catch (error) {
-    if (error.name === "AbortError") throw error;
-    throw new ErrorApi(0, {
-      error: "SIN_CONEXION",
-      mensaje: `No se pudo contactar la API en ${base}. Revise que el backend esté corriendo.`,
-    });
-  }
+  // Se cancela si la cancela quien la pidió (opciones.signal) o si pasa TIEMPO_MAXIMO_MS.
+  const control = new AbortController();
+  const cancelar = () => control.abort();
+  opciones.signal?.addEventListener("abort", cancelar);
+  if (opciones.signal?.aborted) cancelar();
+  let vencida = false;
+  const reloj = setTimeout(() => {
+    vencida = true;
+    cancelar();
+  }, TIEMPO_MAXIMO_MS);
+  const sinConexion = () => new ErrorApi(0, {
+    error: "SIN_CONEXION",
+    mensaje: vencida
+      ? `La API en ${base} no respondió en ${TIEMPO_MAXIMO_MS / 1000} s.`
+      : `No se pudo contactar la API en ${base}. Revise que el backend esté corriendo.`,
+  });
 
+  let respuesta;
   let cuerpo;
   try {
-    cuerpo = await respuesta.json();
-  } catch {
-    throw new ErrorApi(respuesta.status, {
-      error: "RESPUESTA_INVALIDA",
-      mensaje: "La API respondió algo que no es JSON.",
-    });
+    try {
+      respuesta = await fetch(`${base}${ruta}`, { ...opciones, signal: control.signal });
+    } catch (error) {
+      if (error.name === "AbortError" && !vencida) throw error;
+      throw sinConexion();
+    }
+    try {
+      cuerpo = await respuesta.json();
+    } catch (error) {
+      if (error.name === "AbortError") {
+        if (!vencida) throw error;
+        throw sinConexion();
+      }
+      throw new ErrorApi(respuesta.status, {
+        error: "RESPUESTA_INVALIDA",
+        mensaje: "La API respondió algo que no es JSON.",
+      });
+    }
+  } finally {
+    clearTimeout(reloj);
+    opciones.signal?.removeEventListener("abort", cancelar);
   }
 
   if (!respuesta.ok) {
