@@ -30,7 +30,7 @@ def solicitud_desde_json(cuerpo: Any) -> SolicitudDiagnostico:
 
 
 def medicion_desde_json(cuerpo: Any) -> Medicion:
-    """Una lectura por cada parametro del catalogo. La usan el diagnostico, la medicion manual y el sensor."""
+    """Una lectura por cada parametro del catalogo. La usan el diagnostico y las lecturas de los dispositivos."""
     if not isinstance(cuerpo, dict):
         raise EntradaInvalida("SOLICITUD_INVALIDA", "El cuerpo de la petición debe ser un objeto JSON.")
     # Desde esta linea el dato ya no sabe que llego por HTTP: son objetos del dominio.

@@ -66,23 +66,6 @@ def test_los_adaptadores_de_entrada_conocen_los_puertos_y_no_los_casos_de_uso():
     assert _violaciones(archivos, {"aplicacion"}) == {}
 
 
-def test_solo_el_adaptador_de_tokens_importa_la_libreria_jwt():
-    """Ni el dominio, ni los casos de uso, ni el decorador de las rutas conocen JWT: lo piden por los puertos."""
-    archivos = [archivo for archivo in sorted(BACKEND.rglob("*.py")) if "tests" not in archivo.relative_to(BACKEND).parts]
-
-    con_jwt = sorted(archivo.relative_to(BACKEND).as_posix() for archivo in archivos if "jwt" in _modulos_importados(archivo))
-
-    assert con_jwt == ["infraestructura/tokens_jwt.py"]
-
-
-def test_solo_el_adaptador_csv_sabe_que_existe_un_csv():
-    archivos = [archivo for archivo in sorted(BACKEND.rglob("*.py")) if "tests" not in archivo.relative_to(BACKEND).parts]
-
-    con_csv = sorted(archivo.relative_to(BACKEND).as_posix() for archivo in archivos if "csv" in _modulos_importados(archivo))
-
-    assert con_csv == ["infraestructura/repositorio_especies_csv.py"]
-
-
 def test_las_pruebas_de_dominio_y_aplicacion_no_dependen_de_infraestructura_ni_de_flask():
     """Si se borra la carpeta infraestructura, estas pruebas tienen que seguir pasando."""
     archivos = (

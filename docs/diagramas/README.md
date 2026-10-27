@@ -131,7 +131,7 @@ Fuente: [`paquetes.mmd`](paquetes.mmd).
 Fuente: [`paquetes-corte2.mmd`](paquetes-corte2.mmd).
 
 - **La fase 2 quitó una flecha del corte 1: presentación ya no importa aplicación.** Las rutas y el WebSocket importan los puertos de entrada y los datos del dominio, y `main.py` les entrega el caso de uso. Ninguna dependencia nueva entre capas.
-- Cada caja separa lo que ya estaba de lo `nuevo:` y de lo que `se eliminó`. El dominio conserva sus 12 módulos del corte 1 sin cambios.
+- Cada caja separa lo que ya estaba de lo `nuevo:` y de lo que `se eliminó`. El dominio conserva sus 12 módulos del corte 1: de ellos solo cambió un comentario de `servicio_diagnostico.py`.
 - **Hay dos entradas más:** el ESP32 (`firmware/matera-sensor`) y el simulador (`simulador/simulador_esp32.py`). Llegan a presentación por HTTP, igual que el front, pero con el token del dispositivo. El simulador está fuera de `backend/`, no importa nada de él y solo usa la biblioteca estándar.
 - **El tiempo real tampoco agrega dependencias entre capas.**
   - El front abre un WebSocket con `presentacion/tiempo_real.py`.
@@ -169,7 +169,7 @@ Fuentes: [`clases-dominio.mmd`](clases-dominio.mmd) (los dos cortes) y [`clases-
   - `Usuario` con su `Rol`, `Sesion`, `Planta`, y `Sensor` con su `CodigoSensor`.
   - `RegistroMedicion` para el historial, con su origen: el código del sensor (las mediciones a mano de antes conservan MANUAL).
   - De la fase 2: las identidades, el reporte del dispositivo y los datos de `resultados.py`.
-- **Ninguna flecha sale de una clase del corte 1 hacia una nueva.** Son las nuevas las que dependen de las viejas: `Planta` apunta a `Especie` y `RegistroMedicion` se construye desde un `Diagnostico`. Por eso el corte 2 no modifica ningún módulo del dominio actual.
+- **Ninguna flecha sale de una clase del corte 1 hacia una nueva.** Son las nuevas las que dependen de las viejas: `Planta` apunta a `Especie` y `RegistroMedicion` se construye desde un `Diagnostico`. Por eso el corte 2 no cambia el código de ningún módulo del dominio del corte 1.
 - **`Usuario.exigir_activo()` deja en pausa una cuenta desactivada:** no inicia sesión, y sus sensores no canjean su clave ni guardan lecturas.
 - **`Usuario.exigir_admin()` es la regla de permisos de todo el sistema.** Si el usuario no es ADMIN, lanza `PermisoDenegado`. `Usuario.exigir_otro_usuario()` impide que un admin actúe sobre su propia cuenta.
 - **`Planta.exigir_dueno(usuario_id)` es la regla de propiedad.** Si la planta es de otro, lanza `PlantaNoEncontrada`, el mismo error que una planta que no existe. El SQL ya no filtra por dueño: la decisión es del dominio.
@@ -420,7 +420,7 @@ La primera versión (commit `d00df35`) se apartaba del diseño aprobado en vario
 - **Los tokens son JWT,** como proponía la primera versión, pero revocables: el servidor guarda su `jti` y los verifica `TokensJwt`. El dispositivo tiene su propio JWT, de alcance «lecturas», que obtiene canjeando su clave.
 - **Las rutas del sensor son otras:** `POST /dispositivos/{codigo}/token` y `POST /dispositivos/{codigo}/lecturas`.
 - **Cambiaron los puertos:**
-  - Los `Repositorio*` se partieron en 18 puertos pequeños.
+  - Los cuatro `Repositorio*` del corte 2 (usuarios, sesiones, plantas y sensores) se partieron en ocho puertos pequeños; con los demás, hay 18 puertos de salida.
   - Hay puertos de entrada, que heredan los casos de uso.
   - La propiedad de una planta la decide `Planta.exigir_dueno`.
 - **`RepositorioEspeciesCsv` volvió**, como copia de solo lectura elegida por configuración.

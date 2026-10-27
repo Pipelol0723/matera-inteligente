@@ -238,6 +238,26 @@ python simulador/simulador_esp32.py MT-0002-AB --clave=<clave> --casos
 - **Otras opciones:** `--api` cambia la dirección (por defecto `http://127.0.0.1:5000/api/v1`) y `--semilla` repite la misma secuencia de valores.
 - **Código de salida:** 0 si todo salió como se esperaba; 1 si la API respondió algo inesperado o rechazó la clave; 2 si no se pudo contactar la API al empezar.
 
+### La demo de la sustentación
+
+El enunciado pide cuatro cosas. Las tres primeras se hacen así, desde la raíz del repositorio y con el backend corriendo:
+
+1. **El simulador enviando lecturas en vivo.** Con Mis materas abierta en el navegador, cada lectura aparece al instante (ver [Simulador del ESP32](#simulador-del-esp32)). Con `--fuera-de-rango` y `--invalidas` se ven también los rechazos.
+2. **El cambio de CSV a BD por configuración.** `exportar_especies_csv.py`, `MATERA_TABLA_REFERENCIA=csv` y reiniciar el backend (ver [Tabla de referencia](#tabla-de-referencia-csv-o-base-de-datos)). El simulador sigue solo cuando el backend vuelve. Agregar una especie en Administración responde `409 TABLA_SOLO_LECTURA`.
+3. **Un acceso a una planta ajena, que falla.** Otra cuenta pide el historial de una matera que no es suya. En PowerShell, con `curl.exe` (viene con Windows):
+
+   ```powershell
+   $api = "http://127.0.0.1:5000/api/v1"
+   $cuenta = @{ nombre = "Beto"; correo = "beto@correo.co"; contrasena = "clave-de-beto" } | ConvertTo-Json
+   Invoke-RestMethod -Method Post "$api/usuarios" -ContentType "application/json" -Body $cuenta
+   $beto = (Invoke-RestMethod -Method Post "$api/sesiones" -ContentType "application/json" -Body $cuenta).token
+   curl.exe -s -w " (estado %{http_code})" "$api/plantas/1/historial" -H "Authorization: Bearer $beto"
+   ```
+
+   El id 1 es la primera matera de la base, que no es de Beto. La respuesta es `{"error": "PLANTA_NO_ENCONTRADA", ...}` con estado 404, la misma que con un id que no existe (`/plantas/999/historial`): no revela que esa matera exista. Lo decide `Planta.exigir_dueno`, en el dominio.
+
+La cuarta es la pregunta de cambio (MQTT u OAuth), y va en el documento de arquitectura.
+
 ## Ejecutar el front
 
 En otra terminal, desde la raíz del repositorio:
@@ -299,6 +319,7 @@ python -m pytest tests/dominio
 | `test_servidor_real.py` | Levanta el servidor con hilos, como `python main.py`, y detecta un error que el cliente de pruebas de Flask no ve: usar una misma conexión de `sqlite3` desde varios hilos. |
 | `test_websocket.py` | Ese mismo servidor, con un cliente WebSocket de verdad. |
 | `test_simulador.py` | El simulador contra ese servidor, en sus dos modos. |
+| `test_arquitectura_adaptadores.py` | Que `jwt` y `csv` solo los importe su adaptador. Va aquí porque mira la carpeta `infraestructura/`. |
 
 El firmware no tiene pruebas automáticas: se prueba en la placa, con el monitor serie.
 
