@@ -142,8 +142,10 @@ def construir_app(config: Configuracion) -> Flask:
         autenticacion=autenticacion,
     )
     # R2: la ESP32 y el simulador canjean su clave por un JWT de alcance «lecturas» y reportan con el.
-    canjear = CanjearClaveDispositivo(sensores, sensores, secretos, tokens, reloj, config.duracion_token_dispositivo)
-    registrar_lectura = RegistrarLectura(sensores, diagnosticar_planta, reloj)
+    canjear = CanjearClaveDispositivo(
+        sensores, sensores, plantas, usuarios, secretos, tokens, reloj, config.duracion_token_dispositivo
+    )
+    registrar_lectura = RegistrarLectura(sensores, usuarios, diagnosticar_planta, reloj)
     dispositivos = crear_blueprint_dispositivos(canjear, registrar_lectura, tokens)
     # El WebSocket del front registra sus conexiones en los mismos canales que usa el notificador.
     en_vivo = crear_blueprint_tiempo_real(tokens, identificar, canales, config.origenes_cors)

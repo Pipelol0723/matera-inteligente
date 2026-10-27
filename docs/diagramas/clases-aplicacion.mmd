@@ -240,6 +240,8 @@ classDiagram
         class CanjearClaveDispositivo {
             -sensores: SensoresVinculados
             -credenciales: CredencialesSensor
+            -plantas: ConsultaPlantas
+            -cuentas: ConsultaCuentas
             -secretos: GeneradorSecretos
             -emisor: EmisorTokens
             -reloj: Reloj
@@ -248,6 +250,7 @@ classDiagram
         }
         class RegistrarLectura {
             -credenciales: CredencialesSensor
+            -cuentas: ConsultaCuentas
             -diagnosticar: DiagnosticarPlantaDeUsuario
             -reloj: Reloj
             +ejecutar(identidad: IdentidadDispositivo, reporte: ReporteDeDispositivo) ResultadoMedicion

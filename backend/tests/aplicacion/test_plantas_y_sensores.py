@@ -14,6 +14,7 @@ from dominio.errores_usuarios import (
     ClaveSensorInvalida,
     CodigoSensorInvalido,
     CredencialDispositivoInvalida,
+    CuentaDesactivada,
     DispositivoAjeno,
     MomentoInvalido,
     PlantaNoEncontrada,
@@ -40,6 +41,7 @@ from tests.dobles_usuarios import (
     RelojFijo,
     RepositorioPlantasEnMemoria,
     RepositorioSensoresEnMemoria,
+    RepositorioUsuariosEnMemoria,
     TokensFalsos,
 )
 
@@ -58,6 +60,9 @@ class Sistema:
     def __init__(self, notificador=None):
         self.sensores = RepositorioSensoresEnMemoria()
         self.plantas = RepositorioPlantasEnMemoria(self.sensores)
+        self.cuentas = RepositorioUsuariosEnMemoria(self.plantas)
+        self.cuentas.guardar(ANA)
+        self.cuentas.guardar(BETO)
         self.historial = HistorialEnMemoria()
         self.reloj = RelojFijo(AHORA)
         especies = EspeciesEditablesEnMemoria(sansevieria(), potos())
@@ -74,9 +79,16 @@ class Sistema:
         self.tokens = TokensFalsos()
         # Su propio generador: asi los ids de token no corren la numeracion de las claves (secreto-1, secreto-2...).
         self.canjear = CanjearClaveDispositivo(
-            self.sensores, self.sensores, GeneradorSecretosFalso(), self.tokens, self.reloj, timedelta(hours=24)
+            self.sensores,
+            self.sensores,
+            self.plantas,
+            self.cuentas,
+            GeneradorSecretosFalso(),
+            self.tokens,
+            self.reloj,
+            timedelta(hours=24),
         )
-        self.registrar_lectura = RegistrarLectura(self.sensores, self.diagnosticar, self.reloj)
+        self.registrar_lectura = RegistrarLectura(self.sensores, self.cuentas, self.diagnosticar, self.reloj)
 
     def medir(self, codigo: str, clave: str, medida, momento=None):
         """Como la placa: canjea su clave por un token y reporta la medicion con la identidad de ese token."""
@@ -382,6 +394,33 @@ def test_un_sensor_no_puede_reportar_lecturas_de_otro(sistema, matera_de_ana):
             identidad, ReporteDeDispositivo(CodigoSensor("MT-0002-BB"), AHORA, medicion(30, 800, 22))
         )
     assert sistema.historial.registros == []
+
+
+def test_los_sensores_de_una_cuenta_desactivada_no_canjean_ni_reportan(sistema, matera_de_ana):
+    identidad = _identidad(sistema, "MT-0001-AA", matera_de_ana.clave)
+
+    sistema.cuentas.guardar(ANA.con_estado(False))
+
+    with pytest.raises(CuentaDesactivada):
+        sistema.canjear.ejecutar("MT-0001-AA", matera_de_ana.clave)
+    with pytest.raises(CuentaDesactivada):
+        sistema.registrar_lectura.ejecutar(identidad, ReporteDeDispositivo(identidad.codigo, AHORA, medicion(30, 800, 22)))
+    assert sistema.historial.registros == []
+    assert sistema.notificador.avisos == []
+
+
+def test_al_reactivar_la_cuenta_su_sensor_vuelve_a_reportar(sistema, matera_de_ana):
+    sistema.cuentas.guardar(ANA.con_estado(False))
+    sistema.cuentas.guardar(ANA)
+
+    assert sistema.medir("MT-0001-AA", matera_de_ana.clave, medicion(30, 800, 22))
+
+
+def test_una_clave_incorrecta_no_revela_que_la_cuenta_esta_desactivada(sistema, matera_de_ana):
+    sistema.cuentas.guardar(ANA.con_estado(False))
+
+    with pytest.raises(ClaveSensorInvalida):
+        sistema.canjear.ejecutar("MT-0001-AA", "otra-clave")
 
 
 def test_una_lectura_del_futuro_no_se_guarda_ni_se_avisa(sistema, matera_de_ana):

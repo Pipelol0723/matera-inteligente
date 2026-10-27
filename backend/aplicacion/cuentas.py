@@ -12,7 +12,6 @@ from dominio.errores_usuarios import (
     CorreoInvalido,
     CorreoYaRegistrado,
     CredencialesInvalidas,
-    CuentaDesactivada,
     SesionInvalida,
 )
 from dominio.identidad import IdentidadUsuario
@@ -78,8 +77,7 @@ class IniciarSesion(entrada.IniciarSesion):
         if usuario is None or not self._cifrador.verificar(contrasena, usuario.hash_contrasena):
             raise CredencialesInvalidas()
         # Solo despues de verificar la contrasena se dice que la cuenta esta desactivada.
-        if not usuario.activo:
-            raise CuentaDesactivada()
+        usuario.exigir_activo()
 
         sesion = Sesion.abrir(self._secretos.nuevo(), usuario.id, self._reloj.ahora(), self._duracion)
         self._sesiones.abrir(sesion)

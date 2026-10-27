@@ -13,6 +13,7 @@ from dominio.errores_usuarios import (
     AccionSobreSiMismo,
     ContrasenaDebil,
     CorreoInvalido,
+    CuentaDesactivada,
     NombreInvalido,
     PermisoDenegado,
 )
@@ -78,6 +79,11 @@ class Usuario:
         """La regla de permisos: solo un ADMIN pasa de aqui."""
         if not self.es_admin():
             raise PermisoDenegado()
+
+    def exigir_activo(self) -> None:
+        """Una cuenta desactivada no entra ni deja que sus sensores reporten: queda en pausa entera."""
+        if not self.activo:
+            raise CuentaDesactivada()
 
     def exigir_otro_usuario(self, usuario_id: int) -> None:
         """Un admin no actua sobre su propia cuenta. Asi siempre queda al menos un admin activo."""

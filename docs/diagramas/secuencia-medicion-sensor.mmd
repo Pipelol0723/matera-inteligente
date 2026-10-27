@@ -1,6 +1,7 @@
 %% Secuencia del corte 2, fase 2 hexagonal (implementada): un dispositivo (la placa ESP32 o simulador_esp32.py) manda una lectura en dos pasos.
 %% Paso 1: canjea la clave del sensor por un JWT de alcance "lecturas". Paso 2: reporta la lectura con ese JWT, que se diagnostica
 %% con el ServicioDiagnostico del corte 1, se guarda en el historial y se avisa en vivo.
+%% Si el dueno de la planta esta desactivado, no hay canje ni lectura: 403 CUENTA_DESACTIVADA.
 sequenceDiagram
     autonumber
     participant ESP as ESP32<br/>(o simulador_esp32.py)
@@ -9,7 +10,7 @@ sequenceDiagram
     participant TK as VerificadorTokens y<br/>EmisorTokens (puertos)
     participant CC as CanjearClaveDispositivo<br/>(aplicación)
     participant RL as RegistrarLectura<br/>(aplicación)
-    participant PU as SensoresVinculados, CredencialesSensor,<br/>ConsultaPlantas, GeneradorSecretos<br/>y Reloj (puertos)
+    participant PU as SensoresVinculados, CredencialesSensor,<br/>ConsultaPlantas, ConsultaCuentas,<br/>GeneradorSecretos y Reloj (puertos)
     participant DU as DiagnosticarPlantaDeUsuario<br/>(aplicación)
     participant S as ServicioDiagnostico<br/>(dominio, corte 1)
     participant HN as HistorialMediciones y<br/>NotificadorDiagnosticos (puertos)
@@ -27,6 +28,13 @@ sequenceDiagram
             CC --x RD: ClaveSensorInvalida
             RD -->> ESP: 401 CLAVE_SENSOR_INVALIDA
         else clave correcta
+            CC ->> PU: ConsultaPlantas.por_id(sensor.planta_id) y ConsultaCuentas.por_id(planta.usuario_id)
+            PU -->> CC: el dueño de la planta
+            CC ->> CC: dueño.exigir_activo()
+            alt el dueño está desactivado
+                CC --x RD: CuentaDesactivada
+                RD -->> ESP: 403 CUENTA_DESACTIVADA
+            end
             CC ->> PU: GeneradorSecretos.nuevo(): el id del token (token_id)
             CC ->> PU: CredencialesSensor.renovar(sensor, token_id)
             alt el sensor cambió entre tanto (otra clave u otra planta)
@@ -70,6 +78,9 @@ sequenceDiagram
                 RL --x RD: CredencialDispositivoInvalida
                 RD -->> ESP: 401 CREDENCIAL_DISPOSITIVO_INVALIDA
                 Note over ESP: la placa canjea su clave otra vez (paso 1)
+            else ConsultaCuentas.por_id(planta.usuario_id): el dueño está desactivado
+                RL --x RD: CuentaDesactivada (dueño.exigir_activo())
+                RD -->> ESP: 403 CUENTA_DESACTIVADA
             else el dispositivo del cuerpo no es el del token
                 RL --x RD: DispositivoAjeno
                 RD -->> ESP: 403 DISPOSITIVO_AJENO

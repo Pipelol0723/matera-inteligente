@@ -170,6 +170,7 @@ Fuentes: [`clases-dominio.mmd`](clases-dominio.mmd) (los dos cortes) y [`clases-
   - `RegistroMedicion` para el historial, con su origen: el código del sensor (las mediciones a mano de antes conservan MANUAL).
   - De la fase 2: las identidades, el reporte del dispositivo y los datos de `resultados.py`.
 - **Ninguna flecha sale de una clase del corte 1 hacia una nueva.** Son las nuevas las que dependen de las viejas: `Planta` apunta a `Especie` y `RegistroMedicion` se construye desde un `Diagnostico`. Por eso el corte 2 no modifica ningún módulo del dominio actual.
+- **`Usuario.exigir_activo()` deja en pausa una cuenta desactivada:** no inicia sesión, y sus sensores no canjean su clave ni guardan lecturas.
 - **`Usuario.exigir_admin()` es la regla de permisos de todo el sistema.** Si el usuario no es ADMIN, lanza `PermisoDenegado`. `Usuario.exigir_otro_usuario()` impide que un admin actúe sobre su propia cuenta.
 - **`Planta.exigir_dueno(usuario_id)` es la regla de propiedad.** Si la planta es de otro, lanza `PlantaNoEncontrada`, el mismo error que una planta que no existe. El SQL ya no filtra por dueño: la decisión es del dominio.
 - **`IdentidadUsuario` e `IdentidadDispositivo` son lo que queda de un token ya verificado:** de quién es y su `token_id` (el `jti` del JWT). Con ellas, ningún caso de uso ve el token.
@@ -259,8 +260,8 @@ Qué puertos usa cada caso de uso (en negrita, lo que ya existía en el corte 1)
 | `ListarPlantas` | `plantas.py` | ConsultaPlantas, SensoresVinculados, HistorialMediciones |
 | `EliminarPlanta` | `plantas.py` | ConsultaPlantas, RegistroPlantas |
 | `ReemplazarSensor` | `sensores.py` | ConsultaPlantas, SensoresVinculados, GeneradorSecretos |
-| `CanjearClaveDispositivo` | `sensores.py` | SensoresVinculados, CredencialesSensor, GeneradorSecretos, EmisorTokens, Reloj y la duración del token |
-| `RegistrarLectura` | `sensores.py` | CredencialesSensor, Reloj, DiagnosticarPlantaDeUsuario |
+| `CanjearClaveDispositivo` | `sensores.py` | SensoresVinculados, CredencialesSensor, ConsultaPlantas, ConsultaCuentas, GeneradorSecretos, EmisorTokens, Reloj y la duración del token |
+| `RegistrarLectura` | `sensores.py` | CredencialesSensor, ConsultaCuentas, Reloj, DiagnosticarPlantaDeUsuario |
 | `DiagnosticarPlantaDeUsuario` (sin puerto de entrada) | `diagnosticar_planta_de_usuario.py` | ConsultaPlantas, **ServicioDiagnostico**, HistorialMediciones, NotificadorDiagnosticos |
 | `ConsultarHistorial` | `historial.py` | ConsultaPlantas, HistorialMediciones |
 | `ListarUsuarios` | `administracion.py` | ListadoCuentas |
@@ -324,7 +325,8 @@ Fuente: [`secuencia-medicion-sensor.mmd`](secuencia-medicion-sensor.mmd). Corte 
 
 - **Paso 1: el canje.** El dispositivo manda su clave a `POST /dispositivos/{código}/token`.
   - `CanjearClaveDispositivo` la compara con la huella guardada (`GeneradorSecretos.coincide()`). Un sensor inexistente y una clave incorrecta dan el mismo 401, para no revelar qué códigos existen.
-  - Si la clave coincide, `CredencialesSensor.renovar()` deja el nuevo `token_id` como el único vigente, y `EmisorTokens` firma un JWT de alcance «lecturas».
+  - Si la clave coincide, el caso de uso busca al dueño de la planta. Si su cuenta está desactivada, responde 403 `CUENTA_DESACTIVADA` (`Usuario.exigir_activo()`). Una clave incorrecta da el 401 de antes: el estado de la cuenta solo se revela a quien tiene la clave.
+  - Si no, `CredencialesSensor.renovar()` deja el nuevo `token_id` como el único vigente, y `EmisorTokens` firma un JWT de alcance «lecturas».
 - **Paso 2: la lectura.** El dispositivo manda `{dispositivo, momento, lecturas}` a `POST /dispositivos/{código}/lecturas` con `Authorization: Bearer`.
   - **HTTP termina en `rutas_dispositivos.py`.** `_con_dispositivo` verifica el JWT, y `esquemas_dispositivos` arma un `ReporteDeDispositivo`, con la hora en UTC y los límites físicos ya validados en cada `Lectura`.
   - **Cada rechazo tiene su código:**
@@ -335,6 +337,7 @@ Fuente: [`secuencia-medicion-sensor.mmd`](secuencia-medicion-sensor.mmd). Corte 
     | Es un token de usuario | 403 `ALCANCE_INVALIDO` |
     | El token es de otro sensor que el de la URL o el cuerpo | 403 `DISPOSITIVO_AJENO` |
     | La hora no tiene zona o está más de 2 minutos en el futuro | 400 `MOMENTO_INVALIDO` |
+    | El dueño de la planta está desactivado, aunque el token siga vigente | 403 `CUENTA_DESACTIVADA` |
   - **Un token reemplazado no escribe.** `CredencialesSensor.planta_con_token()` solo encuentra la planta si ese token es el vigente. Si otro canje o un cambio de sensor lo dejó sin efecto, da 401, y la placa vuelve a canjear su clave.
 - **`ServicioDiagnostico` es el del corte 1, sin cambios.** `DiagnosticarPlantaDeUsuario` busca la planta, exige que sea del dueño (`Planta.exigir_dueno`) y la diagnostica. El resultado se guarda como `RegistroMedicion`, con la hora del dispositivo y el código del sensor como origen.
 - **Después de guardar, se avisa en vivo** por el puerto `NotificadorDiagnosticos`: la pantalla del dueño se actualiza sola (ver la secuencia siguiente). Si el aviso falla, el dispositivo igual recibe su 201.

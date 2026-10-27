@@ -13,6 +13,7 @@ from dominio.errores_usuarios import (
 )
 from dominio.identidad import IdentidadDispositivo
 from dominio.puertos_usuarios import (
+    ConsultaCuentas,
     ConsultaPlantas,
     CredencialesSensor,
     EmisorTokens,
@@ -56,13 +57,16 @@ class CanjearClaveDispositivo(entrada.CanjearClaveDispositivo):
 
     La clave se muestra una sola vez, al crear la matera, y solo sirve para esto.
     Cada canje deja vigente solo el token nuevo, y cambiar el sensor de la planta
-    deja sin efecto la clave y el token.
+    deja sin efecto la clave y el token. Si el dueno de la planta esta desactivado,
+    no hay canje.
     """
 
     def __init__(
         self,
         sensores: SensoresVinculados,
         credenciales: CredencialesSensor,
+        plantas: ConsultaPlantas,
+        cuentas: ConsultaCuentas,
         secretos: GeneradorSecretos,
         emisor: EmisorTokens,
         reloj: Reloj,
@@ -70,6 +74,8 @@ class CanjearClaveDispositivo(entrada.CanjearClaveDispositivo):
     ):
         self._sensores = sensores
         self._credenciales = credenciales
+        self._plantas = plantas
+        self._cuentas = cuentas
         self._secretos = secretos
         self._emisor = emisor
         self._reloj = reloj
@@ -84,6 +90,12 @@ class CanjearClaveDispositivo(entrada.CanjearClaveDispositivo):
         sensor = self._sensores.por_codigo(codigo_valido)
         if sensor is None or not self._secretos.coincide(clave, sensor.hash_clave):
             raise ClaveSensorInvalida()
+        # Solo despues de verificar la clave se dice que la cuenta esta desactivada, como al iniciar sesion.
+        planta = self._plantas.por_id(sensor.planta_id)
+        dueno = self._cuentas.por_id(planta.usuario_id) if planta is not None else None
+        if dueno is None:
+            raise ClaveSensorInvalida()
+        dueno.exigir_activo()
         token_id = self._secretos.nuevo()
         # Solo si el sensor sigue siendo el que se verifico: si mientras tanto se cambio, la clave ya no vale.
         if not self._credenciales.renovar(sensor, token_id):
@@ -98,11 +110,19 @@ class RegistrarLectura(entrada.RegistrarLectura):
     Recibe la identidad que el adaptador saco del token ya verificado, nunca el
     token. No inventa un diagnostico propio: le pasa la medicion a
     DiagnosticarPlantaDeUsuario, con el dueno de la planta, la hora del reporte y
-    el codigo del sensor como origen.
+    el codigo del sensor como origen. Si el dueno de la planta esta desactivado,
+    la lectura no se guarda, aunque el token siga vigente.
     """
 
-    def __init__(self, credenciales: CredencialesSensor, diagnosticar: DiagnosticarPlantaDeUsuario, reloj: Reloj):
+    def __init__(
+        self,
+        credenciales: CredencialesSensor,
+        cuentas: ConsultaCuentas,
+        diagnosticar: DiagnosticarPlantaDeUsuario,
+        reloj: Reloj,
+    ):
         self._credenciales = credenciales
+        self._cuentas = cuentas
         self._diagnosticar = diagnosticar
         self._reloj = reloj
 
@@ -110,6 +130,10 @@ class RegistrarLectura(entrada.RegistrarLectura):
         planta = self._credenciales.planta_con_token(identidad.codigo, identidad.token_id)
         if planta is None:
             raise CredencialDispositivoInvalida()  # otro canje o un cambio de sensor lo dejo sin efecto
+        dueno = self._cuentas.por_id(planta.usuario_id)
+        if dueno is None:
+            raise CredencialDispositivoInvalida()
+        dueno.exigir_activo()
         if reporte.dispositivo != identidad.codigo:
             raise DispositivoAjeno(identidad.codigo.valor, reporte.dispositivo.valor)
         reporte.exigir_que_no_sea_futuro(self._reloj.ahora())

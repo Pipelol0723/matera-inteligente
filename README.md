@@ -360,7 +360,7 @@ Todas van bajo `/api/v1`, y hay dos clases de token, los dos JWT firmados por el
 - **El del sensor:** lo entrega `POST /dispositivos/{codigo}/token` a cambio de la clave, con alcance «lecturas». Solo sirve para reportar lecturas de ese sensor.
 
 Un token no sirve en las rutas del otro (`403 ALCANCE_INVALIDO`). El servidor guarda el id de cada token:
-- Cerrar sesión o desactivar la cuenta anula el token del usuario.
+- Cerrar sesión o desactivar la cuenta anula el token del usuario. Además, los sensores de una cuenta desactivada quedan en pausa: el canje y las lecturas responden `403 CUENTA_DESACTIVADA` hasta que el admin la reactive.
 - Un canje nuevo o un cambio de sensor anula el token del sensor.
 
 En los dos casos el token deja de servir aunque no haya vencido.
@@ -429,7 +429,7 @@ Todas las respuestas de error, incluidas las de rutas inexistentes, tienen la fo
 | Sin token de usuario, con la firma alterada, vencido, con la sesión cerrada o de una cuenta desactivada | 401 | `SESION_INVALIDA` | vacío |
 | Sensor inexistente, código mal formado o clave incorrecta en el canje (el mismo en los tres casos) | 401 | `CLAVE_SENSOR_INVALIDA` | vacío |
 | Sin token del sensor, con la firma alterada, vencido o anulado por otro canje o por un cambio de sensor: la placa vuelve a canjear | 401 | `CREDENCIAL_DISPOSITIVO_INVALIDA` | vacío |
-| Cuenta desactivada al iniciar sesión | 403 | `CUENTA_DESACTIVADA` | vacío |
+| Cuenta desactivada al iniciar sesión, o el sensor de una matera suya canjea o reporta | 403 | `CUENTA_DESACTIVADA` | vacío |
 | Acción de administración sin ser admin | 403 | `PERMISO_DENEGADO` | vacío |
 | Un token válido de otro alcance: el de un sensor en una ruta de usuario o al revés | 403 | `ALCANCE_INVALIDO` | `esperado` |
 | Un sensor que reporta por otro (en la URL o en el cuerpo) | 403 | `DISPOSITIVO_AJENO` | `autenticado`, `reportado` |

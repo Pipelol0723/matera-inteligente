@@ -173,3 +173,15 @@ def test_la_ruta_vieja_del_sensor_ya_no_existe_y_responde_404_en_json(api, mater
 @pytest.mark.parametrize("ruta", ["/dispositivos/MT-0001-AA/token", "/dispositivos/MT-0001-AA/lecturas"])
 def test_las_rutas_de_dispositivos_responden_405_en_json_a_otro_metodo(api, ruta):
     assert es_error(api.pedir("GET", ruta), 405, "METODO_NO_PERMITIDO")
+
+
+def test_los_sensores_de_una_cuenta_desactivada_quedan_en_pausa(api, ana, matera, token):
+    admin = api.admin()
+    ana_id = api.pedir("GET", "/usuarios/yo", ana).get_json()["id"]
+    assert api.pedir("PATCH", f"/admin/usuarios/{ana_id}", admin, json={"activo": False}).status_code == 200
+
+    assert es_error(api.canjear("MT-0001-AA", matera["clave"]), 403, "CUENTA_DESACTIVADA")
+    assert es_error(api.reportar("MT-0001-AA", token, LECTURAS), 403, "CUENTA_DESACTIVADA")
+
+    assert api.pedir("PATCH", f"/admin/usuarios/{ana_id}", admin, json={"activo": True}).status_code == 200
+    assert api.medir("MT-0001-AA", matera["clave"], LECTURAS).status_code == 201
