@@ -10,7 +10,8 @@ classDiagram
     namespace presentacion {
         class rutas {
             <<módulo>>
-            +crear_blueprint(diagnosticar, listar, listar_parametros) Blueprint
+            +crear_blueprint(diagnosticar, listar, listar_parametros, autenticacion) Blueprint
+            todas exigen sesión (R7)
         }
         class esquemas {
             <<módulo>>
@@ -267,6 +268,7 @@ classDiagram
         }
     }
 
+    rutas ..> Autenticacion
     rutas ..> entrada_DiagnosticarPlanta
     rutas ..> entrada_ListarEspecies
     rutas ..> entrada_ListarParametros

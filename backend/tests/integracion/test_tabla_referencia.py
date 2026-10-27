@@ -22,9 +22,9 @@ from tests.integracion.test_api_cuentas import ESPECIE_NUEVA
 LAVANDA = Especie("lavanda", {HUMEDAD: Rango(25, 50), LUZ: Rango(10760, 107640), TEMPERATURA: Rango(13.5, 27)}, "Lavandula")
 
 
-def _diagnostico(api) -> dict:
+def _diagnostico(api, token) -> dict:
     cuerpo = {"especie": "Potos", "humedad": 35, "luz": 800, "temperatura": 22}
-    return api.pedir("POST", "/diagnosticos", json=cuerpo).get_json()
+    return api.pedir("POST", "/diagnosticos", token, json=cuerpo).get_json()
 
 
 def test_lo_que_se_escribe_en_el_csv_se_lee_igual(tmp_path):
@@ -53,13 +53,14 @@ def test_con_la_base_agregar_una_especie_vuelve_a_escribir_la_copia(tmp_path):
 
 def test_el_comando_exporta_la_base_y_la_api_con_el_csv_diagnostica_igual(config, capsys):
     con_bd = ClienteApi(config)
+    token = con_bd.cuenta()  # la misma base y el mismo secreto: el token sirve en las dos
     assert exportar([], config) == 0
     assert "especies escritas" in capsys.readouterr().out
 
     con_csv = ClienteApi(dataclasses.replace(config, tabla_referencia="csv"))
 
-    assert _diagnostico(con_csv) == _diagnostico(con_bd)
-    assert con_csv.pedir("GET", "/especies").get_json() == con_bd.pedir("GET", "/especies").get_json()
+    assert _diagnostico(con_csv, token) == _diagnostico(con_bd, token)
+    assert con_csv.pedir("GET", "/especies", token).get_json() == con_bd.pedir("GET", "/especies", token).get_json()
 
 
 def test_con_el_csv_el_admin_no_puede_agregar_especies(config):

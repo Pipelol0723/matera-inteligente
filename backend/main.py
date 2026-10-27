@@ -88,12 +88,6 @@ def construir_app(config: Configuracion) -> Flask:
     evaluador = EvaluadorPlanta(ReglaHibrida(umbral=0.5), GeneradorRecomendaciones())
     servicio = ServicioDiagnostico(especies, evaluador)
 
-    api = crear_blueprint(
-        diagnosticar=DiagnosticarPlanta(servicio),
-        listar=ListarEspecies(especies),
-        listar_parametros=ListarParametros(PARAMETROS),
-    )
-
     # Corte 2: cuentas, plantas, sensores e historial, en la misma base. Cada adaptador SQLite
     # implementa varios puertos pequenos: se pasa una vez por cada puerto que pide el caso de uso.
     usuarios = RepositorioUsuariosSqlite(bd)
@@ -108,6 +102,14 @@ def construir_app(config: Configuracion) -> Flask:
     tokens = TokensJwt(config.secreto_jwt or secreto_guardado(config.ruta_secreto_jwt), reloj)
     identificar = IdentificarUsuario(sesiones, usuarios, reloj)
     autenticacion = Autenticacion(tokens, identificar)
+
+    # R7: las rutas del corte 1 tambien exigen el JWT de usuario, como todas las del front.
+    api = crear_blueprint(
+        diagnosticar=DiagnosticarPlanta(servicio),
+        listar=ListarEspecies(especies),
+        listar_parametros=ListarParametros(PARAMETROS),
+        autenticacion=autenticacion,
+    )
 
     cuentas = crear_blueprint_usuarios(
         registrar=RegistrarUsuario(usuarios, usuarios, cifrador),

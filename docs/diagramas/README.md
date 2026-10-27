@@ -98,7 +98,7 @@ Fuente: [`casos-de-uso-corte1.mmd`](casos-de-uso-corte1.mmd).
 Fuente: [`casos-de-uso-corte2.mmd`](casos-de-uso-corte2.mmd).
 
 - **Cuatro actores:**
-  - El *visitante* es la persona anónima del corte 1, que ahora además puede crear una cuenta e iniciar sesión.
+  - El *visitante* es la persona sin cuenta. Desde la fase 2 (R7), solo puede crear una cuenta e iniciar sesión: consultar las especies y diagnosticar, que en el corte 1 eran anónimos, ahora piden sesión.
   - El *usuario registrado* también es visitante.
   - El *administrador* también es usuario, y por eso también tiene plantas.
   - El *sensor* es un actor sin persona: la ESP32 o el simulador, que le hablan a la API de la misma forma.
@@ -212,7 +212,7 @@ Fuentes: [`clases-puertos.mmd`](clases-puertos.mmd) y [`clases-puertos-corte1.mm
 Fuentes: [`clases-aplicacion.mmd`](clases-aplicacion.mmd) y [`clases-aplicacion-corte1.mmd`](clases-aplicacion-corte1.mmd) ([imagen](clases-aplicacion-corte1.png)).
 
 - **Las rutas dependen del puerto de entrada, no del caso de uso.** En el diagrama, el puerto lleva el prefijo `entrada.` (`entrada.ListarPlantas`) y el caso de uso que lo hereda va sin prefijo (`ListarPlantas`).
-- **Las rutas públicas del corte 1 responden igual.** `rutas` llama a `DiagnosticarPlanta`, `ListarEspecies` y `ListarParametros`, ahora a través de sus puertos.
+- **Las rutas del corte 1 responden igual, pero exigen sesión (R7).** `rutas` llama a `DiagnosticarPlanta`, `ListarEspecies` y `ListarParametros` a través de sus puertos, y cada ruta pasa por `Autenticacion.con_usuario`.
 - **`esquemas` crea la `Medicion`.** Esa es la línea donde el dato deja de saber que llegó por HTTP (RA6). `esquemas_dispositivos.reporte_desde_json()` usa la misma `medicion_desde_json()` para el cuerpo del dispositivo, y además pasa la hora a UTC.
 - **Cada ruta privada se autentica a su manera:**
   - `rutas_plantas` exige sesión con `Autenticacion.con_usuario`.
@@ -310,8 +310,9 @@ Fuente: [`secuencia-diagnostico.mmd`](secuencia-diagnostico.mmd).
 
 Sigue una petición desde que la persona escribe en el front hasta que se pinta el resultado, con las funciones y clases reales. También muestra las dos salidas de error: 400 por entrada inválida y 404 por especie inexistente.
 
-En el corte 2 este recorrido no cambia. Solo cambian dos cosas:
+En el corte 2 este recorrido no cambia. Solo cambian tres cosas:
 
+- La ruta exige el JWT de usuario (R7). Antes de llamar al caso de uso, `Autenticacion.con_usuario` lo verifica como en la [secuencia de login](#secuencia-de-login-y-mis-plantas).
 - La ruta llama al puerto de entrada `DiagnosticarPlanta`, que hereda el caso de uso.
 - El participante `P` es el repositorio que se configuró detrás del mismo puerto `ConsultaRangos`: `RepositorioEspeciesSqlite` o `RepositorioEspeciesCsv`, según `MATERA_TABLA_REFERENCIA`.
 
@@ -420,6 +421,7 @@ La primera versión (commit `d00df35`) se apartaba del diseño aprobado en vario
   - Hay puertos de entrada, que heredan los casos de uso.
   - La propiedad de una planta la decide `Planta.exigir_dueno`.
 - **`RepositorioEspeciesCsv` volvió**, como copia de solo lectura elegida por configuración.
+- **`rutas` sí usa el decorador de autenticación,** como en la primera versión: Diagnóstico, Especies y Parámetros exigen el JWT de usuario (R7).
 
 Puede haber más diferencias: para todo lo del 18 de octubre en adelante valen los diagramas por capa y la vista hexagonal. Solo `mqtt_listener` sigue de verdad sin código (MQTT es el escenario 5.1 del documento).
 

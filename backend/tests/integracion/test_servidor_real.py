@@ -27,8 +27,11 @@ def test_el_servidor_real_atiende_un_recorrido_completo_con_la_misma_base(base_u
 
 
 def test_el_servidor_real_atiende_peticiones_simultaneas(base_url):
+    _pedir(base_url, "POST", "/usuarios", {"nombre": "Ana", "correo": "ana@correo.co", "contrasena": "clave-segura"})
+    _, sesion = _pedir(base_url, "POST", "/sesiones", {"correo": "ana@correo.co", "contrasena": "clave-segura"})
+
     with ThreadPoolExecutor(max_workers=6) as hilos:
-        respuestas = list(hilos.map(lambda _: _pedir(base_url, "GET", "/especies"), range(12)))
+        respuestas = list(hilos.map(lambda _: _pedir(base_url, "GET", "/especies", token=sesion["token"]), range(12)))
 
     assert {estado for estado, _ in respuestas} == {200}
     assert {len(especies) for _, especies in respuestas} == {5}

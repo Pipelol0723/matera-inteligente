@@ -187,27 +187,6 @@ String campoDespues(const String &json, const char *desde, const char *campo) {
   return fin > pos ? json.substring(pos + 1, fin) : String("?");
 }
 
-// Sin sensores ya se puede probar esto: el WiFi, la IP del PC, el firewall y que el backend responda.
-bool comprobarApi() {
-  HTTPClient http;
-  http.setConnectTimeout(5000);
-  http.setTimeout(10000);
-  http.begin(String(API_BASE) + "/parametros");
-  int estado = http.GET();
-  http.end();
-  if (estado == 200) {
-    Serial.println("La API responde (GET /parametros 200).");
-    return true;
-  }
-  if (estado < 0) {
-    Serial.printf("No se pudo contactar la API en %s (%s).\n", API_BASE, HTTPClient::errorToString(estado).c_str());
-  } else {
-    Serial.printf("GET /parametros respondió %d.\n", estado);
-  }
-  Serial.println("Revise API_BASE, que el backend corra con MATERA_HOST=0.0.0.0 y que el firewall deje pasar el puerto.");
-  return false;
-}
-
 // ---- canje de la clave por el token ----
 
 bool canjearClave() {
@@ -223,7 +202,8 @@ bool canjearClave() {
   }
   token = "";
   if (estado < 0) {
-    Serial.printf("Canje sin respuesta (%s). Revise la red y API_BASE.\n", HTTPClient::errorToString(estado).c_str());
+    Serial.printf("No se pudo contactar la API en %s (%s).\n", API_BASE, HTTPClient::errorToString(estado).c_str());
+    Serial.println("Revise API_BASE, que el backend corra con MATERA_HOST=0.0.0.0 y que el firewall deje pasar el puerto.");
   } else if (estado == 401) {
     Serial.println("401: la API no reconoce el código o la clave. Revise CODIGO_SENSOR y CLAVE_SENSOR en config.h;");
     Serial.println("si la clave se perdió, «Cambiar sensor» con el mismo código da otra.");
@@ -301,7 +281,8 @@ void setup() {
   // La primera lectura del DHT11 despues de encenderlo suele salir mal: se descarta.
   delay(2000);
   dht.readTemperature();
-  if (conectarWifi() && !comprobarApi()) avisarFallo();
+  // La placa solo usa sus dos rutas: el canje dice si llega al backend.
+  conectarWifi();
 }
 
 void loop() {

@@ -31,7 +31,7 @@ simulador/
   simulador_esp32.py manda lecturas a la API como el ESP32, sin hardware (ver «Simulador del ESP32»)
 frontend/            HTML, CSS y JavaScript estáticos, servidos aparte
   js/api.js          peticiones a la API, con el token en las rutas privadas
-  js/app.js          arranque, navegación, pantallas públicas y privadas
+  js/app.js          arranque, navegación y pantallas que exigen sesión
   js/sesion.js       token de la sesión, en sessionStorage
   js/consulta-periodica.js  vuelve a pedir los datos de la pantalla cada 10 s
   js/tiempo-real.js  el WebSocket que trae las mediciones en vivo, con su reconexión
@@ -249,15 +249,15 @@ El front no tiene rangos, umbrales ni reglas. Los parámetros, las especies, los
 
 | Pantalla | Acceso | Qué hace |
 |---|---|---|
-| Diagnóstico | pública | Consulta `POST /diagnosticos` mientras se escribe (espera 400 ms después de la última tecla) y muestra el estado en los anillos. Los botones Saludable, En riesgo y Crítico llenan valores de ejemplo a partir de los rangos, y la API decide el estado. El panel "Errores de la API" envía peticiones inválidas a propósito. No guarda nada. |
-| Especies | pública | Muestra el catálogo de `GET /especies` con bandas escaladas según los límites físicos de `GET /parametros`. |
+| Diagnóstico | con sesión | Consulta `POST /diagnosticos` mientras se escribe (espera 400 ms después de la última tecla) y muestra el estado en los anillos. Los botones Saludable, En riesgo y Crítico llenan valores de ejemplo a partir de los rangos, y la API decide el estado. El panel "Errores de la API" envía peticiones inválidas a propósito. No guarda nada. |
+| Especies | con sesión | Muestra el catálogo de `GET /especies` con bandas escaladas según los límites físicos de `GET /parametros`. |
 | Ingresar / Crear cuenta | pública | Dos formularios. Al entrar guarda el token y vuelve a la pantalla privada que se había pedido. |
 | Mis materas | con sesión | Las materas del usuario con su última medición, que se actualiza sola (ver abajo). «Agregar matera» pide apodo, especie y código del sensor, y muestra la clave del sensor una sola vez: va en `config.h` de la placa o en `--clave=` del simulador. Cada tarjeta permite cambiar el sensor (con el mismo código, da una clave nueva y la anterior deja de servir con su token), ver el historial y eliminar la matera. Desde el front no se escriben mediciones. |
 | Historial | con sesión | La lista, la gráfica y el resumen de las mediciones de una planta, con el estado que calculó la API en su momento. Se actualiza solo, igual que Mis materas. |
 | Mi cuenta | con sesión | Nombre, correo, rol, cantidad de plantas y cerrar sesión. |
 | Administración | solo admin | Activar, desactivar, dar o quitar el rol y eliminar cuentas; agregar especies. La pestaña solo aparece para un admin, pero los permisos los revisa la API. |
 
-Si la API responde `401 SESION_INVALIDA`, el front borra el token y lleva a Ingresar.
+Todas las pantallas menos Ingresar exigen sesión (R7): sin ella, el front lleva a Ingresar y no llama a la API. Si la API responde `401 SESION_INVALIDA`, el front borra el token y lleva a Ingresar.
 
 Mis materas y el Historial se actualizan solos de dos maneras:
 - **Consulta periódica.** Mientras la pantalla y la pestaña están a la vista, `js/consulta-periodica.js` vuelve a pedir `GET /plantas` (o el historial) cada 10 segundos. Solo se vuelven a pintar las tarjetas que cambiaron. Debajo del título se ve la hora de la última consulta.
@@ -299,6 +299,8 @@ python -m pytest tests/dominio
 El firmware no tiene pruebas automáticas: se prueba en la placa, con el monitor serie.
 
 ## API
+
+Desde la fase 2 (R7), estas tres rutas del corte 1 también exigen el JWT de usuario en `Authorization: Bearer <token>`. Sin él responden `401 SESION_INVALIDA`. Las respuestas no cambian.
 
 ### `GET /api/v1/especies`
 
@@ -354,7 +356,7 @@ Los valores pueden llegar como números o como texto numérico (`"32.5"` o `"32,
 ### Cuentas, plantas y sensores (corte 2)
 
 Todas van bajo `/api/v1`, y hay dos clases de token, los dos JWT firmados por el servidor:
-- **El del usuario:** lo entrega `POST /sesiones`, con alcance «usuario». Las rutas de sesión y de administración lo piden en la cabecera `Authorization: Bearer <token>`.
+- **El del usuario:** lo entrega `POST /sesiones`, con alcance «usuario». Todas las rutas del front lo piden en la cabecera `Authorization: Bearer <token>`: las del corte 1, las de la sesión, las de las plantas y las de administración. Solo crear cuenta e iniciar sesión no lo piden.
 - **El del sensor:** lo entrega `POST /dispositivos/{codigo}/token` a cambio de la clave, con alcance «lecturas». Solo sirve para reportar lecturas de ese sensor.
 
 Un token no sirve en las rutas del otro (`403 ALCANCE_INVALIDO`). El servidor guarda el id de cada token:

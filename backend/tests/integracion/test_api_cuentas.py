@@ -200,14 +200,14 @@ def test_eliminar_una_cuenta_la_quita_de_la_lista(api):
     assert es_error(api.pedir("DELETE", "/admin/usuarios/2", admin), 404, "USUARIO_NO_ENCONTRADO")
 
 
-def test_el_admin_agrega_una_especie_y_aparece_en_el_catalogo_publico(api):
+def test_el_admin_agrega_una_especie_y_aparece_en_el_catalogo(api):
     admin = api.admin()
 
     respuesta = api.pedir("POST", "/admin/especies", admin, json=ESPECIE_NUEVA)
 
     assert respuesta.status_code == 201
     assert respuesta.get_json()["rangos"]["luz"] == {"min": 1080.0, "max": 5380.0, "unidad": "lux"}
-    assert "cinta" in [e["nombre"] for e in api.pedir("GET", "/especies").get_json()]
+    assert "cinta" in [e["nombre"] for e in api.pedir("GET", "/especies", admin).get_json()]
     assert es_error(api.pedir("POST", "/admin/especies", admin, json=ESPECIE_NUEVA), 409, "ESPECIE_YA_EXISTE")
 
 

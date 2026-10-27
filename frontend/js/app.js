@@ -11,10 +11,10 @@ import { crearPantallaMateras } from "./materas.js";
 import { sesion } from "./sesion.js";
 import { crearTiempoReal } from "./tiempo-real.js";
 
-const PUBLICAS = ["diagnostico", "especies", "acceso"];
-// Exigen sesión. Ocultarlas no protege nada: la API responde 401 sin token, y 403 en
-// administración si el usuario no es ADMIN.
-const PRIVADAS = ["materas", "historial", "cuenta", "admin"];
+const PUBLICAS = ["acceso"];
+// Exigen sesión (R7), también Diagnóstico y Especies. Ocultarlas no protege nada: la API
+// responde 401 sin token, y 403 en administración si el usuario no es ADMIN.
+const PRIVADAS = ["diagnostico", "especies", "materas", "historial", "cuenta", "admin"];
 const PANTALLAS = [...PUBLICAS, ...PRIVADAS];
 const PANTALLA_INICIAL = "diagnostico";
 const DESPUES_DE_INGRESAR = "materas";
@@ -52,6 +52,7 @@ const contexto = {
   },
   alIniciarSesion() {
     pintarSesion();
+    cargarCatalogos();
     contexto.navegar(destino ?? DESPUES_DE_INGRESAR);
     destino = null;
   },
@@ -115,6 +116,7 @@ function pintarSesion() {
   } else {
     tiempoReal.desconectar();
     pantallas.materas.reiniciar();
+    marcarSinSesion();
   }
 }
 
@@ -147,13 +149,29 @@ function marcarConexion(conectada) {
     : "Sin conexión con la API";
 }
 
+// Sin sesión no hay ruta que consultar: los catálogos también exigen el token.
+function marcarSinSesion() {
+  const indicador = document.getElementById("conexion");
+  indicador.classList.remove("conexion--caida");
+  indicador.classList.add("conexion--pendiente");
+  document.getElementById("conexion-texto").textContent = "Ingrese para usar la API";
+}
+
+let reintento = null;
+
 async function cargarCatalogos() {
+  clearTimeout(reintento);
+  if (!sesion.activa()) {
+    marcarSinSesion();
+    return;
+  }
   try {
     [contexto.parametros, contexto.especies] = await Promise.all([obtenerParametros(), obtenerEspecies()]);
   } catch (error) {
+    if (!sesion.activa()) return; // un 401 cerró la sesión y ya llevó a Ingresar
     marcarConexion(false);
     diagnostico.mostrarErrorDeCarga(error);
-    setTimeout(cargarCatalogos, REINTENTO_MS);
+    reintento = setTimeout(cargarCatalogos, REINTENTO_MS);
     return;
   }
   marcarConexion(true);

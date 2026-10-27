@@ -1,4 +1,6 @@
 """Pruebas de la API con el cliente de pruebas de Flask. No cuentan como pruebas de dominio."""
+from functools import wraps
+
 import pytest
 
 from aplicacion.listar_especies import ListarEspecies
@@ -27,12 +29,27 @@ def _config(tmp_path):
     especies = RepositorioEspeciesSqlite(BaseDatos(ruta).preparar(carga=None))
     for especie in ESPECIES:
         especies.agregar(especie)
-    return Configuracion(puerto=5000, ruta_bd=ruta, origenes_cors=(ORIGEN_FRONT,))
+    # Pocas iteraciones de PBKDF2: cada prueba crea su cuenta para tener el token.
+    return Configuracion(puerto=5000, ruta_bd=ruta, origenes_cors=(ORIGEN_FRONT,), iteraciones_contrasena=1_000)
+
+
+def _con_sesion(cliente):
+    """R7: estas rutas exigen el JWT de usuario. Crea una cuenta y deja su token en cada peticion del cliente."""
+    cuenta = {"nombre": "Ana", "correo": "ana@correo.co", "contrasena": "clave-segura"}
+    assert cliente.post("/api/v1/usuarios", json=cuenta).status_code == 201
+    token = cliente.post("/api/v1/sesiones", json=cuenta).get_json()["token"]
+    cliente.environ_base["HTTP_AUTHORIZATION"] = f"Bearer {token}"
+    return cliente
 
 
 @pytest.fixture
-def cliente(tmp_path):
+def sin_sesion(tmp_path):
     return construir_app(_config(tmp_path)).test_client()
+
+
+@pytest.fixture
+def cliente(sin_sesion):
+    return _con_sesion(sin_sesion)
 
 
 def _pedir(cliente, sin=(), **cambios):
@@ -44,6 +61,17 @@ def _pedir(cliente, sin=(), **cambios):
 
 def _es_error_uniforme(respuesta):
     return respuesta.mimetype == "application/json" and set(respuesta.get_json()) == {"error", "mensaje", "detalle"}
+
+
+@pytest.mark.parametrize(("metodo", "ruta"), [("GET", "/especies"), ("GET", "/parametros"), ("POST", "/diagnosticos")])
+def test_las_rutas_del_corte_1_exigen_el_jwt_de_usuario(sin_sesion, metodo, ruta):
+    sin_token = sin_sesion.open(f"/api/v1{ruta}", method=metodo, json={})
+    token_falso = sin_sesion.open(f"/api/v1{ruta}", method=metodo, json={}, headers={"Authorization": "Bearer x.y.z"})
+
+    for respuesta in (sin_token, token_falso):
+        assert respuesta.status_code == 401
+        assert _es_error_uniforme(respuesta)
+        assert respuesta.get_json()["error"] == "SESION_INVALIDA"
 
 
 def test_especies_devuelve_rangos_con_unidad_ordenadas_por_nombre(cliente):
@@ -151,8 +179,17 @@ def test_un_error_inesperado_responde_json_sin_la_traza(tmp_path):
         def ejecutar(self, solicitud):
             raise RuntimeError("detalle interno que no debe salir")
 
+    class SinVerificarSesion:
+        """Esta prueba es del manejo de errores, no de la sesion: deja pasar sin token."""
+
+        def con_usuario(self, vista):
+            return wraps(vista)(lambda *args, **kwargs: vista(None, *args, **kwargs))
+
     api = crear_blueprint(
-        CasoDeUsoQueFalla(), ListarEspecies(RepositorioEspeciesEnMemoria()), ListarParametros(PARAMETROS)
+        CasoDeUsoQueFalla(),
+        ListarEspecies(RepositorioEspeciesEnMemoria()),
+        ListarParametros(PARAMETROS),
+        SinVerificarSesion(),
     )
     cliente = crear_app([api], _config(tmp_path)).test_client()
 
@@ -177,13 +214,14 @@ def test_cors_permite_el_origen_del_front_incluso_en_errores(cliente):
     assert error.headers["Access-Control-Allow-Origin"] == ORIGEN_FRONT
 
 
-def test_cors_responde_la_verificacion_previa_del_post(cliente):
-    respuesta = cliente.options(
+def test_cors_responde_la_verificacion_previa_del_post_sin_token(sin_sesion):
+    # El navegador no manda el token en la verificacion previa: tiene que responderse sin sesion.
+    respuesta = sin_sesion.options(
         "/api/v1/diagnosticos",
         headers={
             "Origin": ORIGEN_FRONT,
             "Access-Control-Request-Method": "POST",
-            "Access-Control-Request-Headers": "Content-Type",
+            "Access-Control-Request-Headers": "Content-Type, Authorization",
         },
     )
 

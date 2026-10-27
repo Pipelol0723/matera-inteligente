@@ -79,8 +79,8 @@ Si algo traba el programa más de un minuto, la placa se reinicia sola y vuelve 
 
 Al arrancar, la placa:
 1. Muestra su código y la dirección de la API.
-2. Se conecta al WiFi y pide `GET /parametros`, para comprobar que llega al backend.
-3. Toma la hora por NTP y canjea la clave.
+2. Se conecta al WiFi.
+3. Toma la hora por NTP y canjea la clave. Si no llega al backend, lo dice en este paso. La placa solo usa sus dos rutas: las demás exigen el token de un usuario.
 
 Después, en cada vuelta, muestra lo que envió y lo que respondió la API: `201, la planta está SALUDABLE`, o el error con su código (por ejemplo, `400 MOMENTO_INVALIDO` si la hora de la placa está mal).
 

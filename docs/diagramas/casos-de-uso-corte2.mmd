@@ -4,6 +4,8 @@
 %% su clave por un token de alcance "lecturas" y con ese token reporta cada lectura con su hora.
 %% Las pantallas del usuario (materas e historial) se actualizan solas: vuelven a pedir sus datos cada 10 s y ademas reciben cada medicion por el WebSocket.
 %% Con la tabla de referencia en CSV (copia de solo lectura) el administrador no puede agregar especies: la API responde 409.
+%% Desde la fase 2 (R7) todas las rutas del front exigen el JWT de usuario: consultar especies y diagnosticar tambien piden sesion,
+%% y el visitante solo crea su cuenta e inicia sesion.
 %% Los casos del sensor se declaran primero para que sus flechas "incluye" no crucen otros casos.
 flowchart LR
     sensor["Sensor<br/>(ESP32 o simulador)"]
@@ -35,11 +37,11 @@ flowchart LR
     uc11 -.->|incluye| uc15
     uc15 -.->|actualiza| uc7
     uc2 -.->|incluye| uc3
-    visitante --- uc1
-    visitante --- uc2
     visitante --- uc4
     visitante --- uc5
     usuario -->|también es| visitante
+    usuario --- uc1
+    usuario --- uc2
     usuario --- uc6
     usuario --- uc7
     usuario --- uc8

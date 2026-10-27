@@ -56,11 +56,12 @@ function conJson(metodo, datos, cabeceras = {}) {
   };
 }
 
-// Rutas que exigen sesión: llevan el token, y un 401 SESION_INVALIDA cierra la sesión local.
-async function privada(ruta, opciones = {}) {
+// Todas las rutas del front exigen sesión (R7), menos crear cuenta e ingresar: llevan el token,
+// y un 401 SESION_INVALIDA cierra la sesión local.
+async function privada(ruta, opciones = {}, base = API_BASE) {
   const cabeceras = { ...opciones.headers, Authorization: `Bearer ${sesion.token()}` };
   try {
-    return await pedir(API_BASE, ruta, { ...opciones, headers: cabeceras });
+    return await pedir(base, ruta, { ...opciones, headers: cabeceras });
   } catch (error) {
     if (error.codigo === "SESION_INVALIDA") {
       sesion.cerrar();
@@ -71,17 +72,17 @@ async function privada(ruta, opciones = {}) {
 }
 
 function enviarDiagnostico(base, datos, signal) {
-  return pedir(base, "/diagnosticos", { ...conJson("POST", datos), signal });
+  return privada("/diagnosticos", { ...conJson("POST", datos), signal }, base);
 }
 
-// ---- públicas: corte 1 ----
+// ---- corte 1: desde la fase 2 también exigen sesión ----
 
 export function obtenerParametros() {
-  return pedir(API_BASE, "/parametros");
+  return privada("/parametros");
 }
 
 export function obtenerEspecies() {
-  return pedir(API_BASE, "/especies");
+  return privada("/especies");
 }
 
 export function pedirDiagnostico(datos, { signal } = {}) {
