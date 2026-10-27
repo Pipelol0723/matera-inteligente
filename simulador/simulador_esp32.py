@@ -299,7 +299,7 @@ def modo_casos(sim: Simulador, azar: random.Random) -> int:
         como_se_esperaba = (estado, error) == (caso.estado, caso.error)
         bien += como_se_esperaba
         sim._salida(
-            f"{caso.nombre:<30} esperaba {caso.estado} {caso.error:<32} recibio {estado} {error or '':<32}"
+            f"{caso.nombre:<34} esperaba {caso.estado} {caso.error:<32} recibio {estado} {error or '':<32}"
             f" {'ok' if como_se_esperaba else 'NO'}"
         )
     sim._salida(f"{bien} de {len(resultados)} como se esperaba.")
