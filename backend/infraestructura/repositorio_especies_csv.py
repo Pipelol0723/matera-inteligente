@@ -9,9 +9,11 @@ El CSV es una copia de la base, de solo lectura:
 - escribir_csv y RegistroEspeciesConCopiaCsv lo mantienen igual a la base: el comando
   exportar_especies_csv.py lo escribe, y en modo BD se vuelve a escribir cada vez que el
   admin agrega una especie.
+- exigir_copia_al_dia impide arrancar en modo CSV con una copia distinta de la base.
 """
 import csv
 import logging
+import math
 import os
 from collections.abc import Iterable
 from pathlib import Path
@@ -75,6 +77,40 @@ class RepositorioEspeciesCsv(ConsultaRangos, CatalogoEspecies):
                 raise ErrorTablaReferencia(f"Fila {numero_fila} de {self._ruta}: la especie '{especie.nombre}' está repetida")
             especies[especie.nombre] = especie
         return especies
+
+
+def exigir_copia_al_dia(copia: CatalogoEspecies, base: CatalogoEspecies, ruta: Path) -> None:
+    """En modo CSV, la copia tiene que tener las mismas especies y rangos que la base.
+
+    Si le faltara una especie, una planta de esa especie dejaria de recibir lecturas; si
+    sobrara una, se podria diagnosticar pero no crear una planta con ella (la llave foranea
+    de la base la rechaza). Por eso el backend no arranca hasta que se regenere la copia.
+    """
+    en_copia = {especie.nombre: especie for especie in copia.listar()}
+    en_base = {especie.nombre: especie for especie in base.listar()}
+    diferencias = [
+        f"{titulo}: {', '.join(nombres)}"
+        for titulo, nombres in (
+            ("faltan", sorted(en_base.keys() - en_copia.keys())),
+            ("sobran", sorted(en_copia.keys() - en_base.keys())),
+            ("con otros datos", sorted(n for n in en_base.keys() & en_copia.keys() if not _iguales(en_base[n], en_copia[n]))),
+        )
+        if nombres
+    ]
+    if diferencias:
+        raise ErrorTablaReferencia(
+            f"La copia {ruta} no es igual a la tabla de la base ({'; '.join(diferencias)}). "
+            "Regenerela con: python exportar_especies_csv.py"
+        )
+
+
+def _iguales(una: Especie, otra: Especie) -> bool:
+    # El CSV guarda los limites con 15 cifras significativas: se comparan con esa tolerancia.
+    return una.nombre_cientifico == otra.nombre_cientifico and all(
+        math.isclose(getattr(una.rango_de(p), limite), getattr(otra.rango_de(p), limite), rel_tol=1e-12, abs_tol=1e-12)
+        for p in PARAMETROS
+        for limite in ("minimo", "maximo")
+    )
 
 
 class EspeciesDeSoloLectura(RegistroEspecies):

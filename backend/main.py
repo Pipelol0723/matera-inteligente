@@ -39,10 +39,12 @@ from dominio.servicio_diagnostico import ServicioDiagnostico
 from infraestructura.configuracion import Configuracion
 from infraestructura.reloj import RelojSistema
 from infraestructura.repositorio_especies_csv import (
+    ErrorTablaReferencia,
     EspeciesDeSoloLectura,
     RegistroEspeciesConCopiaCsv,
     RepositorioEspeciesCsv,
     escribir_csv,
+    exigir_copia_al_dia,
 )
 from infraestructura.seguridad import CifradorPbkdf2, GeneradorSecretosSeguro
 from infraestructura.servidor_web import crear_app
@@ -74,9 +76,11 @@ def _tabla_de_referencia(config: Configuracion, bd: BaseDatos) -> tuple[Consulta
     El CSV es una copia de la base y no se edita. Con la base, agregar una especie
     tambien vuelve a escribir la copia.
     """
-    if config.tabla_referencia == "csv":
-        return RepositorioEspeciesCsv(config.ruta_tabla_csv), EspeciesDeSoloLectura()
     sqlite = RepositorioEspeciesSqlite(bd)
+    if config.tabla_referencia == "csv":
+        copia = RepositorioEspeciesCsv(config.ruta_tabla_csv)
+        exigir_copia_al_dia(copia, sqlite, config.ruta_tabla_csv)  # si no es igual a la base, no arranca
+        return copia, EspeciesDeSoloLectura()
     return sqlite, RegistroEspeciesConCopiaCsv(sqlite, sqlite, config.ruta_tabla_csv)
 
 
@@ -178,4 +182,8 @@ if __name__ == "__main__":
         print(f"Tabla de referencia: la copia en CSV, {configuracion.ruta_tabla_csv} (solo lectura)")
     else:
         print(f"Tabla de referencia: la base de datos, {configuracion.ruta_bd}")
-    construir_app(configuracion).run(host=configuracion.host, port=configuracion.puerto, debug=False)
+    try:
+        app = construir_app(configuracion)
+    except ErrorTablaReferencia as error:
+        raise SystemExit(f"No se pudo arrancar: {error}") from None
+    app.run(host=configuracion.host, port=configuracion.puerto, debug=False)

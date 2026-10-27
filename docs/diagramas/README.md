@@ -138,10 +138,10 @@ Fuente: [`paquetes-corte2.mmd`](paquetes-corte2.mmd).
   - El aviso sale de `infraestructura/tiempo_real.py`, que implementa un puerto del dominio.
   - `main.py` le pasa a la ruta los mismos canales: presentación no importa infraestructura.
 - **`especies.csv` vuelve, como copia de solo lectura de la tabla de especies.** La base sigue siendo `matera.sqlite`, que vive fuera de Google Drive (se configura con `MATERA_RUTA_BD`).
-  - Con `MATERA_TABLA_REFERENCIA=csv`, el backend lee las especies del CSV.
+  - Con `MATERA_TABLA_REFERENCIA=csv`, el backend lee las especies del CSV. Si la copia no es igual a la tabla de la base, no arranca y pide regenerarla.
   - Con `bd`, el valor por defecto, las lee de la base y reescribe la copia cada vez que el admin agrega una especie.
   - `exportar_especies_csv.py` la regenera a mano.
-- Junto a la base queda el secreto con que se firman los JWT, salvo que se defina `MATERA_JWT_SECRETO`.
+- Junto a la base quedan su copia en CSV, salvo que se defina `MATERA_RUTA_CSV`, y el secreto con que se firman los JWT, salvo que se defina `MATERA_JWT_SECRETO`. Con la base por defecto, la copia es el `datos/especies.csv` del repositorio.
 - **`main.py` es la única raíz de composición.** Los comandos de consola piden sus piezas a `main.construir_consola()`.
 
 ## Clases

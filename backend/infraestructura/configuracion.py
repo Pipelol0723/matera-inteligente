@@ -33,7 +33,8 @@ class Configuracion:
     secreto_jwt: str | None = None
     # De donde sale la tabla de especies (R4): "bd" (SQLite) o "csv" (la copia de solo lectura).
     tabla_referencia: str = "bd"
-    # La copia en CSV. Sin ruta, va junto a la base; desde_entorno usa la del repositorio.
+    # La copia en CSV. Sin ruta, va junto a su base: con la base por defecto es la del repositorio,
+    # y con una base fuera de Google Drive (MATERA_RUTA_BD) queda afuera con ella.
     ruta_csv: Path | None = None
 
     def __post_init__(self) -> None:
@@ -63,5 +64,5 @@ class Configuracion:
             host=os.environ.get("MATERA_HOST", "127.0.0.1").strip(),
             secreto_jwt=os.environ.get("MATERA_JWT_SECRETO", "").strip() or None,
             tabla_referencia=os.environ.get("MATERA_TABLA_REFERENCIA", "bd").strip().lower(),
-            ruta_csv=Path(os.environ.get("MATERA_RUTA_CSV", _BACKEND / "datos" / "especies.csv")),
+            ruta_csv=Path(os.environ["MATERA_RUTA_CSV"]) if os.environ.get("MATERA_RUTA_CSV", "").strip() else None,
         )

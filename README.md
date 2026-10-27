@@ -110,7 +110,7 @@ La API queda en `http://127.0.0.1:5000/api/v1`. Se puede configurar con variable
 | `MATERA_HORAS_TOKEN_DISPOSITIVO` | `24`: cuánto dura el token de un sensor; después, el sensor vuelve a canjear su clave |
 | `MATERA_JWT_SECRETO` | Sin valor: el secreto con que se firman los JWT se genera la primera vez y se guarda junto a la base (`matera.sqlite.secreto-jwt`, que Git ignora). Así un reinicio no cierra las sesiones. Si se pierde, todos vuelven a ingresar. |
 | `MATERA_TABLA_REFERENCIA` | `bd`: la tabla de especies sale de la base. Con `csv`, sale de la copia en CSV (ver [Tabla de referencia](#tabla-de-referencia-csv-o-base-de-datos)) |
-| `MATERA_RUTA_CSV` | `backend/datos/especies.csv` |
+| `MATERA_RUTA_CSV` | `especies.csv`, en la carpeta de la base. Con la base por defecto es `backend/datos/especies.csv`; con una base fuera de Google Drive, la copia queda afuera con ella |
 
 Al arrancar, el backend escribe en la consola qué tabla de referencia usa, crea las tablas que falten y, si no hay ninguna especie, carga las de `datos/carga.sql`. Git ignora el archivo de la base.
 
@@ -147,7 +147,8 @@ python main.py
 El CSV es una copia de la base, de solo lectura:
 - **Con `csv`:** el diagnóstico, el catálogo y las materas usan el archivo. Agregar una especie responde `409 TABLA_SOLO_LECTURA`.
 - **Con `bd`:** cada especie que agrega el admin también se escribe en la copia, así el CSV queda al día.
-- **`exportar_especies_csv.py`:** escribe la copia desde la base de `MATERA_RUTA_BD`. Conviene correrlo antes de cambiar a `csv`, para que el archivo tenga las mismas especies que la base.
+- **`exportar_especies_csv.py`:** escribe la copia desde la base de `MATERA_RUTA_BD`.
+- **Al arrancar con `csv`,** el backend compara la copia con la tabla de la base. Si no tienen las mismas especies y rangos, no arranca, dice cuáles faltan, sobran o cambiaron, y pide correr `exportar_especies_csv.py`. Así una planta nunca se queda sin su especie en la copia.
 
 Para volver a la base, se borra la variable (`Remove-Item Env:MATERA_TABLA_REFERENCIA`) o se pone en `bd`, y se reinicia.
 

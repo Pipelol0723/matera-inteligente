@@ -10,16 +10,20 @@ from dominio.rango import Rango
 from exportar_especies_csv import main as exportar
 from infraestructura.configuracion import Configuracion
 from infraestructura.repositorio_especies_csv import (
+    ErrorTablaReferencia,
     EspeciesDeSoloLectura,
     RegistroEspeciesConCopiaCsv,
     RepositorioEspeciesCsv,
     escribir_csv,
 )
 from infraestructura.sqlite import BaseDatos, RepositorioEspeciesSqlite
+from main import construir_app
 from tests.integracion.conftest import ClienteApi, es_error
 from tests.integracion.test_api_cuentas import ESPECIE_NUEVA
 
 LAVANDA = Especie("lavanda", {HUMEDAD: Rango(25, 50), LUZ: Rango(10760, 107640), TEMPERATURA: Rango(13.5, 27)}, "Lavandula")
+# No esta en carga.sql: sirve para que la base y la copia no tengan las mismas especies.
+ORQUIDEA = Especie("orquidea", dict(LAVANDA.rangos), "Phalaenopsis")
 
 
 def _diagnostico(api, token) -> dict:
@@ -91,6 +95,30 @@ def test_con_el_csv_una_planta_se_registra_con_una_especie_de_la_copia(config):
     assert respuesta.status_code == 201
 
 
+def test_con_una_copia_vieja_el_backend_no_arranca_y_pide_exportar(config):
+    ClienteApi(config)
+    assert exportar([], config) == 0
+    # La especie entra a la base sin pasar por la API, asi que la copia no se entera.
+    RepositorioEspeciesSqlite(BaseDatos(config.ruta_bd).preparar()).agregar(ORQUIDEA)
+
+    with pytest.raises(ErrorTablaReferencia, match=r"faltan: orquidea.*exportar_especies_csv\.py"):
+        construir_app(dataclasses.replace(config, tabla_referencia="csv"))
+
+    assert exportar([], config) == 0
+    assert construir_app(dataclasses.replace(config, tabla_referencia="csv"))
+
+
+def test_con_una_copia_que_no_es_de_esta_base_el_backend_no_arranca(config):
+    ClienteApi(config)
+    especies = RepositorioEspeciesSqlite(BaseDatos(config.ruta_bd).preparar()).listar()
+    [primera, *resto] = especies
+    otra = Especie(primera.nombre, dict(LAVANDA.rangos), primera.nombre_cientifico)
+    escribir_csv([otra, *resto, ORQUIDEA], config.ruta_tabla_csv)
+
+    with pytest.raises(ErrorTablaReferencia, match=f"sobran: orquidea; con otros datos: {primera.nombre}"):
+        construir_app(dataclasses.replace(config, tabla_referencia="csv"))
+
+
 def test_una_tabla_de_referencia_desconocida_falla_al_arrancar_con_un_mensaje_claro(tmp_path, monkeypatch):
     monkeypatch.setenv("MATERA_RUTA_BD", str(tmp_path / "matera.sqlite"))
     monkeypatch.setenv("MATERA_TABLA_REFERENCIA", "excel")
@@ -100,7 +128,7 @@ def test_una_tabla_de_referencia_desconocida_falla_al_arrancar_con_un_mensaje_cl
 
 
 def test_por_defecto_la_tabla_es_la_base_y_la_copia_esta_en_el_repositorio(monkeypatch):
-    for variable in ("MATERA_TABLA_REFERENCIA", "MATERA_RUTA_CSV"):
+    for variable in ("MATERA_TABLA_REFERENCIA", "MATERA_RUTA_CSV", "MATERA_RUTA_BD"):
         monkeypatch.delenv(variable, raising=False)
 
     config = Configuracion.desde_entorno()
@@ -110,3 +138,10 @@ def test_por_defecto_la_tabla_es_la_base_y_la_copia_esta_en_el_repositorio(monke
         "datos",
         "especies.csv",
     )
+
+
+def test_con_una_base_fuera_del_repositorio_la_copia_va_junto_a_ella(tmp_path, monkeypatch):
+    monkeypatch.delenv("MATERA_RUTA_CSV", raising=False)
+    monkeypatch.setenv("MATERA_RUTA_BD", str(tmp_path / "matera.sqlite"))
+
+    assert Configuracion.desde_entorno().ruta_tabla_csv == tmp_path / "especies.csv"
