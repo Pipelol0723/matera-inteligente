@@ -137,6 +137,11 @@ ESP32 clásica de doble núcleo (DevKit WROOM-32, ESP32-D0WD-V3, 4 MB, puente US
 | Botón BOOT | — | GPIO0 | El de la placa. |
 | LED de estado | — | GPIO2 | El LED azul de la placa. |
 
+**Con la placa de expansión** (la base negra con filas de tres pines G · V · S por cada GPIO):
+- Cada pieza va a su fila: `S` es la señal (el GPIO), `V` la alimentación y `G` la tierra. El orden de los pines del sensor (por ejemplo GND · DATA · VCC) no siempre coincide con G · V · S: se conecta cable por cable, mirando las letras.
+- **Los pines `V` solo tienen corriente si el jumper «JUMP» une el pin del medio (V) con 3V.** Sin ese jumper, un sensor conectado a `V` queda apagado y el monitor serie dice «El DHT11 no respondió». Pasó en la prueba del 12 de noviembre: se resolvió llevando el VCC del DHT11 a un pin de 3V3. No usar la posición 5V: la ESP32 no aguanta 5 V en sus pines de datos.
+- El conector de 4 pines (D22 · D21 · VCC · GND) de la pantalla tiene su propio VCC, por eso la pantalla funciona aunque falte el jumper.
+
 ## Compilar y subir
 
 - **Placa:** el soporte de Espressif para ESP32, versión **2.0.14**, con *ESP32 Dev Module* (`esp32:esp32:esp32`).
