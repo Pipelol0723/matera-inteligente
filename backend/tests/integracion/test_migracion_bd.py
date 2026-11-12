@@ -109,7 +109,8 @@ def test_una_base_v3_pasa_a_la_v4_con_las_tablas_del_juego_sin_perder_datos(tmp_
 
     with sqlite3.connect(ruta) as conexion:
         assert conexion.execute("PRAGMA user_version").fetchone()[0] == VERSION == 4
-        assert {"movimiento_puntaje", "jugador", "ritmo_crecimiento"} <= _tablas(conexion)
+        nuevas = {"movimiento_puntaje", "cuidado_por_hora", "horas_por_tramo", "puntaje_total", "jugador", "ritmo_crecimiento"}
+        assert nuevas <= _tablas(conexion)
         # Las sesiones abiertas, los sensores con su token y el historial siguen igual.
         assert conexion.execute("SELECT token_id FROM sesion").fetchall() == [("jti",)]
         assert conexion.execute("SELECT codigo, hash_clave, token_id FROM sensor").fetchall() == [
@@ -118,7 +119,8 @@ def test_una_base_v3_pasa_a_la_v4_con_las_tablas_del_juego_sin_perder_datos(tmp_
         assert conexion.execute("SELECT estado FROM medicion").fetchall() == [("CRITICO",)]
         assert conexion.execute("SELECT parametro, valor FROM lectura").fetchall() == [("humedad", 53.0)]
         # Todos empiezan en 0: las lecturas viejas no dejan movimientos.
-        assert conexion.execute("SELECT COUNT(*) FROM movimiento_puntaje").fetchone()[0] == 0
+        for tabla in ("movimiento_puntaje", "cuidado_por_hora", "horas_por_tramo", "puntaje_total"):
+            assert conexion.execute(f"SELECT COUNT(*) FROM {tabla}").fetchone()[0] == 0
         assert conexion.execute("SELECT COUNT(*) FROM jugador").fetchone()[0] == 0
         # Solo las especies que existen reciben su ritmo; la que agrego el admin crece al ritmo por defecto.
         assert conexion.execute("SELECT * FROM ritmo_crecimiento ORDER BY especie").fetchall() == [

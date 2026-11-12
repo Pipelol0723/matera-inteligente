@@ -76,7 +76,9 @@ class Juego:
             self.cuentas.guardar(usuario)
         self.historial = HistorialEnMemoria()
         self.reloj = RelojFijo(AHORA)
-        self.movimientos = MovimientosEnMemoria(self.plantas)
+        # El mismo reloj del juego para el doble (que fija la hora de cada lectura al llegar) y para la regla.
+        self.reloj_de_juego = RelojDeJuego(minutos_por_dia)
+        self.movimientos = MovimientosEnMemoria(self.plantas, self.reloj_de_juego)
         self.jugadores = RegistroJugadoresEnMemoria(self.cuentas)
         # Los mismos rangos con nombres distintos: asi solo cambia el ritmo de crecimiento.
         especies = EspeciesEditablesEnMemoria(*(Especie(n, RANGOS) for n in ("potos", "sansevieria", "orquidea")))
@@ -86,7 +88,7 @@ class Juego:
         self.diagnosticar = DiagnosticarPlantaDeUsuario(
             self.plantas, servicio, self.historial, AvisarATodos([self.puntuar, self.en_vivo])
         )
-        self.cuidado = CuidadoDeMascota(RelojDeJuego(minutos_por_dia))
+        self.cuidado = CuidadoDeMascota(self.reloj_de_juego)
         self.puntaje = ConsultarPuntaje(self.movimientos, self.plantas)
         self.tabla = ConsultarTablaPosiciones(self.jugadores, self.movimientos)
         self.participacion = ConsultarParticipacion(self.jugadores)
@@ -475,6 +477,27 @@ def test_con_el_reloj_real_las_lecturas_de_una_misma_hora_cuentan_como_una():
     juego.leer(sala, *[S] * 24, cada=CADA_5_S)
 
     assert juego.mascota(ANA, sala).horas_cuidada == 1
+
+
+def test_cambiar_el_reloj_del_juego_no_reagrupa_las_horas_que_ya_pasaron():
+    """Cada lectura queda en la hora de juego en que llego: cambiar la escala no hace crecer de golpe."""
+    juego = Juego()  # el reloj real: una hora de juego es una hora
+    sala = juego.matera(ANA, "sala")
+    juego.leer(sala, *[S] * 24, cada=timedelta(seconds=15))  # de 15:00:00 a 15:05:45: una sola hora de juego
+    assert juego.mascota(ANA, sala).horas_cuidada == 1
+
+    # Se reinicia con el reloj de la demo (6 minutos por dia: una hora de juego cada 15 s).
+    demo = RelojDeJuego(6)
+    juego.movimientos.reloj = demo
+    mascotas = ConsultarMascotas(
+        juego.plantas, juego.historial, juego.movimientos, ritmos_del_plan(), CuidadoDeMascota(demo), juego.reloj
+    )
+    assert mascotas.ejecutar(ANA)[0].horas_cuidada == 1  # no son 24 de golpe
+    juego.reloj.avanzar(timedelta(seconds=15))
+    juego.leer(sala, *[S] * 4, cada=timedelta(seconds=15))
+
+    mascota = mascotas.ejecutar(ANA)[0]
+    assert (mascota.horas_cuidada, mascota.etapa, mascota.puntos) == (5, EtapaCrecimiento.SEMILLA, 280)
 
 
 def test_el_tiempo_marchita_no_hace_crecer():

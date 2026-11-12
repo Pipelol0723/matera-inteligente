@@ -7,6 +7,7 @@ asegurar en la fase 2: que un movimiento solo se guarda en una planta que sigue
 siendo de su dueno, que un apodo no se repite y que las cuentas desactivadas no
 aparecen en la tabla.
 """
+from collections import Counter
 from collections.abc import Collection
 from dataclasses import replace
 from datetime import timedelta
@@ -23,12 +24,16 @@ from dominio.puertos_usuarios import ConsultaCuentas, ConsultaPlantas
 class MovimientosEnMemoria(MovimientosPuntaje):
     """Guarda los movimientos en una lista, en el orden en que llegan.
 
+    Como la base, pone cada uno en su hora de juego al llegar, con el reloj que
+    recibe (el real si no recibe uno): cambiar el reloj despues no lo mueve.
     Si recibe las plantas, revisa como la base que la planta siga siendo de ese usuario.
     """
 
-    def __init__(self, plantas: ConsultaPlantas | None = None):
+    def __init__(self, plantas: ConsultaPlantas | None = None, reloj: RelojDeJuego | None = None):
         self.movimientos: list[MovimientoPuntaje] = []
+        self._horas: list[int] = []  # la hora de juego de cada movimiento, fijada al llegar
         self._plantas = plantas
+        self.reloj = reloj or RelojDeJuego()
 
     def agregar(self, movimiento: MovimientoPuntaje) -> None:
         if self._plantas is not None:
@@ -36,6 +41,7 @@ class MovimientosEnMemoria(MovimientosPuntaje):
             if planta is None or planta.usuario_id != movimiento.usuario_id:
                 raise PlantaNoEncontrada(movimiento.planta_id)
         self.movimientos.append(movimiento)
+        self._horas.append(self.reloj.numero_de_hora(movimiento.momento))
 
     def soltar_planta(self, planta_id: int) -> None:
         """No es del puerto: imita lo que hara la base al borrar una planta (sus movimientos quedan sin planta)."""
@@ -58,15 +64,17 @@ class MovimientosEnMemoria(MovimientosPuntaje):
         con_movimientos = {m.usuario_id for m in self.movimientos}
         return {u: self.total_de(u) for u in usuario_ids if u in con_movimientos}
 
-    def resumen_de(self, planta: Planta, reloj: RelojDeJuego, ventana: timedelta) -> ResumenCuidado:
-        propios = [
-            m for m in self._mas_recientes_primero() if m.planta_id == planta.id and m.usuario_id == planta.usuario_id
+    def resumen_de(self, planta: Planta, ventana: timedelta) -> ResumenCuidado:
+        indices = [
+            i
+            for i in self._indices_mas_recientes_primero()
+            if self.movimientos[i].planta_id == planta.id and self.movimientos[i].usuario_id == planta.usuario_id
         ]
+        propios = [self.movimientos[i] for i in indices]
         horas: dict[int, Tramo] = {}
-        for m in propios:
-            numero = reloj.numero_de_hora(m.momento)
-            tramo = horas.get(numero, Tramo())
-            horas[numero] = Tramo(tramo.cantidad + 1, tramo.suma + m.puntos)
+        for i in indices:
+            tramo = horas.get(self._horas[i], Tramo())
+            horas[self._horas[i]] = Tramo(tramo.cantidad + 1, tramo.suma + self.movimientos[i].puntos)
 
         def al(indice: int) -> Tramo:
             # La ventana que termina en propios[indice], sin los mas recientes que el (aunque empaten en momento).
@@ -75,7 +83,7 @@ class MovimientosEnMemoria(MovimientosPuntaje):
             return Tramo(len(dentro), sum(m.puntos for m in dentro))
 
         return ResumenCuidado(
-            horas=horas,
+            horas_por_tramo=Counter(horas.values()),
             ultimo=propios[0] if propios else None,
             anterior=propios[1] if len(propios) > 1 else None,
             al_ultimo=al(0) if propios else Tramo(),
@@ -83,9 +91,11 @@ class MovimientosEnMemoria(MovimientosPuntaje):
         )
 
     def _mas_recientes_primero(self) -> list[MovimientoPuntaje]:
+        return [self.movimientos[i] for i in self._indices_mas_recientes_primero()]
+
+    def _indices_mas_recientes_primero(self) -> list[int]:
         # Por momento y, si empatan, el ultimo guardado primero.
-        orden = sorted(enumerate(self.movimientos), key=lambda par: (par[1].momento, par[0]), reverse=True)
-        return [m for _, m in orden]
+        return sorted(range(len(self.movimientos)), key=lambda i: (self.movimientos[i].momento, i), reverse=True)
 
 
 class RegistroJugadoresEnMemoria(RegistroJugadores):

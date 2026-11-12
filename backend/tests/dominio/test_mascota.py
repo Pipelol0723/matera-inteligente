@@ -4,6 +4,7 @@ Sin servidor ni archivos, con un momento fijo. Los resumenes se arman a mano,
 como los entregaria el puerto MovimientosPuntaje: las ventanas de la condicion
 ya vienen ancladas en la ultima lectura y en la anterior.
 """
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -55,14 +56,19 @@ def registro(estado: EstadoGlobal, momento: datetime = AHORA, humedad=OPTIMO, te
     return RegistroMedicion(SALA.id, momento, estado, lecturas, "MT-0001-AA")
 
 
-def horas_saludables(cantidad: int) -> dict[int, Tramo]:
-    return {numero: tramo(S) for numero in range(cantidad)}
+def por_tramo(*horas: Tramo) -> dict[Tramo, int]:
+    """Las horas de juego como las da el puerto: cuantas terminaron con cada Tramo."""
+    return dict(Counter(horas))
+
+
+def horas_saludables(cantidad: int) -> dict[Tramo, int]:
+    return {tramo(S): cantidad}
 
 
 def resumen_con(
     al_ultimo: tuple[EstadoGlobal, ...],
     al_anterior: tuple[EstadoGlobal, ...] = (),
-    horas: dict[int, Tramo] | None = None,
+    horas: dict[Tramo, int] | None = None,
     cuando: datetime = AHORA,
 ) -> ResumenCuidado:
     """La ultima lectura es la ultima de al_ultimo, y la anterior, la ultima de al_anterior (si hay)."""
@@ -189,23 +195,35 @@ def test_el_ritmo_tiene_que_ser_creciente(ritmo):
 
 
 def test_solo_cuentan_las_horas_con_su_propio_promedio_de_menos_5_o_mas():
-    horas = {
-        0: tramo(S),  # 10
-        1: tramo(S, R, R),  # 0: decaida, cuenta
-        2: tramo(S, C, C),  # -3,3: decaida, cuenta
-        3: tramo(R),  # -5: decaida, cuenta
-        4: tramo(C, S, C),  # -3,3: cuenta
-        5: tramo(C),  # -10: no cuenta
-        6: tramo(R, R, C, S),  # -2,5: cuenta
-        7: tramo(R, C),  # -7,5: marchita, no cuenta
-    }
+    horas = por_tramo(
+        tramo(S),  # 10
+        tramo(S, R, R),  # 0: decaida, cuenta
+        tramo(S, C, C),  # -3,3: decaida, cuenta
+        tramo(R),  # -5: decaida, cuenta
+        tramo(C, S, C),  # -3,3: cuenta (el mismo Tramo que la de S, C, C: van juntas)
+        tramo(C),  # -10: no cuenta
+        tramo(R, R, C, S),  # -2,5: cuenta
+        tramo(R, C),  # -7,5: marchita, no cuenta
+    )
 
     assert armar(ResumenCuidado(horas)).horas_cuidada == 6
 
 
+def test_los_puntos_de_la_matera_suman_todas_sus_horas():
+    resumen = ResumenCuidado(por_tramo(tramo(S), tramo(S), tramo(S, C, C), tramo(R)))
+
+    assert armar(resumen).puntos == 10 + 10 - 10 - 5
+
+
+@pytest.mark.parametrize("horas", [{Tramo(): 1}, {tramo(S): 0}, {tramo(S): -2}])
+def test_solo_se_cuentan_horas_con_lecturas(horas):
+    with pytest.raises(ValueError):
+        ResumenCuidado(horas)
+
+
 def test_una_hora_con_su_promedio_de_menos_5_cuenta_aunque_la_ventana_este_marchita():
     """Cada hora se mira sola: la condicion de 6 horas no la cambia (decision del equipo)."""
-    resumen = resumen_con((C, C, C, C, C, R), (C, C, C, C, C), horas={0: tramo(C), 1: tramo(C), 2: tramo(R)})
+    resumen = resumen_con((C, C, C, C, C, R), (C, C, C, C, C), horas=por_tramo(tramo(C), tramo(C), tramo(R)))
 
     mascota = armar(resumen)
 
@@ -213,7 +231,7 @@ def test_una_hora_con_su_promedio_de_menos_5_cuenta_aunque_la_ventana_este_march
 
 
 def test_siempre_en_riesgo_queda_decaida_y_sigue_creciendo():
-    en_riesgo = {numero: tramo(R) for numero in range(200)}
+    en_riesgo = {tramo(R): 200}
 
     mascota = armar(ResumenCuidado(en_riesgo, ultimo=movimiento(R), al_ultimo=tramo(R)))
 
@@ -223,7 +241,7 @@ def test_siempre_en_riesgo_queda_decaida_y_sigue_creciendo():
 
 
 def test_el_tiempo_marchita_no_hace_crecer():
-    marchitas = {numero: tramo(C) for numero in range(200)}
+    marchitas = {tramo(C): 200}
 
     mascota = armar(ResumenCuidado(marchitas))
 
@@ -266,7 +284,7 @@ def test_la_condicion_sigue_el_promedio_de_la_ventana(lecturas, condicion):
 
 def test_la_condicion_no_depende_de_las_horas_fuera_de_la_ventana():
     # Muchas horas marchitas antes, pero en la ventana solo hay lecturas buenas.
-    resumen = resumen_con((S, S), horas={numero: tramo(C) for numero in range(50)})
+    resumen = resumen_con((S, S), horas={tramo(C): 50})
 
     assert armar(resumen).condicion is Condicion.SANA
 
@@ -425,9 +443,7 @@ def test_dormida_no_avisa_lo_de_una_lectura_vieja():
 
 
 def test_la_mascota_reune_las_cinco_capas():
-    horas = horas_saludables(80)
-    horas[80] = tramo(S, R)
-    resumen = resumen_con((S, S, R), (S, S), horas=horas)
+    resumen = resumen_con((S, S, R), (S, S), horas={tramo(S): 80, tramo(S, R): 1})
 
     mascota = armar(resumen, ultima=registro(R, humedad=BAJO))
 

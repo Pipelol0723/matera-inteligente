@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 import main
+from dominio.mascota import RelojDeJuego
 from dominio.puertos_usuarios import Reloj
 from infraestructura.sqlite import BaseDatos, MovimientosPuntajeSqlite
 from infraestructura.tiempo_real import NotificadorWebSocket
@@ -242,6 +243,27 @@ def test_una_lectura_con_la_hora_del_dispositivo_atrasada_cambia_la_cara_y_avisa
     assert mascota["ultimaLectura"] == reloj.ahora().isoformat()  # la hora del servidor
 
 
+def test_cambiar_el_reloj_del_juego_no_hace_crecer_de_golpe_a_las_materas(config, reloj):
+    """Con el reloj real, 24 lecturas cada 15 s caen en una o dos horas de juego.
+
+    Al volver a arrancar con MATERA_MINUTOS_POR_DIA_JUEGO=6 (horas de 15 s), esas
+    lecturas no se reagrupan en 24 horas: el potos no pasa a brote de golpe.
+    """
+    real = ClienteApi(config, reloj)
+    ana = real.cuenta()
+    sala = Matera(real, ana, reloj=reloj)
+    for _ in range(24):
+        reloj.avanzar(seconds=15)
+        assert sala.leer(SALUDABLE).status_code == 201
+    antes = _mascota(real, ana)
+
+    demo = ClienteApi(replace(config, minutos_por_dia_juego=6), reloj)
+    despues = _mascota(demo, ana)
+
+    assert antes["horasCuidada"] in (1, 2)
+    assert (despues["horasCuidada"], despues["etapa"], despues["puntos"]) == (antes["horasCuidada"], "SEMILLA", 240)
+
+
 # --- Quien ve que ---
 
 
@@ -404,7 +426,7 @@ def test_cuando_sale_el_aviso_en_vivo_los_puntos_ya_estan_guardados(config, monk
 
     class WebSocketQueMira(NotificadorWebSocket):
         def publicar(self, usuario_id, planta, registro, diagnostico):
-            vistos.append(MovimientosPuntajeSqlite(BaseDatos(config.ruta_bd)).total_de(usuario_id))
+            vistos.append(MovimientosPuntajeSqlite(BaseDatos(config.ruta_bd), RelojDeJuego()).total_de(usuario_id))
             super().publicar(usuario_id, planta, registro, diagnostico)
 
     monkeypatch.setattr(main, "NotificadorWebSocket", WebSocketQueMira)

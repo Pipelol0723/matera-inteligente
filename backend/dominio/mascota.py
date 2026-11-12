@@ -143,7 +143,11 @@ class RelojDeJuego:
         return self.dia * cantidad
 
     def numero_de_hora(self, momento: datetime) -> int:
-        """En que hora de juego cae un momento, contadas desde EPOCA. Asi se agrupan las lecturas por hora."""
+        """En que hora de juego cae un momento, contadas desde EPOCA.
+
+        Cada lectura se agrupa en su hora al llegar, con el reloj de ese momento:
+        si despues cambia la escala, las horas que ya pasaron no se reagrupan.
+        """
         return (momento - EPOCA) // self.hora
 
 
@@ -179,8 +183,13 @@ class ResumenCuidado:
     """Los movimientos de una planta, ya agrupados por el puerto MovimientosPuntaje.
 
     El adaptador solo agrupa y cuenta; las reglas las aplica CuidadoDeMascota.
-    - horas: de cada hora de juego que tuvo lecturas (numerada con
-      RelojDeJuego.numero_de_hora), cuantas hubo y cuanto sumaron.
+    - horas_por_tramo: las horas de juego con lecturas, contadas por como les
+      fue. La clave es un Tramo (cuantas lecturas tuvo la hora y cuanto
+      sumaron) y el valor, cuantas horas terminaron asi. Por ejemplo,
+      {Tramo(1, 10): 500, Tramo(2, -15): 3}: 500 horas con una lectura
+      SALUDABLE y 3 con dos lecturas que sumaron -15. Con eso alcanza para el
+      tamano y los puntos, y no hace falta traer cada hora (con el reloj de la
+      demo, una matera junta miles).
     - ultimo y anterior: los dos movimientos mas recientes, o None si no hay.
     - al_ultimo: las lecturas de la ventana de la condicion que termina en la
       ultima, con ella incluida: momento en (ultimo.momento - ventana, ultimo.momento].
@@ -192,14 +201,16 @@ class ResumenCuidado:
     por detras no se confunde con la que entro.
     """
 
-    horas: Mapping[int, Tramo]
+    horas_por_tramo: Mapping[Tramo, int]
     ultimo: MovimientoPuntaje | None = None
     anterior: MovimientoPuntaje | None = None
     al_ultimo: Tramo = Tramo()
     al_anterior: Tramo = Tramo()
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "horas", MappingProxyType(dict(self.horas)))
+        object.__setattr__(self, "horas_por_tramo", MappingProxyType(dict(self.horas_por_tramo)))
+        if any(tramo.vacio or horas <= 0 for tramo, horas in self.horas_por_tramo.items()):
+            raise ValueError("Solo se cuentan las horas con lecturas, y cada forma de hora aparece al menos una vez.")
         # Cada ventana trae al menos la lectura en que termina, y no hay ventana sin esa lectura.
         if self.anterior is not None and self.ultimo is None:
             raise ValueError("Un resumen con lectura anterior tiene que tener una ultima.")
@@ -214,7 +225,7 @@ class ResumenCuidado:
     @property
     def puntos(self) -> int:
         """Todo lo que lleva sumado la matera."""
-        return sum(tramo.suma for tramo in self.horas.values())
+        return sum(tramo.suma * horas for tramo, horas in self.horas_por_tramo.items())
 
 
 @dataclass(frozen=True)
@@ -313,7 +324,9 @@ class CuidadoDeMascota:
         marchita por las horas anteriores. Si la descuidan, deja de crecer.
         """
         return sum(
-            1 for tramo in resumen.horas.values() if not tramo.vacio and self.condicion(tramo) is not Condicion.MARCHITA
+            horas
+            for tramo, horas in resumen.horas_por_tramo.items()
+            if not tramo.vacio and self.condicion(tramo) is not Condicion.MARCHITA
         )
 
     def dormida(self, ultimo: MovimientoPuntaje | None, ahora: datetime) -> bool:

@@ -32,23 +32,30 @@ def microsegundos(momento: datetime) -> int:
     return (momento - EPOCA) // _MICROSEGUNDO
 
 
-def _hora_de_juego(columna: str) -> str:
-    """floor(columna / :hora): la misma division entera que hace RelojDeJuego.numero_de_hora.
-
-    En SQLite la division de enteros redondea hacia cero. Para un momento anterior a
-    1970 se corrige, asi coincide tambien con el floor de Python.
-    """
-    return f"CASE WHEN {columna} >= 0 THEN {columna} / :hora ELSE -((-{columna} - 1) / :hora) - 1 END"
-
-
 class MovimientosPuntajeSqlite(MovimientosPuntaje):
-    def __init__(self, bd: BaseDatos):
+    """Los movimientos en movimiento_puntaje, y lo que se lee seguido ya sumado al guardarlos.
+
+    - cuidado_por_hora: por matera y hora de juego, cuantas lecturas y cuanto
+      sumaron. La hora la pone el reloj del juego vigente al llegar (el que pasa
+      main.py): cambiar el reloj despues no reagrupa el pasado.
+    - horas_por_tramo: por matera, cuantas horas terminaron con cada (cantidad,
+      suma). Es ResumenCuidado.horas_por_tramo, ya contado.
+    - puntaje_total: el total de cada usuario, con sus materas borradas.
+    Asi el tamano, los puntos y la tabla no recorren los movimientos ni las horas;
+    las ventanas de la condicion leen solo su tramo, con el indice movimiento_por_planta.
+    Solo se cuenta: que hora fue bien cuidada lo sigue decidiendo el dominio.
+    """
+
+    def __init__(self, bd: BaseDatos, reloj: RelojDeJuego):
         self._bd = bd
+        self._reloj = reloj
 
     def agregar(self, movimiento: MovimientoPuntaje) -> None:
-        # Solo si la planta sigue siendo la de ese dueno: si se borro mientras llegaba la lectura,
-        # su id pudo pasar a la planta nueva de otro usuario.
+        # Todo en una transaccion: el movimiento, su hora y los totales quedan juntos o no queda nada.
+        # La primera escritura toma el candado de la base: dos lecturas a la vez no se pisan las cuentas.
         with self._bd.conexion() as conexion:
+            # Solo si la planta sigue siendo la de ese dueno: si se borro mientras llegaba la lectura,
+            # su id pudo pasar a la planta nueva de otro usuario.
             cursor = conexion.execute(
                 "INSERT INTO movimiento_puntaje (usuario_id, planta_id, momento, momento_us, estado, puntos) "
                 f"SELECT ?, id, ?, ?, ?, ? FROM ({LA_MISMA_PLANTA})",
@@ -64,20 +71,55 @@ class MovimientosPuntajeSqlite(MovimientosPuntaje):
             )
             if cursor.rowcount == 0:
                 raise PlantaNoEncontrada(movimiento.planta_id)
+            self._sumar_a_su_hora(conexion, movimiento)
+            conexion.execute(
+                "INSERT INTO puntaje_total (usuario_id, puntos) VALUES (?, ?)"
+                " ON CONFLICT (usuario_id) DO UPDATE SET puntos = puntos + excluded.puntos",
+                (movimiento.usuario_id, movimiento.puntos),
+            )
+
+    def _sumar_a_su_hora(self, conexion: sqlite3.Connection, movimiento: MovimientoPuntaje) -> None:
+        """La hora de juego del movimiento suma una lectura, y en horas_por_tramo pasa de su forma de antes a la nueva."""
+        planta, usuario = movimiento.planta_id, movimiento.usuario_id
+        hora = self._reloj.numero_de_hora(movimiento.momento)
+        antes = conexion.execute(
+            "SELECT cantidad, suma FROM cuidado_por_hora WHERE planta_id = ? AND hora_juego = ?", (planta, hora)
+        ).fetchone()
+        cantidad, suma = (antes["cantidad"], antes["suma"]) if antes else (0, 0)
+        conexion.execute(
+            "INSERT INTO cuidado_por_hora (planta_id, usuario_id, hora_juego, cantidad, suma) VALUES (?, ?, ?, ?, ?)"
+            " ON CONFLICT (planta_id, hora_juego) DO UPDATE SET cantidad = excluded.cantidad, suma = excluded.suma",
+            (planta, usuario, hora, cantidad + 1, suma + movimiento.puntos),
+        )
+        if antes:
+            forma_de_antes = (planta, cantidad, suma)
+            borrada = conexion.execute(
+                "DELETE FROM horas_por_tramo WHERE planta_id = ? AND cantidad = ? AND suma = ? AND horas = 1", forma_de_antes
+            ).rowcount
+            if not borrada:
+                conexion.execute(
+                    "UPDATE horas_por_tramo SET horas = horas - 1 WHERE planta_id = ? AND cantidad = ? AND suma = ?",
+                    forma_de_antes,
+                )
+        conexion.execute(
+            "INSERT INTO horas_por_tramo (planta_id, usuario_id, cantidad, suma, horas) VALUES (?, ?, ?, ?, 1)"
+            " ON CONFLICT (planta_id, cantidad, suma) DO UPDATE SET horas = horas + 1",
+            (planta, usuario, cantidad + 1, suma + movimiento.puntos),
+        )
 
     def total_de(self, usuario_id: int) -> int:
-        # Tambien los de sus materas borradas (planta_id NULL).
+        # Tambien los de sus materas borradas: borrar una planta no le resta a puntaje_total.
         with self._bd.conexion() as conexion:
-            return conexion.execute(
-                "SELECT COALESCE(SUM(puntos), 0) FROM movimiento_puntaje WHERE usuario_id = ?", (usuario_id,)
-            ).fetchone()[0]
+            fila = conexion.execute("SELECT puntos FROM puntaje_total WHERE usuario_id = ?", (usuario_id,)).fetchone()
+        return fila[0] if fila else 0
 
     def totales_por_planta(self, usuario_id: int) -> dict[int, int]:
+        # Las horas de las plantas que siguen siendo suyas: las de una planta borrada se borraron con ella.
         with self._bd.conexion() as conexion:
             filas = conexion.execute(
-                "SELECT m.planta_id, SUM(m.puntos) FROM movimiento_puntaje m"
-                " JOIN planta p ON p.id = m.planta_id AND p.usuario_id = m.usuario_id"
-                " WHERE m.usuario_id = ? GROUP BY m.planta_id",
+                "SELECT t.planta_id, SUM(t.suma * t.horas) FROM planta p"
+                " JOIN horas_por_tramo t ON t.planta_id = p.id AND t.usuario_id = p.usuario_id"
+                " WHERE p.usuario_id = ? GROUP BY t.planta_id",
                 (usuario_id,),
             ).fetchall()
         return {planta_id: suma for planta_id, suma in filas}
@@ -97,15 +139,14 @@ class MovimientosPuntajeSqlite(MovimientosPuntaje):
             for inicio in range(0, len(ids), _IDS_POR_CONSULTA):
                 grupo = ids[inicio : inicio + _IDS_POR_CONSULTA]
                 filas = conexion.execute(
-                    "SELECT usuario_id, SUM(puntos) FROM movimiento_puntaje"
-                    f" WHERE usuario_id IN ({', '.join('?' * len(grupo))}) GROUP BY usuario_id",
+                    f"SELECT usuario_id, puntos FROM puntaje_total WHERE usuario_id IN ({', '.join('?' * len(grupo))})",
                     grupo,
                 ).fetchall()
-                totales.update({usuario_id: suma for usuario_id, suma in filas})
+                totales.update({usuario_id: puntos for usuario_id, puntos in filas})
         return totales
 
-    def resumen_de(self, planta: Planta, reloj: RelojDeJuego, ventana: timedelta) -> ResumenCuidado:
-        parametros = {"planta": planta.id, "usuario": planta.usuario_id, "hora": reloj.hora // _MICROSEGUNDO}
+    def resumen_de(self, planta: Planta, ventana: timedelta) -> ResumenCuidado:
+        parametros = {"planta": planta.id, "usuario": planta.usuario_id}
         propios = "FROM movimiento_puntaje WHERE planta_id = :planta AND usuario_id = :usuario"
         with self._bd.conexion() as conexion:
             # Una transaccion de lectura: las consultas ven lo mismo aunque llegue una lectura en medio.
@@ -113,13 +154,14 @@ class MovimientosPuntajeSqlite(MovimientosPuntaje):
             ultimos = conexion.execute(
                 f"SELECT id, {_COLUMNAS_MOVIMIENTO} {propios} {_RECIENTES_PRIMERO} LIMIT 2", parametros
             ).fetchall()
+            # Cuantas horas terminaron con cada (cantidad, suma): unas pocas filas aunque la matera tenga miles de horas.
             horas = conexion.execute(
-                f"SELECT {_hora_de_juego('momento_us')} AS hora_juego, COUNT(*), SUM(puntos) {propios} GROUP BY hora_juego",
+                "SELECT cantidad, suma, horas FROM horas_por_tramo WHERE planta_id = :planta AND usuario_id = :usuario",
                 parametros,
             ).fetchall()
 
             def al(fila: sqlite3.Row, sin_id: int | None = None) -> Tramo:
-                """Los movimientos de la ventana que termina en el de esa fila, con el incluido."""
+                """Los movimientos de la ventana que termina en el de esa fila, con el incluido. Solo lee ese tramo."""
                 hasta = fila["momento_us"]
                 cantidad, suma = conexion.execute(
                     f"SELECT COUNT(*), COALESCE(SUM(puntos), 0) {propios}"
@@ -134,7 +176,7 @@ class MovimientosPuntajeSqlite(MovimientosPuntaje):
             al_ultimo = al(ultimo) if ultimo is not None else Tramo()
             al_anterior = al(anterior, sin_id=ultimo["id"]) if anterior is not None else Tramo()
         return ResumenCuidado(
-            horas={hora: Tramo(cuantas, total) for hora, cuantas, total in horas},
+            horas_por_tramo={Tramo(cantidad, suma): cuantas for cantidad, suma, cuantas in horas},
             ultimo=_movimiento(ultimo) if ultimo is not None else None,
             anterior=_movimiento(anterior) if anterior is not None else None,
             al_ultimo=al_ultimo,

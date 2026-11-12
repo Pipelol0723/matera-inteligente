@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS lectura (
     PRIMARY KEY (medicion_id, parametro)
 );
 
--- Juego (corte 3, version 4). Tres tablas nuevas: las de arriba no cambian.
+-- Juego (corte 3, version 4). Tablas nuevas: las de arriba no cambian.
 
 -- Un movimiento por cada lectura aceptada: lo que sumo o resto. Borrar la cuenta borra sus
 -- movimientos. Borrar la planta los deja sin planta (SET NULL): siguen sumando en el total de su
@@ -89,9 +89,45 @@ CREATE TABLE IF NOT EXISTS movimiento_puntaje (
     puntos     INTEGER NOT NULL
 );
 
--- Con momento_us, la hora de juego es la misma division entera que hace RelojDeJuego.numero_de_hora.
-CREATE INDEX IF NOT EXISTS movimiento_por_planta ON movimiento_puntaje (planta_id, momento_us);
+-- Las ventanas de la condicion y los dos ultimos movimientos de una planta. El indice trae lo que
+-- suman las ventanas (los puntos), asi que solo se recorre su tramo, y con el id despues del momento
+-- ya esta en el orden de los ultimos (momento y, si empatan, el ultimo guardado): asi SQLite no
+-- prefiere el indice por usuario, que recorreria los movimientos de las otras materas del dueno.
+CREATE INDEX IF NOT EXISTS movimiento_por_planta ON movimiento_puntaje (planta_id, usuario_id, momento_us, id, puntos);
+-- Los ultimos movimientos de un usuario, ya en orden.
 CREATE INDEX IF NOT EXISTS movimiento_por_usuario ON movimiento_puntaje (usuario_id, momento_us);
+
+-- Lo que junto cada matera en cada hora de juego: cuantas lecturas y cuanto sumaron. La hora se
+-- calcula al llegar cada lectura, con el reloj del juego de ese momento: cambiar
+-- MATERA_MINUTOS_POR_DIA_JUEGO no reagrupa el pasado. Al borrar la planta se borran sus horas.
+CREATE TABLE IF NOT EXISTS cuidado_por_hora (
+    planta_id  INTEGER NOT NULL REFERENCES planta (id) ON DELETE CASCADE,
+    usuario_id INTEGER NOT NULL REFERENCES usuario (id) ON DELETE CASCADE,
+    hora_juego INTEGER NOT NULL,              -- RelojDeJuego.numero_de_hora del momento, al llegar
+    cantidad   INTEGER NOT NULL CHECK (cantidad > 0),
+    suma       INTEGER NOT NULL,
+    PRIMARY KEY (planta_id, hora_juego)
+) WITHOUT ROWID;
+
+-- Las horas de cada matera contadas por como les fue: cuantas terminaron con cada (cantidad, suma).
+-- Es lo que el dominio necesita para el tamano y los puntos (ResumenCuidado.horas_por_tramo), en
+-- pocas filas aunque la matera junte miles de horas (con el reloj de la demo, una por lectura).
+-- Se lleva al dia al guardar cada movimiento: su hora deja su forma de antes y pasa a la nueva.
+CREATE TABLE IF NOT EXISTS horas_por_tramo (
+    planta_id  INTEGER NOT NULL REFERENCES planta (id) ON DELETE CASCADE,
+    usuario_id INTEGER NOT NULL REFERENCES usuario (id) ON DELETE CASCADE,
+    cantidad   INTEGER NOT NULL CHECK (cantidad > 0),
+    suma       INTEGER NOT NULL,
+    horas      INTEGER NOT NULL CHECK (horas > 0),
+    PRIMARY KEY (planta_id, cantidad, suma)
+) WITHOUT ROWID;
+
+-- El total de cada usuario, con los puntos de sus materas borradas: la cabecera y la tabla de
+-- posiciones lo leen sin sumar todos sus movimientos.
+CREATE TABLE IF NOT EXISTS puntaje_total (
+    usuario_id INTEGER PRIMARY KEY REFERENCES usuario (id) ON DELETE CASCADE,
+    puntos     INTEGER NOT NULL
+);
 
 -- Quien respondio la pregunta de la tabla de posiciones. Solo quien participa tiene apodo de
 -- jugador, y el apodo no se repite sin importar mayusculas (NOCASE: el apodo solo admite letras

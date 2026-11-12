@@ -134,7 +134,7 @@ class ConsultarMascotas(puertos.ConsultarMascotas):
         for planta in _plantas_propias(self._plantas, usuario):
             # Una especie sin ritmo propio, como una que agrego el admin, crece al ritmo por defecto.
             ritmo = self._ritmos.de_especie(planta.especie) or RitmoCrecimiento()
-            resumen = self._movimientos.resumen_de(planta, self._cuidado.reloj, self._cuidado.ventana)
+            resumen = self._movimientos.resumen_de(planta, self._cuidado.ventana)
             # El historial solo da el globo: la cara y si duerme salen de los movimientos.
             mascotas.append(self._cuidado.armar(planta, ritmo, resumen, self._historial.ultimo_de(planta.id), ahora))
         return mascotas

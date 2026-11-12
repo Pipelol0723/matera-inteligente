@@ -149,10 +149,12 @@ def construir_app(config: Configuracion, reloj: Reloj | None = None) -> Flask:
     )
 
     # Corte 3: el juego, en la misma base. El reloj del juego (MATERA_MINUTOS_POR_DIA_JUEGO) solo cambia
-    # la escala del tamano y de la condicion; los minutos para dormirse son reales.
-    movimientos = MovimientosPuntajeSqlite(bd)
+    # la escala del tamano y de la condicion; los minutos para dormirse son reales. El mismo reloj pone
+    # cada lectura en su hora de juego al guardarla: cambiarlo despues no reagrupa el pasado.
+    reloj_de_juego = config.reloj_de_juego
+    movimientos = MovimientosPuntajeSqlite(bd, reloj_de_juego)
     jugadores = RegistroJugadoresSqlite(bd)
-    cuidado = CuidadoDeMascota(config.reloj_de_juego, config.minutos_sin_lecturas)
+    cuidado = CuidadoDeMascota(reloj_de_juego, config.minutos_sin_lecturas)
 
     # El aviso de cada medicion va a varios suscriptores; si uno falla, los demas igual lo reciben.
     # Los puntos van primero: cuando el front recibe el mensaje en vivo y pide /juego, ya estan guardados.

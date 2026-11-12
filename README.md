@@ -127,7 +127,7 @@ Al arrancar, el backend escribe en la consola qué tabla de referencia usa, crea
 
 Una base de antes de la fase 2 se migra sola la primera vez. Antes de migrarla, el backend saca una copia al lado (`matera.respaldo-v0.sqlite`). Usuarios, plantas, sensores, especies e historial no cambian, pero las sesiones abiertas se cierran, porque los tokens de antes no eran JWT: cada usuario vuelve a ingresar. La clave de cada sensor sigue sirviendo.
 
-Una base de la fase 2 (versión 3) pasa sola a la versión 4, la del juego, y antes deja la copia `matera.respaldo-v3.sqlite`. Solo se agregan tres tablas (`movimiento_puntaje`, `jugador` y `ritmo_crecimiento`, con los ritmos de las especies que haya): nada de lo que había cambia, las sesiones siguen abiertas y todos empiezan con 0 puntos.
+Una base de la fase 2 (versión 3) pasa sola a la versión 4, la del juego, y antes deja la copia `matera.respaldo-v3.sqlite`. Solo se agregan tablas: `movimiento_puntaje` (un movimiento por lectura), `jugador`, `ritmo_crecimiento` (con los ritmos de las especies que haya) y tres que suman al guardar cada movimiento, para que el juego no recorra todo el historial en cada consulta: `cuidado_por_hora` (lecturas y puntos de cada matera en cada hora de juego, con el reloj del juego que había cuando llegaron), `horas_por_tramo` (cuántas horas terminaron con cada cantidad de lecturas y suma) y `puntaje_total` (el total de cada usuario). Nada de lo que había cambia, las sesiones siguen abiertas y todos empiezan con 0 puntos.
 
 Si el repositorio está en una carpeta sincronizada (Google Drive, OneDrive), ponga la base afuera: SQLite escribe a cada rato y la sincronización puede bloquear el archivo. En PowerShell:
 

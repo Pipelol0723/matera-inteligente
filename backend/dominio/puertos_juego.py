@@ -13,7 +13,7 @@ from collections.abc import Collection
 from datetime import timedelta
 
 from dominio.juego import ApodoJugador, MovimientoPuntaje, Participacion
-from dominio.mascota import Mascota, RelojDeJuego, ResumenCuidado, RitmoCrecimiento
+from dominio.mascota import Mascota, ResumenCuidado, RitmoCrecimiento
 from dominio.plantas import Planta
 from dominio.resultados_juego import PosicionTabla, PuntajeUsuario
 from dominio.usuarios import Usuario
@@ -73,11 +73,20 @@ class MovimientosPuntaje(ABC):
     Los de una planta borrada se quedan con su dueno, sin planta: cuentan en su
     total, pero no en los de la planta ni en su resumen. Asi una planta nueva que
     reciba el mismo id no hereda sus puntos ni su tamano.
+
+    Cada implementacion tiene un RelojDeJuego, el vigente: con el pone cada
+    movimiento en su hora de juego al guardarlo. Si despues cambia el reloj
+    (MATERA_MINUTOS_POR_DIA_JUEGO), las horas que ya pasaron no se reagrupan y
+    ninguna matera crece de golpe.
     """
 
     @abstractmethod
     def agregar(self, movimiento: MovimientoPuntaje) -> None:
-        """Lo guarda solo si la planta sigue existiendo y es de ese usuario; si no, lanza PlantaNoEncontrada."""
+        """Lo guarda solo si la planta sigue existiendo y es de ese usuario; si no, lanza PlantaNoEncontrada.
+
+        Lo suma a su hora de juego, reloj.numero_de_hora(momento) con el reloj
+        vigente, y al total de su dueno.
+        """
 
     @abstractmethod
     def total_de(self, usuario_id: int) -> int:
@@ -96,12 +105,12 @@ class MovimientosPuntaje(ABC):
         """usuario_id -> su total, para la tabla de posiciones. Quien no tiene movimientos puede faltar."""
 
     @abstractmethod
-    def resumen_de(self, planta: Planta, reloj: RelojDeJuego, ventana: timedelta) -> ResumenCuidado:
+    def resumen_de(self, planta: Planta, ventana: timedelta) -> ResumenCuidado:
         """Los movimientos de esa planta y de su dueno (planta.id y planta.usuario_id), agrupados.
 
-        - horas: hora de juego -> Tramo(cantidad, suma), solo las horas con
-          movimientos. La hora de un movimiento es reloj.numero_de_hora(momento):
-          floor((momento - EPOCA) / reloj.hora).
+        - horas_por_tramo: Tramo(cantidad, suma) de una hora de juego -> cuantas
+          horas terminaron asi, solo las horas con movimientos. Las horas son las
+          que se fijaron al guardar cada movimiento.
         - ultimo y anterior: los dos mas recientes, por momento y, si empatan,
           por orden de guardado.
         - al_ultimo: Tramo de los movimientos con momento en
