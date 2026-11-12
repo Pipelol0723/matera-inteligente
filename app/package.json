@@ -1,0 +1,19 @@
+{
+  "name": "matera-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "App Android de Matera (Capacitor): el mismo front dentro de una WebView nativa",
+  "scripts": {
+    "sync": "cap sync android",
+    "apk": "cap sync android && cd android && gradlew.bat assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor-community/bluetooth-le": "^8.3.0",
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/local-notifications": "^8.3.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.6.0"
+  }
+}

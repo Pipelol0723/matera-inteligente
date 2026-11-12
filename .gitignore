@@ -23,3 +23,16 @@ backend/datos/*.respaldo-v*.sqlite
 # Archivos que Windows y Google Drive crean en cada carpeta
 desktop.ini
 Thumbs.db
+
+# App Android (Capacitor): dependencias y lo que se genera al compilar
+app/node_modules/
+app/android/.gradle/
+app/android/build/
+app/android/app/build/
+app/android/capacitor-cordova-android-plugins/build/
+app/android/local.properties
+app/android/app/src/main/assets/public/
+app/android/app/src/main/assets/capacitor.config.json
+app/android/app/src/main/assets/capacitor.plugins.json
+*.apk
+*.aab

@@ -537,6 +537,25 @@ Por la red local el front va en http, así que el celular no muestra notificacio
 
 **El respaldo: «Conectar a mano».** Es el enlace del formulario de Mis materas y de los primeros pasos del asistente. Se escribe el código del sensor y la API crea la clave y la muestra una sola vez, como en la fase 2. Sirve para el simulador (`--clave=`) y para las placas con el programa de la fase 2, que llevan el código y la clave en `config.h`. El programa actual ya no usa `CODIGO_SENSOR` ni `CLAVE_SENSOR`: su `config.h` es opcional y solo ajusta pines, los valores del LDR y una red de respaldo para desarrollo.
 
+## App Android (en preparación)
+
+La app es el mismo front dentro de una WebView nativa (Capacitor), en la carpeta `app/`. Por ahora es solo el proyecto y un APK de depuración que abre el front; falta la dirección del servidor, el Bluetooth nativo y las notificaciones. `webDir` apunta a `../frontend`: el front no se copia a mano.
+
+Paquete `co.edu.usergioarboleda.matera`, Capacitor 8.6.0 con `@capacitor-community/bluetooth-le` 8.3.0 y `@capacitor/local-notifications` 8.3.1. `CapacitorHttp` está activado, porque la app se sirve desde `https://localhost` y la API es `http://<IP del PC>:5000`.
+
+Desde PowerShell, en una copia fuera de OneDrive y con ruta corta (Gradle lo pide):
+
+```powershell
+. C:\dev\tools\env.ps1                  # JDK 21 y SDK de Android, en cada sesión
+cd C:\dev\matera\app
+npm install                             # la primera vez
+npx cap sync android                    # copia el front y los plugins al proyecto
+cd android
+.\gradlew.bat assembleDebug             # APK en app\build\outputs\apk\debug\app-debug.apk
+adb install -r app\build\outputs\apk\debug\app-debug.apk
+```
+
+Los permisos de Bluetooth (`BLUETOOTH_SCAN` con `neverForLocation` y `BLUETOOTH_CONNECT`) y `POST_NOTIFICATIONS` ya están en el `AndroidManifest.xml`. Lo que se genera al compilar (`build/`, `.gradle/`, `node_modules/` y los APK) no se sube.
 ## Pruebas
 
 Desde la carpeta `backend/`:

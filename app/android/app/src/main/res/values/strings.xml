@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Matera</string>
+    <string name="title_activity_main">Matera</string>
+    <string name="package_name">co.edu.usergioarboleda.matera</string>
+    <string name="custom_url_scheme">co.edu.usergioarboleda.matera</string>
+</resources>
