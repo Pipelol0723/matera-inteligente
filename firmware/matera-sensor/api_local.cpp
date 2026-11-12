@@ -88,18 +88,27 @@ String nombresDeRedes() {
   return nombres;
 }
 
-// true si la lista tiene las mismas redes que `antes` (de nombresDeRedes), en cualquier orden: la senal
-// cambia el orden a cada rato.
-bool mismasRedes(const String &antes) {
-  int cuantasAntes = 0;
-  for (size_t i = 1; i < antes.length(); i++) {
-    if (antes[i] == '\n') cuantasAntes++;
-  }
-  if (cuantasAntes != cuantasRedes) return false;
+// Al monitor serie, las redes que entraron a la lista y las que salieron desde `antes` (de nombresDeRedes).
+// Asi se ve, por ejemplo, el momento en que alguien enciende su hotspot. El orden no cuenta: la senal lo
+// cambia a cada rato.
+void imprimirCambios(const String &antes) {
+  String entran;
   for (int i = 0; i < cuantasRedes; i++) {
-    if (antes.indexOf("\n" + redes[i].nombre + "\n") < 0) return false;
+    if (antes.indexOf("\n" + redes[i].nombre + "\n") >= 0) continue;
+    entran += " «" + redes[i].nombre + "» (" + String(redes[i].senal) + " dBm, canal " + String(redes[i].canal) + ")";
   }
-  return true;
+  const String ahora = nombresDeRedes();
+  String salen;
+  int desde = 1;
+  while (desde < (int)antes.length()) {
+    const int fin = antes.indexOf('\n', desde);
+    if (fin < 0) break;
+    const String nombre = antes.substring(desde, fin);
+    if (ahora.indexOf("\n" + nombre + "\n") < 0) salen += " «" + nombre + "»";
+    desde = fin + 1;
+  }
+  if (entran.length() > 0) Serial.println("Redes que entran a la lista:" + entran);
+  if (salen.length() > 0) Serial.println("Redes que salen de la lista:" + salen);
 }
 
 // Al monitor serie, todas las redes que entrega info, con su canal: sirve para saber si la red de la casa
@@ -260,10 +269,7 @@ void apiLocalRevisarBusqueda() {
     if (resultado < 0) return;
     const String antes = nombresDeRedes();
     guardarRedes(resultado);
-    if (!mismasRedes(antes)) {
-      Serial.print("Cambió la lista de redes. ");
-      imprimirRedes();
-    }
+    imprimirCambios(antes);
     return;
   }
   // Mientras nadie este unido a la red propia, la lista se renueva sola cada 30 s: asi la primera info ya
