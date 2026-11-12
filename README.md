@@ -30,6 +30,7 @@ backend/
 simulador/
   simulador_esp32.py manda lecturas a la API como el ESP32, sin hardware (ver «Simulador del ESP32»)
 frontend/            HTML, CSS y JavaScript estáticos, servidos aparte
+  js/config.js       dónde está la API (en el mismo equipo desde el que se abrió el front) y la placa
   js/api.js          peticiones a la API, con el token en las rutas privadas
   js/app.js          arranque, navegación y pantallas que exigen sesión
   js/sesion.js       token de la sesión, en sessionStorage
@@ -40,6 +41,7 @@ frontend/            HTML, CSS y JavaScript estáticos, servidos aparte
   js/acceso.js       ingresar y crear cuenta
   js/cuenta.js       mi cuenta y cerrar sesión
   js/materas.js      mis materas: crearlas con su sensor y cambiarles el sensor
+  js/conectar-sensor.js  el asistente «Conectar sensor»: lleva una placa nueva a su WiFi y a su matera
   js/historial.js    historial de una planta
   js/admin.js        administración de cuentas y especies
   js/formularios.js  errores de la API en los formularios
@@ -269,7 +271,9 @@ En otra terminal, desde la raíz del repositorio:
 python -m http.server 5500 --directory frontend
 ```
 
-Abra `http://localhost:5500`. El front se tiene que servir por HTTP; abrir `index.html` con doble clic no funciona porque usa módulos de JavaScript. Si cambia el puerto del backend, ajuste `frontend/js/config.js`.
+Abra `http://localhost:5500`. El front se tiene que servir por HTTP; abrir `index.html` con doble clic no funciona porque usa módulos de JavaScript.
+
+El front busca la API en el mismo equipo desde el que se abrió: `http://<equipo>:5000/api/v1`. En el PC es `localhost`; desde un celular en la misma red se abre `http://<IP del PC>:5500`, con el backend arrancado con `MATERA_HOST=0.0.0.0` (ver [Mediciones de un ESP32](#mediciones-de-un-esp32-en-la-red)). Si cambia el puerto del backend, ajuste `frontend/js/config.js`.
 
 El front no tiene rangos, umbrales ni reglas. Los parámetros, las especies, los estados y las recomendaciones salen de la API.
 
@@ -278,7 +282,7 @@ El front no tiene rangos, umbrales ni reglas. Los parámetros, las especies, los
 | Diagnóstico | con sesión | Consulta `POST /diagnosticos` mientras se escribe (espera 400 ms después de la última tecla) y muestra el estado en los anillos. Los botones Saludable, En riesgo y Crítico llenan valores de ejemplo a partir de los rangos, y la API decide el estado. El panel "Errores de la API" envía peticiones inválidas a propósito. No guarda nada. |
 | Especies | con sesión | Muestra el catálogo de `GET /especies` con bandas escaladas según los límites físicos de `GET /parametros`. |
 | Ingresar / Crear cuenta | pública | Dos formularios. Al entrar guarda el token y vuelve a la pantalla privada que se había pedido. |
-| Mis materas | con sesión | Las materas del usuario con su última medición, que se actualiza sola (ver abajo). «Agregar matera» pide apodo, especie y código del sensor, y muestra la clave del sensor una sola vez: va en `config.h` de la placa o en `--clave=` del simulador. Cada tarjeta permite cambiar el sensor (con el mismo código, da una clave nueva y la anterior deja de servir con su token), ver el historial y eliminar la matera. Desde el front no se escriben mediciones. |
+| Mis materas | con sesión | Las materas del usuario con su última medición, que se actualiza sola (ver abajo). «Agregar matera» pide apodo y especie y abre el asistente «Conectar sensor» (ver abajo); «Cambiar sensor», en cada tarjeta, abre el mismo asistente y conserva el historial. Para placas con `config.h` y para el simulador queda «Conectar a mano»: se escribe el código del sensor y la clave se muestra una sola vez (va en `config.h` o en `--clave=`); con el mismo código, da una clave nueva y la anterior deja de servir con su token. Cada tarjeta también permite ver el historial y eliminar la matera. Desde el front no se escriben mediciones. |
 | Historial | con sesión | La lista, la gráfica y el resumen de las mediciones de una planta, con el estado que calculó la API en su momento. Se actualiza solo, igual que Mis materas. |
 | Mi cuenta | con sesión | Nombre, correo, rol, cantidad de plantas y cerrar sesión. |
 | Administración | solo admin | Activar, desactivar, dar o quitar el rol y eliminar cuentas; agregar especies. La pestaña solo aparece para un admin, pero los permisos los revisa la API. |
@@ -289,6 +293,16 @@ Mis materas y el Historial se actualizan solos de dos maneras:
 - **Consulta periódica.** Mientras la pantalla y la pestaña están a la vista, `js/consulta-periodica.js` vuelve a pedir `GET /plantas` (o el historial) cada 10 segundos. Solo se vuelven a pintar las tarjetas que cambiaron. Debajo del título se ve la hora de la última consulta.
 - **En vivo.** Mientras hay una sesión, `js/tiempo-real.js` mantiene abierto el WebSocket `/api/v1/tiempo-real`, y la barra muestra «En vivo». Cada lectura aparece al instante, sin esperar la próxima consulta. Si la conexión se cae, reintenta con esperas de 1 a 30 segundos, y mientras tanto la consulta periódica mantiene la pantalla al día.
 - **Las dos a la vez.** Si una respuesta de la consulta llega después de una medición en vivo más reciente, la pantalla no retrocede, y el Historial no repite una medición que ya tenía. Una petición que no termina en 15 segundos se da por perdida, así una conexión colgada no detiene la consulta periódica.
+
+El asistente «Conectar sensor» (`js/conectar-sensor.js`) conecta una placa nueva sin tocar código, en seis pasos:
+1. **Preparar:** mientras el equipo sigue en su WiFi, pide `GET /red` y anota a qué direcciones mandará la placa sus lecturas. Si la lista viene vacía, muestra el aviso de la API y no sigue.
+2. **Unirse a la placa:** el equipo se une a la red `Matera-…` que muestra la pantalla de la matera (con su QR), y la app encuentra la placa sola en `http://192.168.4.1` (`GET /info`: código, huella de su clave y redes que ve).
+3. **Elegir el WiFi:** la red y su clave van directo a la placa (`POST /configurar`), y la app sigue sus etapas (`GET /estado`).
+4. **Volver a su red:** la placa apaga la suya (`POST /cerrar`) y la app espera a que la API vuelva a responder.
+5. **Crear la matera** (`POST /plantas`) o **cambiar el sensor** (`PUT /plantas/{id}/sensor`) con el código y la huella. La clave nunca sale de la placa.
+6. **Primera lectura:** espera la primera medición de esa placa y muestra su estado.
+
+El avance (sin la clave del WiFi) se guarda en `sessionStorage`, porque al cambiar de red la página puede recargarse. El código, la huella y las etapas los decide la placa, y el estado lo calcula la API: el asistente solo los muestra. Para probarlo sin la placa, se abre el front con `?placa=http://127.0.0.1:8099` y se pone ahí un doble de la API local de la placa; solo se aceptan direcciones de este equipo o de una red privada.
 
 ## Pruebas
 

@@ -2,7 +2,10 @@
 // Se actualiza sola de dos maneras: vuelve a pedir GET /plantas cada 10 s (consulta-periodica.js) y,
 // mientras la conexión en vivo funciona, recibe cada medición al instante (tiempo-real.js). El estado
 // de cada tarjeta lo calculó la API; aquí solo se ubica en pantalla. Desde el front no se escriben mediciones.
+// «Agregar matera» y «Cambiar sensor» abren el asistente que conecta la placa (conectar-sensor.js). El flujo
+// de antes (escribir el código y copiar la clave en config.h) queda en «Conectar a mano».
 import { cambiarSensor, eliminarPlanta, obtenerPlantas, registrarPlanta } from "./api.js";
+import { crearAsistente } from "./conectar-sensor.js";
 import { consultarCadaRato, textoConsulta } from "./consulta-periodica.js";
 import { dominioVisual, fraccion, porcentaje } from "./escala.js";
 import { capitalizar, colorDeEstado, crear, etiqueta, numero, pastillaEstado, tono, unidad } from "./formato.js";
@@ -18,9 +21,29 @@ export function crearPantallaMateras(contexto) {
   // Lo que GET /plantas no trae: las recomendaciones de la medición que llegó en vivo, con su momento.
   // Solo se muestran mientras esa siga siendo la última medición de la tarjeta.
   const diagnosticos = new Map();
+  let aMano = false; // «Conectar a mano»: el formulario pide también el código, y la API da la clave
+
+  const asistente = crearAsistente(contexto, {
+    raiz: $("asistente"),
+    // Mientras el asistente está abierto, no se empieza otra matera desde el formulario.
+    alAbrirOCerrar: (abierto) => {
+      formulario.hidden = abierto;
+    },
+    alCambiarLasMateras: () => cargar(),
+    alConectarAMano: conectarAMano,
+  });
 
   formulario.addEventListener("submit", async (evento) => {
     evento.preventDefault();
+    if (!aMano) {
+      // El apodo y la especie los revisa la API al final, cuando se crea la matera con el código de la placa.
+      const { apodo, especie } = datosDe(formulario);
+      mostrarError($("error-planta"), null);
+      ocultarClave();
+      formulario.reset();
+      asistente.abrir({ modo: "nueva", apodo, especie });
+      return;
+    }
     let nueva;
     try {
       nueva = await ocupado(botonDe(evento), () => registrarPlanta(datosDe(formulario)));
@@ -43,6 +66,33 @@ export function crearPantallaMateras(contexto) {
     }
   });
   $("cerrar-clave").addEventListener("click", ocultarClave);
+  $("conectar-a-mano").addEventListener("click", () => ponerAMano(!aMano));
+
+  // El flujo de antes, para placas con config.h: el código se escribe y la clave se muestra una vez.
+  function ponerAMano(activo) {
+    aMano = activo;
+    $("planta-grupo-codigo").hidden = !activo;
+    $("planta-ayuda-asistente").hidden = activo;
+    $("planta-ayuda-a-mano").hidden = !activo;
+    $("planta-enviar").textContent = activo ? "Agregar con el código" : "Agregar matera";
+    $("conectar-a-mano").textContent = activo ? "Volver al asistente" : "Conectar a mano (placas con config.h)";
+    mostrarError($("error-planta"), null);
+  }
+
+  // Desde el asistente: «Conectar a mano» sigue con lo que ya se había escrito.
+  function conectarAMano({ modo, apodo, especie, plantaId }) {
+    if (modo === "nueva") {
+      ponerAMano(true);
+      $("planta-apodo").value = apodo ?? "";
+      if (especie) $("planta-especie").value = especie;
+      $("planta-codigo").focus();
+      return;
+    }
+    abierta = plantaId;
+    borrador = plantas.find((p) => p.id === plantaId)?.sensor?.codigo ?? "";
+    pintar();
+    $(`sensor-${plantaId}`)?.focus();
+  }
 
   consultarCadaRato(() => !$("pantalla-materas").hidden, actualizar);
 
@@ -103,6 +153,7 @@ export function crearPantallaMateras(contexto) {
   // La consulta periódica: solo se vuelven a pintar las tarjetas que cambiaron, así no se pierde lo que
   // el usuario está escribiendo. Si cambió la lista (una matera nueva o borrada en otra pestaña), se pinta todo.
   async function actualizar() {
+    if (asistente.sinApi()) return; // el equipo puede estar en la red de la placa, donde no hay API
     let nuevas;
     try {
       nuevas = await obtenerPlantas();
@@ -135,7 +186,7 @@ export function crearPantallaMateras(contexto) {
     $("materas-bajada").textContent = plantas.length
       ? `${plantas.length} ${plantas.length === 1 ? "matera" : "materas"} · ` +
         `${conAtencion} ${conAtencion === 1 ? "necesita" : "necesitan"} atención según su última medición`
-      : "Todavía no tiene materas. Agregue la primera con el código de su sensor.";
+      : "Todavía no tiene materas. Agregue la primera: el asistente conecta su placa.";
   }
 
   function pintar() {
@@ -233,7 +284,8 @@ export function crearPantallaMateras(contexto) {
       ...textos.map((texto) => crear("p", { clase: "matera__recomendacion", texto })));
   }
 
-  // Cambiar el sensor (o pedir otra clave con el mismo código) conserva la planta y su historial.
+  // Conectar a mano (placas con config.h): cambiar el sensor escribiendo el código, o pedir otra clave con
+  // el mismo código. Conserva la planta y su historial.
   function formularioSensor(planta) {
     const id = `sensor-${planta.id}`;
     const entrada = crear("input", { clase: "formulario__campo formulario__campo--codigo" });
@@ -241,7 +293,7 @@ export function crearPantallaMateras(contexto) {
     entrada.addEventListener("input", () => {
       borrador = entrada.value;
     });
-    const rotulo = crear("label", { clase: "formulario__etiqueta", texto: "Código del sensor nuevo" });
+    const rotulo = crear("label", { clase: "formulario__etiqueta", texto: "Conectar a mano: código del sensor nuevo" });
     rotulo.htmlFor = id;
     const error = crear("div", { clase: "tarjeta-error" });
     error.hidden = true;
@@ -282,10 +334,16 @@ export function crearPantallaMateras(contexto) {
     const textoSensor = abierta === planta.id ? "Cancelar" : planta.sensor ? "Cambiar sensor" : "Agregar sensor";
     return crear("div", { clase: "matera__acciones" },
       boton(textoSensor, "boton-contorno", () => {
-        abierta = abierta === planta.id ? null : planta.id;
-        borrador = abierta === null ? "" : planta.sensor?.codigo ?? "";
+        if (abierta === planta.id) { // cierra el formulario de «Conectar a mano»
+          abierta = null;
+          borrador = "";
+          pintar();
+          return;
+        }
+        abierta = null;
+        borrador = "";
         pintar();
-        if (abierta !== null) $(`sensor-${planta.id}`)?.focus();
+        asistente.abrir({ modo: "cambio", planta });
       }),
       boton("Historial", "boton-contorno", () => contexto.verPlanta("historial", planta.id)),
       boton("Eliminar", "boton-contorno boton-contorno--peligro", () => eliminar(planta)));
@@ -309,6 +367,7 @@ export function crearPantallaMateras(contexto) {
     mostrar() {
       ocultarClave();
       cargar();
+      asistente.reanudar(); // si había una placa a medio conectar (también después de recargar la página)
     },
     alCargarCatalogos,
     // Al cerrar la sesión: nada de esta cuenta queda para la que entre después en la misma pestaña.
@@ -319,6 +378,9 @@ export function crearPantallaMateras(contexto) {
       borrador = "";
       diagnosticos.clear();
       ocultarClave();
+      asistente.reiniciar();
+      ponerAMano(false);
+      formulario.reset();
       pintar();
     },
   };

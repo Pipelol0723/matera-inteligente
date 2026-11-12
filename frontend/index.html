@@ -161,21 +161,26 @@
           <label class="formulario__etiqueta" for="planta-especie">Especie</label>
           <select id="planta-especie" name="especie" class="selector"></select>
         </div>
-        <div class="formulario__grupo">
+        <div id="planta-grupo-codigo" class="formulario__grupo" hidden>
           <label class="formulario__etiqueta" for="planta-codigo">Código del sensor</label>
           <input id="planta-codigo" name="codigo" class="formulario__campo formulario__campo--codigo" autocomplete="off" placeholder="MT-0000-XX">
         </div>
-        <button type="submit" class="boton-primario">Agregar matera</button>
+        <button id="planta-enviar" type="submit" class="boton-primario">Agregar matera</button>
       </div>
-      <p class="formulario__ayuda">Cada matera nace con su sensor: escriba el código del dispositivo, el mismo que va en <code>config.h</code> del ESP32.</p>
+      <div class="formulario__pie">
+        <p id="planta-ayuda-asistente" class="formulario__ayuda">Enchufe la matera nueva: el asistente la conecta a su WiFi y a su cuenta, sin tocar código.</p>
+        <p id="planta-ayuda-a-mano" class="formulario__ayuda" hidden>Cada matera nace con su sensor: escriba el código del dispositivo, el mismo que va en <code>config.h</code> del ESP32.</p>
+        <button id="conectar-a-mano" type="button" class="enlace">Conectar a mano (placas con config.h)</button>
+      </div>
       <div id="error-planta" class="tarjeta-error" role="alert" hidden></div>
     </form>
+    <section id="asistente" class="tarjeta asistente" aria-labelledby="asistente-titulo" hidden></section>
     <div id="clave-nueva" class="clave clave--matera" role="status" hidden>
       <p id="clave-rotulo" class="rotulo"></p>
       <code id="clave-texto" class="clave__texto"></code>
       <button id="copiar-clave" type="button" class="boton-contorno">Copiar</button>
       <button id="cerrar-clave" type="button" class="boton-contorno">Ya la guardé</button>
-      <p class="clave__ayuda">Cópiela en <code>CLAVE_SENSOR</code> de <code>config.h</code> y vuelva a subir el firmware: al arrancar, la placa la cambia por su token de acceso. El simulador la recibe con <code>--clave=</code>. La API solo guarda su huella: si la pierde, use «Cambiar sensor» con el mismo código y recibirá otra; la anterior y su token dejan de servir.</p>
+      <p class="clave__ayuda">Cópiela en <code>CLAVE_SENSOR</code> de <code>config.h</code> y vuelva a subir el firmware: al arrancar, la placa la cambia por su token de acceso. El simulador la recibe con <code>--clave=</code>. La API solo guarda su huella: si la pierde, en «Cambiar sensor» elija «Conectar a mano» y escriba el mismo código: recibirá otra, y la anterior y su token dejan de servir.</p>
     </div>
     <div id="error-materas" class="tarjeta-error" role="alert" hidden></div>
     <div id="materas" class="materas"></div>

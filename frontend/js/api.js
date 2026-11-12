@@ -127,11 +127,17 @@ export const obtenerMiCuenta = () => privada("/usuarios/yo");
 
 // ---- plantas, sensores e historial ----
 
-// Una matera nace con su sensor: POST /plantas lleva apodo, especie y código, y responde la clave una vez.
-export const obtenerPlantas = () => privada("/plantas");
+// Una matera nace con su sensor: POST /plantas lleva apodo, especie y código. Si además lleva la huella
+// de la clave que creó la placa (el asistente de conectar-sensor.js), la API no responde ninguna clave;
+// sin huella (Conectar a mano, placas con config.h), responde la clave una sola vez.
+export const obtenerPlantas = (opciones) => privada("/plantas", opciones);
 export const registrarPlanta = (datos) => privada("/plantas", conJson("POST", datos));
 export const eliminarPlanta = (id) => privada(`/plantas/${id}`, { method: "DELETE" });
-export const cambiarSensor = (id, codigo) => privada(`/plantas/${id}/sensor`, conJson("PUT", { codigo }));
+export const cambiarSensor = (id, codigo, huella) =>
+  privada(`/plantas/${id}/sensor`, conJson("PUT", huella ? { codigo, huella } : { codigo }));
+
+// Las direcciones por las que una placa de la red local alcanza este backend (GET /red).
+export const obtenerRed = (opciones) => privada("/red", opciones);
 
 // Las mediciones no se escriben desde el front: llegan del sensor y se ven aquí en vivo (tiempo-real.js).
 export const obtenerHistorial = (id, limite) => privada(`/plantas/${id}/historial?limite=${limite}`);
