@@ -1,7 +1,9 @@
 #include "identidad.h"
 
+#include <bootloader_random.h>
 #include <esp_mac.h>
 #include <esp_system.h>  // esp_random
+#include <esp_wifi.h>
 #include <mbedtls/sha256.h>
 #include <mbedtls/version.h>
 
@@ -42,6 +44,23 @@ String base64url(const uint8_t *datos, size_t largo) {
   }
   return texto;
 }
+
+// esp_random solo es aleatorio de verdad con la radio encendida. El programa crea las claves despues de
+// WiFi.mode(); si alguna vez se llamara antes, se enciende la fuente de ruido de la placa mientras tanto.
+class FuenteDeAzar {
+ public:
+  FuenteDeAzar() {
+    wifi_mode_t modo;
+    sinRadio_ = esp_wifi_get_mode(&modo) != ESP_OK || modo == WIFI_MODE_NULL;
+    if (sinRadio_) bootloader_random_enable();
+  }
+  ~FuenteDeAzar() {
+    if (sinRadio_) bootloader_random_disable();
+  }
+
+ private:
+  bool sinRadio_;
+};
 
 String hexadecimal(const uint8_t *datos, size_t largo, const char *separador) {
   String texto;
@@ -87,7 +106,7 @@ String huellaDe(const String &texto) {
 }
 
 String claveAlAzar() {
-  // esp_random es aleatorio de verdad con la radio encendida: se llama despues de WiFi.mode().
+  const FuenteDeAzar fuente;
   uint8_t bytes[32];
   for (size_t i = 0; i < sizeof bytes; i += 4) {
     uint32_t azar = esp_random();
@@ -102,6 +121,7 @@ String textoAlAzar(const char *alfabeto, int largo) {
   const uint32_t cuantos = strlen(alfabeto);
   // Se descartan los valores del final del rango que darian mas peso a las primeras letras.
   const uint32_t limite = UINT32_MAX - (UINT32_MAX % cuantos);
+  const FuenteDeAzar fuente;
   String texto;
   texto.reserve(largo);
   for (int i = 0; i < largo; i++) {

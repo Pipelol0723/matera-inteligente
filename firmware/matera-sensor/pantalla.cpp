@@ -2,6 +2,7 @@
 
 #include <U8g2lib.h>
 #include <Wire.h>
+#include <qrcode.h>  // el generador de QR de ESP-IDF, que viene con la placa (esp_qrcode)
 
 #include "ajustes.h"
 
@@ -20,6 +21,7 @@ const uint8_t *const CHICA = u8g2_font_5x8_tf;      // 5 puntos: 25 por linea
 const uint8_t *const GRANDE = u8g2_font_10x20_tf;   // 10 puntos: el codigo MT-0000-XX cabe justo
 
 const int ANCHO = 128;
+const int LADO_QR = 64;  // el cuadro blanco del QR, del alto de la pantalla
 
 // Empieza a dibujar si la pantalla cambia. `firma` resume todo lo que se va a dibujar.
 bool empezar(const String &firma) {
@@ -128,6 +130,23 @@ void dibujarGlobo(int x, int y, int ancho, int alto, const String &texto) {
   oled.drawUTF8(x + (ancho - oled.getUTF8Width(linea.c_str())) / 2, medio + 3, linea.c_str());
 }
 
+// El QR se dibuja dentro de esp_qrcode_generate, que llama a esta funcion con los modulos ya calculados.
+bool qrDibujado = false;
+
+void dibujarModulos(esp_qrcode_handle_t qr) {
+  const int lado = esp_qrcode_get_size(qr);
+  const int escala = lado * 2 <= LADO_QR ? 2 : 1;
+  const int inicio = (LADO_QR - lado * escala) / 2;
+  oled.setDrawColor(0);  // modulos negros sobre el cuadro blanco
+  for (int y = 0; y < lado; y++) {
+    for (int x = 0; x < lado; x++) {
+      if (esp_qrcode_get_module(qr, x, y)) oled.drawBox(inicio + x * escala, inicio + y * escala, escala, escala);
+    }
+  }
+  oled.setDrawColor(1);
+  qrDibujado = true;
+}
+
 }  // namespace
 
 bool pantallaIniciar() {
@@ -222,4 +241,53 @@ void pantallaParpadeo(bool activo) {
   if (invertir == invertida) return;
   oled.sendF("c", invertir ? 0xA7 : 0xA6);  // modo inverso del SSD1306/SSD1315: no hay que redibujar
   invertida = invertir;
+}
+
+
+void pantallaRedPropia(const String &nombre, const String &clave) {
+  if (!empezar("propia|" + nombre + "|" + clave)) return;
+  // El QR de WiFi que leen las camaras de Android y iPhone. Con 39 caracteres sale en la version 3 (29 x 29
+  // modulos): a escala 2 ocupa 58 puntos, y el cuadro blanco de 64 le deja 3 de borde claro.
+  oled.drawBox(0, 0, LADO_QR, LADO_QR);
+  const String texto = "WIFI:T:WPA;S:" + nombre + ";P:" + clave + ";;";
+  esp_qrcode_config_t configuracion = {dibujarModulos, 3, ESP_QRCODE_ECC_LOW};
+  qrDibujado = false;
+  esp_qrcode_generate(&configuracion, texto.c_str());
+  if (!qrDibujado) {
+    oled.setDrawColor(0);
+    oled.setFont(CHICA);
+    oled.drawUTF8(8, 34, "sin QR");
+    oled.setDrawColor(1);
+  }
+  // A la derecha, la red y la clave en texto, por si hay que escribirlas a mano.
+  const int x = LADO_QR + 2;
+  const int ancho = ANCHO - x;
+  const int guion = nombre.indexOf('-');
+  escribir(CHICA, x, 8, "red", ancho);
+  escribir(LETRA, x, 20, guion >= 0 ? nombre.substring(0, guion + 1) : nombre, ancho);
+  escribir(NEGRITA, x, 33, guion >= 0 ? nombre.substring(guion + 1) : String(), ancho);
+  escribir(CHICA, x, 45, "clave", ancho);
+  escribir(NEGRITA, x, 59, clave, ancho);
+  terminar();
+}
+
+void pantallaBoot(unsigned long apretadoMs, unsigned long olvidarMs, unsigned long claveMs) {
+  const unsigned long segundos = apretadoMs / 1000;
+  const char *pie_;
+  if (apretadoMs < olvidarMs) pie_ = "a los 5 s olvida la red; a los 15 s, la clave";
+  else if (apretadoMs < claveMs) pie_ = "suelta: olvida la red. A los 15 s: clave nueva";
+  else pie_ = "suelta: crea una clave nueva";
+  if (!empezar("boot|" + String(segundos) + "|" + pie_)) return;
+  centrado(LETRA, 12, "Botón BOOT");
+  centrado(NEGRITA, 29, String(segundos) + " s");
+  // La barra llega al final a los 15 s; la marca es a los 5 s.
+  const int x = 4, ancho = ANCHO - 8;
+  oled.drawFrame(x, 33, ancho, 7);
+  const unsigned long hasta = apretadoMs < claveMs ? apretadoMs : claveMs;
+  oled.drawBox(x, 33, (int)(ancho * hasta / claveMs), 7);
+  const int marca = x + (int)(ancho * olvidarMs / claveMs);  // las marcas de los 5 s, arriba y abajo
+  oled.drawVLine(marca, 30, 3);
+  oled.drawVLine(marca, 40, 3);
+  pie(pie_);
+  terminar();
 }

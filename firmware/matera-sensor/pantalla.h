@@ -34,5 +34,11 @@ void pantallaMatera(Cara cara, const String &apodo, const String &estado, const 
 // Un mensaje de tres lineas: un titulo, una linea en negrita y un pie chico.
 void pantallaAviso(const String &titulo, const String &destacado, const String &pie);
 
+// El QR de la red propia, y a la derecha su nombre y su clave en texto.
+void pantallaRedPropia(const String &nombre, const String &clave);
+
+// La cuenta mientras se mantiene BOOT: los segundos y una barra hasta `claveMs`, con la marca de `olvidarMs`.
+void pantallaBoot(unsigned long apretadoMs, unsigned long olvidarMs, unsigned long claveMs);
+
 // Mientras `activo` sea true, invierte la pantalla cada medio segundo. Se llama en cada vuelta de loop().
 void pantallaParpadeo(bool activo);

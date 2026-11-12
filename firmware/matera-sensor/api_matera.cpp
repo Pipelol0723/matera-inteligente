@@ -48,6 +48,12 @@ String RespuestaApi::resumen() const {
   return texto;
 }
 
+bool apiProbarServidor(const String &base, const String &codigo, RespuestaApi &respuesta) {
+  // Sin la clave: el canje con {} es un 400 en JSON con su "error" (falta el campo clave).
+  enviar(base + "/dispositivos/" + codigo + "/token", "{}", "", respuesta);
+  return respuesta.http == 400 && respuesta.json && respuesta.error.length() > 0;
+}
+
 Canje apiCanjear(const String &base, const String &codigo, const String &clave, String &token, RespuestaApi &respuesta) {
   const String cuerpo = String("{\"clave\":") + jsonComillas(clave) + "}";
   const String texto = enviar(base + "/dispositivos/" + codigo + "/token", cuerpo, "", respuesta);

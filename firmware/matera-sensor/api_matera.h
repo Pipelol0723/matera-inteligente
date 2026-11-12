@@ -36,6 +36,11 @@ enum class Canje {
   SIN_RESPUESTA,    // no hubo respuesta HTTP
 };
 
+// Dice si en `base` esta la API de la matera, sin mandar la clave: POST {base}/dispositivos/{codigo}/token
+// con el cuerpo {} tiene que responder 400 en JSON con su campo "error". Asi la clave solo va a una
+// direccion que ya demostro ser la API (la lista de la app puede traer IPs de adaptadores virtuales).
+bool apiProbarServidor(const String &base, const String &codigo, RespuestaApi &respuesta);
+
 Canje apiCanjear(const String &base, const String &codigo, const String &clave, String &token, RespuestaApi &respuesta);
 
 // Lo que la placa muestra de la respuesta 201.

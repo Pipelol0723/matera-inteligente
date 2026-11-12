@@ -5,16 +5,22 @@
 // primera vez y la guarda en su memoria (NVS). La app solo conoce la huella SHA-256 de esa clave: crea la
 // matera con el codigo y la huella, y desde ahi el canje de la placa funciona (es el esquema de PKCE).
 //
+// La red y las direcciones del servidor se las da la app por la red propia de la placa (red_propia.h): un
+// WiFi WPA2 con una clave nueva cada vez que se abre, que la pantalla muestra en un QR. Se abre sin red
+// guardada, al mantener BOOT 5 s, si no entra a su WiFi en 60 s o si el servidor no responde en 2 minutos.
+//
 // Etapas, cada una con su pantalla:
+//   SIN_RED            sin red: muestra el QR de su red propia y espera a la app.
 //   CONECTANDO         se une a la red WiFi guardada.
-//   BUSCANDO_SERVIDOR  prueba cada direccion de la API con el canje. Cualquier respuesta JSON de la API,
+//   BUSCANDO_SERVIDOR  prueba cada direccion sin la clave: el canje con {} tiene que dar el 400 en JSON de
+//                      la API. Solo entonces canjea alli con la clave; cualquier respuesta JSON de ese canje,
 //                      incluido un 401, dice que ese es el servidor.
 //   ESPERANDO_MATERA   «Agregame en la app» y el codigo. Reintenta el canje cada 5 s mientras la API
 //                      responda 401: la matera todavia no existe.
 //   CONECTADA          una lectura cada INTERVALO_MS con su token, y la carita con lo que responde la API.
 //                      Si el token deja de servir, vuelve a canjear; si la clave ya no sirve (le cambiaron el
 //                      sensor a la matera o la borraron), vuelve a ESPERANDO_MATERA.
-//   SIN_RED            no tiene red guardada.
+// BOOT 5 s olvida la red y los servidores, pero conserva la clave; BOOT 15 s, ademas, crea una clave nueva.
 // La placa no decide ninguna regla: el estado, lo que necesita y las recomendaciones los calcula la API.
 // Las rutas estan en api_matera.h, los sensores en sensores.h y lo que guarda la placa en memoria.h.
 
@@ -28,13 +34,21 @@
 #include "lector_json.h"
 #include "memoria.h"
 #include "pantalla.h"
+#include "red_propia.h"
 #include "sensores.h"
 
 // Va aqui arriba: el IDE pone los prototipos de las funciones antes que el resto.
 enum class Etapa : uint8_t { SIN_RED, CONECTANDO, BUSCANDO_SERVIDOR, ESPERANDO_MATERA, CONECTADA };
 
 // ---- tiempos ----
-const unsigned long ESPERA_WIFI_MS = 60000;     // cuanto se intenta entrar a la red antes de rendirse
+const unsigned long ESPERA_WIFI_MS = 60000;     // cuanto se intenta entrar a la red antes de abrir la red propia
+const unsigned long ESPERA_SERVIDOR_MS = 120000;  // sin respuesta de la API (con la red propia cerrada), la abre
+const unsigned long REINTENTO_RED_MS = 60000;   // SIN_RED: cada cuanto vuelve a probar la red guardada
+const unsigned long ESPERA_REINTENTO_MS = 20000;  // ese reintento dura menos: la red propia sigue abierta
+const unsigned long CIERRE_RED_PROPIA_MS = 600000;  // ya en su WiFi, se cierra sola si nadie la usa en 10 min
+const unsigned long BOOT_RED_MS = 5000;         // BOOT 5 s: olvida la red
+const unsigned long BOOT_CLAVE_MS = 15000;      // BOOT 15 s: ademas, clave nueva
+const unsigned long BOOT_CUENTA_MS = 1000;      // desde aqui la pantalla muestra la cuenta
 const unsigned long REINTENTO_CANJE_MS = 5000;  // ESPERANDO_MATERA: cada cuanto pregunta si ya existe la matera
 const unsigned long REINTENTO_MS = 5000;        // si falla la hora, el sensor o el envio
 const unsigned long PAUSA_RONDA_MS = 5000;      // BUSCANDO_SERVIDOR: entre una ronda por los servidores y otra
@@ -58,8 +72,25 @@ int turno = 0;
 String servidor;  // la base de la API que respondio
 String token;     // el JWT del ultimo canje; vacio hasta canjear
 int fallosSeguidos = 0;
+unsigned long ultimaRespuestaApi = 0;  // desde aqui cuentan los 2 minutos sin servidor
 volatile uint8_t razonDesconexion = 0;  // la ultima razon que dio el WiFi al cortar
 volatile uint8_t fallosDeClave = 0;     // cortes que suelen ser por la clave del WiFi
+
+// ---- red propia ----
+bool esperandoApp = false;      // la red propia esta abierta para que la app entregue la red: se ve el QR
+bool reintentoDeFondo = false;  // CONECTANDO a la red guardada con la red propia abierta, sin que la app lo pidiera
+unsigned long redPropiaUsadaEn = 0;  // cuando se abrio, llego una configuracion o habia alguien unido
+
+// ---- boton BOOT: lo mide una interrupcion, asi la cuenta es justa aunque loop() espere una respuesta HTTP ----
+volatile bool bootApretado = false;
+volatile unsigned long bootDesde = 0;
+volatile bool bootSoltado = false;
+volatile unsigned long bootDuracion = 0;
+
+// ---- un mensaje que tapa la pantalla unos segundos ----
+String mensajeTitulo, mensajeDestacado, mensajePie;
+unsigned long mensajeHasta = 0;
+bool hayMensaje = false;
 
 // ---- etapa ----
 Etapa etapa = Etapa::SIN_RED;
@@ -153,37 +184,98 @@ String motivoWifi() {
   }
 }
 
-// Las redes que ve la placa: sirve para saber si la red esta al alcance y es de 2,4 GHz.
-void mostrarRedes() {
-  esp_task_wdt_reset();
-  const int cuantas = WiFi.scanNetworks();
-  Serial.printf("La placa ve %d redes:\n", cuantas);
-  for (int i = 0; i < cuantas && i < 10; i++) {
-    Serial.printf("  «%s», canal %d, señal %d dBm\n", WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i));
-  }
-  WiFi.scanDelete();
-}
-
 void conectarWifi(const String &motivo) {
   razonDesconexion = 0;
   fallosDeClave = 0;
+  reintentoDeFondo = false;
   WiFi.disconnect();
   WiFi.begin(conexion.red.c_str(), conexion.claveRed.length() > 0 ? conexion.claveRed.c_str() : nullptr);
   cambiarEtapa(Etapa::CONECTANDO, motivo);
 }
 
-// No pudo entrar a la red en el plazo, o la clave esta mal.
+// Abre la red propia para que la app entregue la red o el servidor. Con `claveNueva`, aunque ya estuviera
+// abierta la vuelve a abrir con otra clave; sin ella, si ya estaba abierta no corta a quien este unido.
+void abrirRedPropia(bool claveNueva) {
+  if (claveNueva || !redPropiaAbierta()) redPropiaAbrir(codigo, huella);
+  esperandoApp = true;
+  redPropiaUsadaEn = millis();
+}
+
+// No pudo entrar a la red en el plazo, o la red rechazo la clave: abre la red propia y espera a la app.
 void redNoDisponible(const String &motivo) {
   Serial.printf("No se pudo conectar a «%s»: %s.\n", conexion.red.c_str(), motivo.c_str());
+  WiFi.disconnect();  // deja de intentar: buscar la red cambia de canal y corta a quien este en la red propia
+  reintentoDeFondo = false;
+  abrirRedPropia(false);
+  cambiarEtapa(Etapa::SIN_RED, motivo);
+}
+
+// La app entrego la red y los servidores por POST /configurar.
+void aplicarConfiguracion(const Conexion &nueva) {
+  conexion = nueva;
+  memoriaGuardarConexion(conexion);
+  servidor = "";
+  token = "";
+  hayEstado = false;
+  esperandoApp = false;  // la red propia sigue abierta hasta POST /cerrar, pero ya no muestra el QR
+  redPropiaUsadaEn = millis();
+  Serial.printf("La app entregó la red «%s» y %d dirección(es) del servidor.\n", conexion.red.c_str(), conexion.cuantos);
+  conectarWifi("");
+}
+
+// BOOT 5 s olvida la red y los servidores; BOOT 15 s, ademas, crea una clave nueva. En los dos casos se abre
+// la red propia con otra clave.
+void olvidarRed(bool claveNueva) {
+  if (claveNueva) {
+    claveSensor = memoriaNuevaClaveSensor();
+    huella = huellaDe(claveSensor);
+    Serial.printf("BOOT 15 s: clave nueva. Huella %s. La matera anterior deja de recibir lecturas hasta usar "
+                  "«Cambiar sensor».\n", huella.c_str());
+  } else {
+    Serial.println("BOOT 5 s: la placa olvida la red y los servidores. Su clave queda.");
+  }
+  memoriaOlvidarConexion();
+  conexion = Conexion();
+  servidor = "";
+  token = "";
+  hayEstado = false;
   WiFi.disconnect();
-  mostrarRedes();
-  conectarWifi(motivo);
+  abrirRedPropia(true);
+  cambiarEtapa(Etapa::SIN_RED, claveNueva ? "clave nueva: elige el WiFi en la app" : "red olvidada: elige el WiFi en la app");
+  mensajeTitulo = claveNueva ? "Clave nueva" : "Red olvidada";
+  mensajeDestacado = codigo;
+  mensajePie = claveNueva ? "usa «Cambiar sensor» en la app" : "la clave del sensor se conserva";
+  mensajeHasta = millis() + 4000;
+  hayMensaje = true;
+}
+
+void ARDUINO_ISR_ATTR alCambiarBoot() {
+  const bool apretado = digitalRead(PIN_BOOT) == LOW;
+  const unsigned long ahora = millis();
+  if (apretado && !bootApretado) {
+    bootApretado = true;
+    bootDesde = ahora;
+  } else if (!apretado && bootApretado) {
+    // Los rebotes del boton dan pulsaciones de milisegundos: no llegan a los 5 s y no hacen nada.
+    bootApretado = false;
+    bootDuracion = ahora - bootDesde;
+    bootSoltado = true;
+  }
+}
+
+void revisarBoot() {
+  if (!bootSoltado) return;
+  bootSoltado = false;
+  const unsigned long duracion = bootDuracion;
+  if (duracion >= BOOT_CLAVE_MS) olvidarRed(true);
+  else if (duracion >= BOOT_RED_MS) olvidarRed(false);
 }
 
 // ---- servidor ----
 
 void respondio() {
   fallosSeguidos = 0;
+  ultimaRespuestaApi = millis();
 }
 
 void buscarServidor() {
@@ -213,6 +305,11 @@ void entrarConectada() {
   hayEstado = false;
   problema = "";
   cambiarEtapa(Etapa::CONECTADA, "");
+  // Si la red propia se abrio por una falla y la placa se recupero sola, ya no hace falta.
+  if (redPropiaAbierta() && esperandoApp && redPropiaClientes() == 0) {
+    redPropiaCerrar();
+    esperandoApp = false;
+  }
 }
 
 void esperarMatera(const String &motivo) {
@@ -248,16 +345,38 @@ void tratarCanje(Canje canje, const String &nuevoToken, const RespuestaApi &resp
 
 // ---- pasos de cada etapa ----
 
+// SIN_RED: si hay una red guardada, cada minuto la vuelve a probar, mientras nadie este en la red propia.
+void pasoSinRed() {
+  if (!conexion.hayRed()) return;
+  if (redPropiaClientes() > 0) {
+    desdeEtapa = millis();  // alguien esta configurando la placa: no se le corta la red
+    return;
+  }
+  if (millis() - desdeEtapa < REINTENTO_RED_MS) return;
+  Serial.printf("Se prueba otra vez la red «%s».\n", conexion.red.c_str());
+  const String motivo = detalle;
+  conectarWifi(motivo);
+  reintentoDeFondo = true;
+}
+
 void pasoConectando() {
   if (WiFi.status() == WL_CONNECTED) {
     Serial.printf("Conectada a «%s». IP de la placa: %s\n", conexion.red.c_str(), WiFi.localIP().toString().c_str());
     configTime(0, 0, "pool.ntp.org", "time.google.com");  // la hora en UTC: la API rechaza una lectura sin hora
+    reintentoDeFondo = false;
+    ultimaRespuestaApi = millis();  // los 2 minutos del servidor empiezan aqui
     buscarServidor();
     return;
   }
   if (razonDesconexion != 0) detalle = motivoWifi();
+  // Si en un reintento de fondo alguien se une a la red propia, se deja de buscar la red para no cortarlo.
+  if (reintentoDeFondo && redPropiaClientes() > 0) {
+    redNoDisponible(detalle.length() > 0 ? detalle : motivoWifi());
+    return;
+  }
+  const unsigned long plazo = reintentoDeFondo ? ESPERA_REINTENTO_MS : ESPERA_WIFI_MS;
   // Dos cortes por la clave seguidos: no vale la pena esperar el minuto.
-  if (fallosDeClave >= 2 || millis() - desdeEtapa >= ESPERA_WIFI_MS) redNoDisponible(motivoWifi());
+  if (fallosDeClave >= 2 || millis() - desdeEtapa >= plazo) redNoDisponible(motivoWifi());
 }
 
 void pasoBuscandoServidor() {
@@ -265,8 +384,16 @@ void pasoBuscandoServidor() {
     conectarWifi("se perdió la red");
     return;
   }
+  // 2 minutos sin respuesta: abre la red propia sin dejar el WiFi (AP_STA), para recibir otra direccion.
+  // Mientras la red propia este abierta no cuenta: si la app corre en un PC unido a ella, el servidor es
+  // inalcanzable hasta que la app la cierra. Los 2 minutos empiezan al cerrarla.
+  if (!redPropiaAbierta() && millis() - ultimaRespuestaApi >= ESPERA_SERVIDOR_MS) {
+    Serial.println("El servidor no responde hace 2 minutos: la placa abre su red para recibir otra dirección.");
+    abrirRedPropia(false);
+  }
   if (!llego(proximaAccion)) return;
   if (enOrden == 0) {
+    abrirRedPropia(false);
     cambiarEtapa(Etapa::SIN_RED, "no hay direcciones del servidor");
     return;
   }
@@ -276,7 +403,9 @@ void pasoBuscandoServidor() {
   actualizarPantalla();
   RespuestaApi respuesta;
   String nuevoToken;
-  const Canje canje = apiCanjear(base, codigo, claveSensor, nuevoToken, respuesta);
+  // Primero sin la clave: solo una direccion que responde como la API la recibe.
+  Canje canje = Canje::NO_ES_LA_API;
+  if (apiProbarServidor(base, codigo, respuesta)) canje = apiCanjear(base, codigo, claveSensor, nuevoToken, respuesta);
   if (canje == Canje::SIN_RESPUESTA || canje == Canje::NO_ES_LA_API) {
     Serial.printf("%s: %s\n", base.c_str(), respuesta.resumen().c_str());
     turno = (turno + 1) % enOrden;
@@ -441,9 +570,29 @@ String textoAire(const Lectura &lectura) {
 }
 
 void actualizarPantalla() {
+  const bool parpadea = etapa == Etapa::CONECTADA && hayEstado && estadoMatera.estado == "CRITICO";
+  // Lo que se esta haciendo con BOOT, o un aviso de unos segundos, va antes que la etapa.
+  const unsigned long apretado = bootApretado ? millis() - bootDesde : 0;
+  if (apretado >= BOOT_CUENTA_MS) {
+    pantallaBoot(apretado, BOOT_RED_MS, BOOT_CLAVE_MS);
+    pantallaParpadeo(false);
+    return;
+  }
+  if (hayMensaje && !llego(mensajeHasta)) {
+    pantallaAviso(mensajeTitulo, mensajeDestacado, mensajePie);
+    pantallaParpadeo(false);
+    return;
+  }
+  hayMensaje = false;
+  // Con la red propia abierta para la app, el QR.
+  if (redPropiaAbierta() && esperandoApp) {
+    pantallaRedPropia(redPropiaNombre(), redPropiaClave());
+    pantallaParpadeo(false);
+    return;
+  }
   switch (etapa) {
     case Etapa::SIN_RED:
-      pantallaAviso("Sin red WiFi", codigo, detalle.length() > 0 ? detalle : String("falta config.h con la red"));
+      pantallaAviso("Sin red WiFi", codigo, detalle.length() > 0 ? detalle : String("BOOT 5 s: abrir su red"));
       break;
     case Etapa::CONECTANDO:
       pantallaConectando(conexion.red, detalle);
@@ -465,13 +614,68 @@ void actualizarPantalla() {
       }
       break;
   }
-  pantallaParpadeo(etapa == Etapa::CONECTADA && hayEstado && estadoMatera.estado == "CRITICO");
+  pantallaParpadeo(parpadea);
 }
 
-// Parpadeo lento = conectandose al WiFi; fijo = conectada al WiFi; apagado = sin WiFi.
+// Lo que dice GET /estado de la API local, ademas de la etapa.
+String detalleParaApp() {
+  switch (etapa) {
+    case Etapa::SIN_RED:
+      return detalle.length() > 0 ? detalle : String("sin red guardada: elige el WiFi en la app");
+    case Etapa::CONECTANDO:
+      if (detalle.length() > 0) return "Conectando a «" + conexion.red + "»: " + detalle;
+      return "Conectando a «" + conexion.red + "»";
+    case Etapa::BUSCANDO_SERVIDOR:
+      if (esperandoApp) return "el servidor no responde: la placa espera otra dirección";
+      return "probando " + detalle;
+    case Etapa::ESPERANDO_MATERA:
+      if (detalle.length() > 0) return detalle;
+      return "servidor " + sinEsquema(servidor) + ": falta crear la matera de " + codigo;
+    case Etapa::CONECTADA:
+      if (problema.length() > 0) return problema;
+      if (!hayEstado) return "tomando la primera lectura";
+      return "«" + estadoMatera.apodo + "» está " + estadoMatera.estado;
+  }
+  return "";
+}
+
+// Parpadeo rapido = la red propia espera a la app; lento = conectandose al WiFi; fijo = conectada al WiFi;
+// apagado = sin WiFi.
 void actualizarLed() {
-  const bool encendido = etapa == Etapa::CONECTANDO ? (millis() / 500) % 2 == 1 : WiFi.status() == WL_CONNECTED;
+  bool encendido;
+  if (redPropiaAbierta() && esperandoApp) encendido = (millis() / 150) % 2 == 1;
+  else if (etapa == Etapa::CONECTANDO) encendido = (millis() / 500) % 2 == 1;
+  else encendido = WiFi.status() == WL_CONNECTED;
   digitalWrite(PIN_LED, encendido ? HIGH : LOW);
+}
+
+// La red propia: atiende a la app, aplica lo que entrega y se cierra sola cuando ya no hace falta.
+void atenderRedPropia() {
+  static bool estabaAbierta = false;
+  if (redPropiaAbierta()) {
+    redPropiaEstado(nombreEtapa(etapa), detalleParaApp());
+    redPropiaAtender();  // aqui se cierra, medio segundo despues de un POST /cerrar
+    Conexion nueva;
+    if (redPropiaConfiguracion(nueva)) aplicarConfiguracion(nueva);
+    if (redPropiaClientes() > 0) redPropiaUsadaEn = millis();
+    // Si nadie la usa en 10 minutos y la placa ya esta en su WiFi, se cierra sola. Si la abrio porque el
+    // servidor no responde, sigue abierta: espera otra direccion.
+    const bool enSuWifi =
+        etapa == Etapa::BUSCANDO_SERVIDOR || etapa == Etapa::ESPERANDO_MATERA || etapa == Etapa::CONECTADA;
+    const bool esperaDireccion = etapa == Etapa::BUSCANDO_SERVIDOR && esperandoApp;
+    if (redPropiaAbierta() && enSuWifi && !esperaDireccion && redPropiaClientes() == 0 &&
+        millis() - redPropiaUsadaEn >= CIERRE_RED_PROPIA_MS) {
+      Serial.println("La red propia lleva 10 minutos sin uso: se cierra.");
+      redPropiaCerrar();
+    }
+  }
+  if (estabaAbierta && !redPropiaAbierta()) {
+    // Recien cerrada, por la app o sola: desde ahora la placa puede alcanzar el servidor, y desde ahora
+    // cuentan los 2 minutos sin respuesta.
+    esperandoApp = false;
+    ultimaRespuestaApi = millis();
+  }
+  estabaAbierta = redPropiaAbierta();
 }
 
 // ---- programa ----
@@ -481,6 +685,8 @@ void setup() {
   delay(300);
   pinMode(PIN_LED, OUTPUT);
   digitalWrite(PIN_LED, LOW);
+  pinMode(PIN_BOOT, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(PIN_BOOT), alCambiarBoot, CHANGE);
   esp_task_wdt_init(SEGUNDOS_VIGILANCIA, true);  // reinicia la placa si loop() queda trabado
   esp_task_wdt_add(NULL);
 
@@ -515,8 +721,9 @@ void setup() {
 
   conexion = memoriaConexion();
   if (!conexion.hayRed()) {
+    Serial.println("Sin red guardada: la placa abre su red para que la app le entregue el WiFi.");
+    abrirRedPropia(true);
     cambiarEtapa(Etapa::SIN_RED, "");
-    Serial.println("Sin red guardada: copie config.example.h como config.h con WIFI_SSID, WIFI_CLAVE y API_BASE.");
     return;
   }
   Serial.printf("Red «%s», %s. Servidores:", conexion.red.c_str(), conexion.deConfigH ? "de config.h" : "de la memoria");
@@ -527,8 +734,11 @@ void setup() {
 
 void loop() {
   esp_task_wdt_reset();
+  revisarBoot();
+  atenderRedPropia();
   switch (etapa) {
     case Etapa::SIN_RED:
+      pasoSinRed();
       break;
     case Etapa::CONECTANDO:
       pasoConectando();

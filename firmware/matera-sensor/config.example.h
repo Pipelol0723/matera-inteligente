@@ -1,33 +1,33 @@
-// Configuración del sensor de la matera.
-// Copie este archivo como config.h, en la misma carpeta, y complete sus datos.
-// config.h no se sube al repositorio (está en .gitignore): lleva la clave del WiFi y la del sensor.
+// Configuración opcional de la placa.
+// La placa ya no la necesita: la red y la dirección del servidor se las da la app por la red propia de la
+// placa, y su código y su clave los crea ella misma. Copie este archivo como config.h, en la misma carpeta,
+// solo para cambiar algo de abajo; borre o comente lo que no quiera cambiar.
+// config.h no se sube al repositorio (está en .gitignore): puede llevar la clave del WiFi.
 #pragma once
 
-// Red WiFi de 2,4 GHz: la ESP32 no ve las redes de 5 GHz. Para la demo, el hotspot del celular
-// (en iPhone, con «Maximizar compatibilidad» encendido). El nombre va exacto, con sus espacios:
-// Windows puede mostrarlo sin un espacio del final. Si no conecta, el monitor serie lista las redes
-// que ve la placa, con el nombre entre «». La red tiene que dar salida a internet: la hora sale de NTP.
-#define WIFI_SSID "nombre-de-la-red"
-#define WIFI_CLAVE "clave-de-la-red"
-
-// La IP del PC que corre el backend con MATERA_HOST=0.0.0.0 (en Windows: ipconfig, «Dirección IPv4»).
-// El hotspot puede darle otra IP al PC cada vez que se conecta: revísela antes de cada demo.
-#define API_BASE "http://192.168.43.10:5000/api/v1"
-
-// El código con el que se creó la matera en Mis materas y la clave que la API mostró una sola vez.
-// La placa canjea la clave por su token al arrancar. Si se pierde la clave, «Cambiar sensor» con el
-// mismo código entrega otra (y la anterior, con su token, deja de servir).
-#define CODIGO_SENSOR "MT-0001-AA"
-#define CLAVE_SENSOR "pegue-aqui-la-clave"
+// Respaldo de desarrollo: si la memoria de la placa no tiene red, usa esta red y esta dirección sin pasar
+// por la app. No se guardan en la memoria. Tienen que estar los tres.
+// La red es de 2,4 GHz (la ESP32 no ve las de 5 GHz) y con salida a internet, porque la hora sale de NTP.
+// La dirección es la IP del PC que corre el backend con MATERA_HOST=0.0.0.0 (ipconfig, «Dirección IPv4»).
+// #define WIFI_SSID "nombre-de-la-red"
+// #define WIFI_CLAVE "clave-de-la-red"
+// #define API_BASE "http://192.168.43.10:5000/api/v1"
 
 // Cada cuánto se envía una lectura, en milisegundos.
-#define INTERVALO_MS 15000
+// #define INTERVALO_MS 15000
 
-// El módulo LDR solo dice si hay luz: con luz, su salida queda en LDR_CON_LUZ. Para saber cuál es,
-// tape el sensor y mire la luz del módulo o el monitor serie; si da al revés, cambie LOW por HIGH.
-// La perilla azul del módulo fija desde cuánta luz cuenta como «con luz».
-#define LDR_CON_LUZ LOW
+// El módulo LDR solo dice si hay luz: con luz, su salida queda en LDR_CON_LUZ. En este módulo es LOW
+// (comprobado tapándolo). La perilla azul del módulo fija desde cuánta luz cuenta como «con luz».
+// #define LDR_CON_LUZ LOW
 
 // Lo que se manda a la API, en lux, con luz y sin luz.
-#define LUX_CON_LUZ 1500
-#define LUX_SIN_LUZ 50
+// #define LUX_CON_LUZ 1500
+// #define LUX_SIN_LUZ 50
+
+// Los pines, si se cablea distinto: DHT11, salida DO del LDR, pantalla (I2C), LED y botón BOOT.
+// #define PIN_DHT 26
+// #define PIN_LUZ 18
+// #define PIN_SDA 21
+// #define PIN_SCL 22
+// #define PIN_LED 2
+// #define PIN_BOOT 0

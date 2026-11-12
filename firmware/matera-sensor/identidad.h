@@ -18,7 +18,8 @@ String codigoDesdeMac(const uint8_t mac[6]);
 // SHA-256 del texto, en hexadecimal minuscula (64 caracteres).
 String huellaDe(const String &texto);
 
-// Una clave nueva: 32 bytes al azar en base64url sin relleno.
+// Una clave nueva: 32 bytes al azar en base64url sin relleno. Se llama con la radio encendida
+// (despues de WiFi.mode()); si no, enciende un momento la fuente de ruido de la placa.
 String claveAlAzar();
 
 // `largo` caracteres al azar de `alfabeto`, sin sesgo.
