@@ -5,9 +5,11 @@
 // primera vez y la guarda en su memoria (NVS). La app solo conoce la huella SHA-256 de esa clave: crea la
 // matera con el codigo y la huella, y desde ahi el canje de la placa funciona (es el esquema de PKCE).
 //
-// La red y las direcciones del servidor se las da la app por la red propia de la placa (red_propia.h): un
-// WiFi WPA2 con una clave nueva cada vez que se abre, que la pantalla muestra en un QR. Se abre sin red
-// guardada, al mantener BOOT 5 s, si no entra a su WiFi en 60 s o si el servidor no responde en 2 minutos.
+// La red y las direcciones del servidor se las da la app en el modo de conexion: por la red propia de la
+// placa (red_propia.h), un WiFi WPA2 con una clave nueva cada vez que se abre, que la pantalla muestra en un
+// QR; o por Bluetooth LE (bluetooth.h), con la misma clave. Los dos hablan el mismo contrato (api_local.h).
+// Se abre sin red guardada, al mantener BOOT 5 s, si no entra a su WiFi en 60 s o si el servidor no
+// responde en 2 minutos.
 //
 // Etapas, cada una con su pantalla:
 //   SIN_RED            sin red: muestra el QR de su red propia y espera a la app.
@@ -30,6 +32,7 @@
 
 #include "ajustes.h"
 #include "api_matera.h"
+#include "bluetooth.h"
 #include "identidad.h"
 #include "lector_json.h"
 #include "memoria.h"
@@ -269,6 +272,41 @@ void revisarBoot() {
   const unsigned long duracion = bootDuracion;
   if (duracion >= BOOT_CLAVE_MS) olvidarRed(true);
   else if (duracion >= BOOT_RED_MS) olvidarRed(false);
+}
+
+// Ordenes por el monitor serie, para probar el modo de conexion sin apretar BOOT ni olvidar la red.
+void revisarConsola() {
+  static String linea;
+  while (Serial.available() > 0) {
+    const char c = (char)Serial.read();
+    if (c != '\n' && c != '\r') {
+      if (linea.length() < 32) linea += c;
+      continue;
+    }
+    linea.trim();
+    if (linea == "conexion") {
+      if (redPropiaAbierta()) {
+        Serial.println("Consola: el modo de conexión ya está abierto.");
+      } else {
+        Serial.println("Consola: se abre el modo de conexión sin olvidar la red.");
+        abrirRedPropia(false);
+      }
+    } else if (linea == "cerrar") {
+      if (!redPropiaAbierta()) {
+        Serial.println("Consola: el modo de conexión ya está cerrado.");
+      } else if (!conexion.hayRed()) {
+        Serial.println("Consola: la placa no tiene red guardada; su red propia sigue abierta.");
+      } else {
+        Serial.println("Consola: se cierra el modo de conexión.");
+        redPropiaCerrar();
+      }
+    } else if (linea == "memoria") {
+      redPropiaImprimirRecursos("ahora");
+    } else if (linea.length() > 0) {
+      Serial.println("Consola: las órdenes son «conexion», «cerrar» y «memoria».");
+    }
+    linea = "";
+  }
 }
 
 // ---- servidor ----
@@ -689,6 +727,7 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(PIN_BOOT), alCambiarBoot, CHANGE);
   esp_task_wdt_init(SEGUNDOS_VIGILANCIA, true);  // reinicia la placa si loop() queda trabado
   esp_task_wdt_add(NULL);
+  bluetoothPreparar();
 
   uint8_t mac[6];
   const String textoMac = macDeLaPlaca(mac);
@@ -719,6 +758,7 @@ void setup() {
 
   sensoresIniciar();  // 2 s: descarta la primera lectura del DHT11
 
+  redPropiaImprimirRecursos("al arrancar");
   conexion = memoriaConexion();
   if (!conexion.hayRed()) {
     Serial.println("Sin red guardada: la placa abre su red para que la app le entregue el WiFi.");
@@ -735,6 +775,7 @@ void setup() {
 void loop() {
   esp_task_wdt_reset();
   revisarBoot();
+  revisarConsola();
   atenderRedPropia();
   switch (etapa) {
     case Etapa::SIN_RED:

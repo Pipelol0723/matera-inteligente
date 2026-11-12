@@ -3,10 +3,11 @@
 #include <DNSServer.h>
 #include <WebServer.h>
 #include <WiFi.h>
-#include <esp_task_wdt.h>
+#include <esp_ota_ops.h>
 
+#include "api_local.h"
+#include "bluetooth.h"
 #include "identidad.h"
-#include "lector_json.h"
 
 namespace {
 
@@ -16,11 +17,6 @@ const int LARGO_CLAVE = 8;
 // Una sola persona a la vez: nadie mas en el salon puede leer /info (el codigo y la huella) y registrar
 // la placa primero en su cuenta.
 const int MAX_CLIENTES = 1;
-const int MAX_REDES = 15;
-const unsigned long VIGENCIA_REDES_MS = 30000;  // GET /info pide otra busqueda si la lista es mas vieja
-const unsigned long DEMORA_MS = 400;            // entre responder y cambiar de red o cerrar
-const size_t MAX_CUERPO = 1024;
-const size_t MAX_DIRECCION = 120;
 
 WebServer web(80);
 DNSServer dns;
@@ -28,95 +24,8 @@ bool abierta = false;
 String nombre;
 String clave;
 String codigoPlaca;
-String huellaPlaca;
-String etapaActual = "sin-red";
-String detalleActual;
 
-struct Red {
-  String nombre;
-  int senal;
-  bool segura;
-};
-Red redes[MAX_REDES];
-int cuantasRedes = 0;
-unsigned long redesDesde = 0;
-bool escaneando = false;
-
-bool hayConfiguracion = false;
-unsigned long configuracionDesde = 0;
-Conexion configuracion;
-bool cierrePedido = false;
-unsigned long cierreDesde = 0;
-
-// ---- redes que ve la placa ----
-
-void guardarRedes(int encontradas) {
-  cuantasRedes = 0;
-  for (int i = 0; i < encontradas; i++) {
-    const String ssid = WiFi.SSID(i);
-    if (ssid.length() == 0) continue;  // red oculta
-    const int senal = WiFi.RSSI(i);
-    const bool segura = WiFi.encryptionType(i) != WIFI_AUTH_OPEN;
-    // La misma red con varios puntos de acceso aparece una vez, con la mejor senal.
-    int j = 0;
-    while (j < cuantasRedes && redes[j].nombre != ssid) j++;
-    if (j < cuantasRedes) {
-      if (senal > redes[j].senal) redes[j] = {ssid, senal, segura};
-      continue;
-    }
-    if (cuantasRedes < MAX_REDES) {
-      redes[cuantasRedes++] = {ssid, senal, segura};
-      continue;
-    }
-    int peor = 0;
-    for (int k = 1; k < cuantasRedes; k++) {
-      if (redes[k].senal < redes[peor].senal) peor = k;
-    }
-    if (senal > redes[peor].senal) redes[peor] = {ssid, senal, segura};
-  }
-  // De la mejor senal a la peor.
-  for (int i = 1; i < cuantasRedes; i++) {
-    Red actual = redes[i];
-    int j = i - 1;
-    while (j >= 0 && redes[j].senal < actual.senal) {
-      redes[j + 1] = redes[j];
-      j--;
-    }
-    redes[j + 1] = actual;
-  }
-  WiFi.scanDelete();
-  redesDesde = millis();
-}
-
-void escanearAhora() {
-  esp_task_wdt_reset();
-  const int encontradas = WiFi.scanNetworks(false, false);
-  if (encontradas >= 0) guardarRedes(encontradas);
-  esp_task_wdt_reset();
-  // Sirve para saber si la red de la casa esta al alcance y es de 2,4 GHz.
-  Serial.printf("La placa ve %d redes:\n", cuantasRedes);
-  for (int i = 0; i < cuantasRedes && i < 10; i++) {
-    Serial.printf("  «%s», señal %d dBm%s\n", redes[i].nombre.c_str(), redes[i].senal, redes[i].segura ? "" : ", abierta");
-  }
-}
-
-// Pide otra busqueda en segundo plano. Mientras la placa intenta entrar a una red, buscar corta el intento:
-// solo se busca sin red o ya conectada.
-void pedirBusqueda() {
-  if (escaneando || millis() - redesDesde < VIGENCIA_REDES_MS) return;
-  if (etapaActual != "sin-red" && WiFi.status() != WL_CONNECTED) return;
-  if (WiFi.scanNetworks(true, false) == WIFI_SCAN_RUNNING) escaneando = true;
-}
-
-void revisarBusqueda() {
-  if (!escaneando) return;
-  const int resultado = WiFi.scanComplete();
-  if (resultado == WIFI_SCAN_RUNNING) return;
-  escaneando = false;
-  if (resultado >= 0) guardarRedes(resultado);
-}
-
-// ---- respuestas ----
+// ---- adaptador HTTP de la API local (las reglas estan en api_local) ----
 
 // El servidor web escucha en todas las interfaces: lo que llegue por el WiFi de la casa no se atiende.
 bool desdeRedPropia() {
@@ -132,140 +41,43 @@ void cabecerasCors() {
   web.sendHeader("Cache-Control", "no-store");
 }
 
-void responderJson(int codigoHttp, const String &cuerpo) {
+void responder(const RespuestaLocal &respuesta) {
   cabecerasCors();
-  web.send(codigoHttp, "application/json; charset=utf-8", cuerpo);
-}
-
-void responderVacio(int codigoHttp) {
-  cabecerasCors();
-  web.send(codigoHttp);
-}
-
-// {"error": "CODIGO", "mensaje": "texto para la persona"}, y el campo que hay que corregir en un 400.
-void responderError(int codigoHttp, const char *error, const String &mensaje, const char *campo) {
-  String cuerpo = String("{\"error\":") + jsonComillas(error) + ",\"mensaje\":" + jsonComillas(mensaje);
-  if (campo != nullptr) cuerpo += String(",\"detalle\":{\"campo\":") + jsonComillas(campo) + "}";
-  cuerpo += "}";
-  responderJson(codigoHttp, cuerpo);
+  if (respuesta.cuerpo.length() == 0) {
+    web.send(respuesta.http);
+  } else {
+    web.send(respuesta.http, "application/json; charset=utf-8", respuesta.cuerpo);
+  }
 }
 
 bool rechazarAjeno() {
   if (desdeRedPropia()) return false;
-  responderError(403, "SOLO_RED_PROPIA", "La placa solo atiende a quien está unido a su red.", nullptr);
+  responder(apiLocalError(403, "SOLO_RED_PROPIA", "La placa solo atiende a quien está unido a su red."));
   return true;
-}
-
-String estadoJson(const String &etapa, const String &detalle) {
-  return String("{\"etapa\":") + jsonComillas(etapa) + ",\"detalle\":" + jsonComillas(detalle) + "}";
-}
-
-// ---- validaciones de POST /configurar ----
-
-// Vacia (red abierta), de 8 a 63 caracteres, o 64 hexadecimales: lo que acepta WPA2.
-bool claveRedValida(const String &texto) {
-  const size_t largo = texto.length();
-  if (largo == 0 || (largo >= 8 && largo <= 63)) return true;
-  if (largo != 64) return false;
-  for (size_t i = 0; i < largo; i++) {
-    if (!isxdigit((uint8_t)texto[i])) return false;
-  }
-  return true;
-}
-
-// http://<host>[:puerto]/<ruta>, sin espacios ni comillas.
-bool direccionValida(const String &base) {
-  if (!base.startsWith("http://") || base.length() <= 7 || base.length() > MAX_DIRECCION) return false;
-  for (size_t i = 0; i < base.length(); i++) {
-    const uint8_t c = base[i];
-    if (c <= ' ' || c >= 0x7F || c == '"' || c == '\\') return false;
-  }
-  return base[7] != '/' && base[7] != ':';
 }
 
 // ---- rutas ----
 
 void info() {
   if (rechazarAjeno()) return;
-  String cuerpo = String("{\"codigo\":") + jsonComillas(codigoPlaca) + ",\"huella\":" + jsonComillas(huellaPlaca) +
-                  ",\"redes\":[";
-  for (int i = 0; i < cuantasRedes; i++) {
-    if (i > 0) cuerpo += ',';
-    cuerpo += String("{\"nombre\":") + jsonComillas(redes[i].nombre) + ",\"senal\":" + String(redes[i].senal) +
-              ",\"segura\":" + (redes[i].segura ? "true" : "false") + "}";
-  }
-  cuerpo += "]}";
-  responderJson(200, cuerpo);
-  pedirBusqueda();  // la proxima vez, la lista estara al dia
+  responder(apiLocalInfo());
 }
 
 // El cuerpo llega en JSON aunque la app lo mande como text/plain (asi no hay consulta previa de CORS): se
 // lee igual con cualquier Content-Type.
 void configurar() {
   if (rechazarAjeno()) return;
-  const String cuerpo = web.arg("plain");
-  if (cuerpo.length() > MAX_CUERPO || !jsonEsObjeto(cuerpo)) {
-    responderError(400, "SOLICITUD_INVALIDA", "La placa no entendió el pedido: el cuerpo debe ser un objeto JSON.",
-                   nullptr);
-    return;
-  }
-  Conexion nueva;
-  if (!jsonTexto(cuerpo, "red", nueva.red) || nueva.red.length() == 0) {
-    responderError(400, "PARAMETRO_INVALIDO", "Falta el nombre del WiFi.", "red");
-    return;
-  }
-  if (nueva.red.length() > 32) {
-    responderError(400, "PARAMETRO_INVALIDO", "El nombre del WiFi tiene 32 caracteres como máximo.", "red");
-    return;
-  }
-  if (!jsonTexto(cuerpo, "claveRed", nueva.claveRed) || !claveRedValida(nueva.claveRed)) {
-    responderError(400, "PARAMETRO_INVALIDO",
-                   "La clave del WiFi tiene de 8 a 63 caracteres, o va vacía si la red es abierta.", "claveRed");
-    return;
-  }
-  String lista[MAX_SERVIDORES];
-  const int cuantos = jsonTextos(cuerpo, "servidores", lista, MAX_SERVIDORES);
-  if (cuantos < 1 || cuantos > MAX_SERVIDORES) {
-    responderError(400, "PARAMETRO_INVALIDO",
-                   "Faltan las direcciones del servidor: de 1 a 4, como http://10.34.101.124:5000/api/v1.", "servidores");
-    return;
-  }
-  for (int i = 0; i < cuantos; i++) {
-    String base = lista[i];
-    base.trim();
-    while (base.endsWith("/")) base.remove(base.length() - 1);
-    if (!direccionValida(base)) {
-      responderError(400, "PARAMETRO_INVALIDO", "«" + lista[i] + "» no es una dirección http:// del servidor.",
-                     "servidores");
-      return;
-    }
-    nueva.servidores[nueva.cuantos++] = base;
-  }
-  configuracion = nueva;
-  hayConfiguracion = true;
-  configuracionDesde = millis();
-  responderJson(202, estadoJson("conectando", "Conectando a «" + nueva.red + "»"));
+  responder(apiLocalConfigurar(web.arg("plain")));
 }
 
 void estado() {
   if (rechazarAjeno()) return;
-  // Entre el 202 y el momento en que la placa empieza a conectarse ya se dice «conectando».
-  if (hayConfiguracion) {
-    responderJson(200, estadoJson("conectando", "Conectando a «" + configuracion.red + "»"));
-  } else {
-    responderJson(200, estadoJson(etapaActual, detalleActual));
-  }
+  responder(apiLocalEstado());
 }
 
 void cerrar() {
   if (rechazarAjeno()) return;
-  if (etapaActual == "sin-red" && !hayConfiguracion) {
-    responderError(409, "SIN_RED", "La placa todavía no tiene red: su red propia sigue abierta.", nullptr);
-    return;
-  }
-  cierrePedido = true;
-  cierreDesde = millis();
-  responderVacio(204);
+  responder(apiLocalCerrar());
 }
 
 void inicio() {
@@ -297,15 +109,16 @@ void ncsiWindows() {
 
 void otraRuta() {
   if (web.method() == HTTP_OPTIONS) {
-    responderVacio(204);
+    cabecerasCors();
+    web.send(204);
     return;
   }
   const String ruta = web.uri();
   if (ruta == "/info" || ruta == "/estado" || ruta == "/configurar" || ruta == "/cerrar") {
-    responderError(405, "METODO_NO_PERMITIDO", "La ruta " + ruta + " no acepta ese método.", nullptr);
+    responder(apiLocalError(405, "METODO_NO_PERMITIDO", "La ruta " + ruta + " no acepta ese método."));
     return;
   }
-  responderError(404, "RUTA_NO_ENCONTRADA", "La placa no tiene la ruta " + ruta + ".", nullptr);
+  responder(apiLocalError(404, "RUTA_NO_ENCONTRADA", "La placa no tiene la ruta " + ruta + "."));
 }
 
 void registrarRutas() {
@@ -331,11 +144,11 @@ void registrarRutas() {
 void redPropiaAbrir(const String &codigo, const String &huella) {
   if (abierta) redPropiaCerrar();
   codigoPlaca = codigo;
-  huellaPlaca = huella;
   nombre = "Matera-" + codigo.substring(3, 7) + codigo.substring(8);
+  apiLocalIniciar(codigo, huella);
   WiFi.mode(WIFI_AP_STA);
   clave = textoAlAzar(ALFABETO_CLAVE, LARGO_CLAVE);  // con la radio encendida: esp_random es aleatorio
-  escanearAhora();
+  apiLocalBuscarRedes();
   // Si la placa ya esta en un WiFi, su red propia tiene que ir en el mismo canal.
   const int canal = WiFi.status() == WL_CONNECTED ? WiFi.channel() : 1;
   if (!WiFi.softAP(nombre.c_str(), clave.c_str(), canal, 0, MAX_CLIENTES)) {
@@ -346,25 +159,22 @@ void redPropiaAbrir(const String &codigo, const String &huella) {
   registrarRutas();
   web.begin();
   abierta = true;
-  hayConfiguracion = false;
-  cierrePedido = false;
   Serial.printf("Red propia abierta: «%s», clave %s, API en http://%s (ve %d redes).\n", nombre.c_str(), clave.c_str(),
-                WiFi.softAPIP().toString().c_str(), cuantasRedes);
+                WiFi.softAPIP().toString().c_str(), apiLocalCuantasRedes());
+  bluetoothEncender(nombre, clave);
+  redPropiaImprimirRecursos("modo de conexión abierto (WiFi, red propia, servidor web y Bluetooth)");
 }
 
 void redPropiaCerrar() {
   if (!abierta) return;
+  bluetoothApagar();
   web.stop();
   dns.stop();
-  if (escaneando) {
-    WiFi.scanDelete();
-    escaneando = false;
-  }
+  apiLocalTerminar();
   WiFi.softAPdisconnect(true);  // la radio queda solo en modo estacion
   abierta = false;
-  hayConfiguracion = false;
-  cierrePedido = false;
   Serial.println("Red propia cerrada.");
+  redPropiaImprimirRecursos("modo de conexión cerrado");
 }
 
 bool redPropiaAbierta() {
@@ -375,8 +185,9 @@ void redPropiaAtender() {
   if (!abierta) return;
   dns.processNextRequest();
   web.handleClient();
-  revisarBusqueda();
-  if (cierrePedido && millis() - cierreDesde >= DEMORA_MS) redPropiaCerrar();
+  bluetoothAtender();
+  apiLocalRevisarBusqueda();
+  if (apiLocalCierreVencido()) redPropiaCerrar();
 }
 
 const String &redPropiaNombre() {
@@ -388,17 +199,22 @@ const String &redPropiaClave() {
 }
 
 int redPropiaClientes() {
-  return abierta ? WiFi.softAPgetStationNum() : 0;
+  return abierta ? WiFi.softAPgetStationNum() + bluetoothConectados() : 0;
 }
 
 void redPropiaEstado(const char *etapa, const String &detalle) {
-  if (etapaActual != etapa) etapaActual = etapa;
-  if (detalleActual != detalle) detalleActual = detalle;
+  apiLocalEstadoPlaca(etapa, detalle);
 }
 
 bool redPropiaConfiguracion(Conexion &conexion) {
-  if (!hayConfiguracion || millis() - configuracionDesde < DEMORA_MS) return false;
-  conexion = configuracion;
-  hayConfiguracion = false;
-  return true;
+  return apiLocalConfiguracion(conexion);
+}
+
+void redPropiaImprimirRecursos(const char *momento) {
+  const esp_partition_t *particion = esp_ota_get_running_partition();
+  static const uint32_t programa = ESP.getSketchSize();  // lee el programa entero: se mide una vez
+  const uint32_t espacio = particion != nullptr ? particion->size : 0;
+  Serial.printf("Memoria, %s: programa %u de %u bytes (%u %%); RAM libre %u bytes (mínima %u, bloque mayor %u).\n",
+                momento, programa, espacio, espacio > 0 ? (unsigned)(100ULL * programa / espacio) : 0u,
+                ESP.getFreeHeap(), ESP.getMinFreeHeap(), ESP.getMaxAllocHeap());
 }
