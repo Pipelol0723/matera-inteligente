@@ -32,7 +32,7 @@ SALA = Planta(3, 1, "sala", "potos")
 POTOS = RitmoCrecimiento(1, 3, 6)
 SANSEVIERIA = RitmoCrecimiento(2, 5, 10)
 REAL = RelojDeJuego()
-DEMO = RelojDeJuego(2)
+DEMO = RelojDeJuego(6)  # el de la demo: una hora de juego cada 15 s, lo que tarda la placa entre lecturas
 
 S, R, C = EstadoGlobal.SALUDABLE, EstadoGlobal.EN_RIESGO, EstadoGlobal.CRITICO
 BAJO, OPTIMO, ALTO = EstadoParametro.BAJO, EstadoParametro.OPTIMO, EstadoParametro.ALTO
@@ -134,15 +134,15 @@ def test_con_el_reloj_real_una_hora_de_juego_es_una_hora():
 
 
 def test_el_reloj_acelerado_escala_horas_y_dias():
-    assert DEMO.dia == timedelta(minutes=2)
-    assert DEMO.hora == timedelta(seconds=5)
-    assert DEMO.horas(6) == timedelta(seconds=30)
-    assert DEMO.dias(3) == timedelta(minutes=6)
+    assert DEMO.dia == timedelta(minutes=6)
+    assert DEMO.hora == timedelta(seconds=15)
+    assert DEMO.horas(6) == timedelta(seconds=90)
+    assert DEMO.dias(3) == timedelta(minutes=18)
 
 
 def test_las_horas_de_juego_se_numeran_por_intervalos_consecutivos():
-    assert DEMO.numero_de_hora(AHORA) == DEMO.numero_de_hora(AHORA + timedelta(seconds=4.9))
-    assert DEMO.numero_de_hora(AHORA + timedelta(seconds=5)) == DEMO.numero_de_hora(AHORA) + 1
+    assert DEMO.numero_de_hora(AHORA) == DEMO.numero_de_hora(AHORA + timedelta(seconds=14.9))
+    assert DEMO.numero_de_hora(AHORA + timedelta(seconds=15)) == DEMO.numero_de_hora(AHORA) + 1
     assert REAL.numero_de_hora(AHORA + timedelta(minutes=59)) == REAL.numero_de_hora(AHORA)
     assert REAL.numero_de_hora(AHORA + timedelta(hours=1)) == REAL.numero_de_hora(AHORA) + 1
 
@@ -169,7 +169,7 @@ def test_la_ventana_de_la_condicion_tiene_que_caber_en_el_calendario():
 
 def test_la_ventana_de_la_condicion_son_6_horas_de_juego():
     assert CuidadoDeMascota(REAL).ventana == timedelta(hours=6)
-    assert CuidadoDeMascota(DEMO).ventana == timedelta(seconds=30)
+    assert CuidadoDeMascota(DEMO).ventana == timedelta(seconds=90)
 
 
 # --- Tamano: horas bien cuidada y ritmo de la especie ---
@@ -304,7 +304,7 @@ def test_la_condicion_no_depende_de_las_horas_fuera_de_la_ventana():
 
 
 def test_la_condicion_es_la_de_la_ventana_de_la_ultima_lectura_y_no_cambia_sin_lecturas():
-    # Con el reloj de la demo la ventana dura 30 s: 20 minutos despues ya paso, pero no llego otra lectura.
+    # Con el reloj de la demo la ventana dura 90 s: 20 minutos despues ya paso, pero no llego otra lectura.
     resumen = resumen_con((C, C, C), (C, C))
 
     recien = armar(resumen, reloj=DEMO)
@@ -346,7 +346,7 @@ def test_se_duerme_despues_de_30_minutos_reales_sin_lecturas():
 
 
 def test_los_minutos_para_dormirse_no_se_escalan_con_el_reloj_del_juego():
-    # Con el reloj de la demo, 10 minutos reales son 5 dias de juego: igual sigue despierta.
+    # Con el reloj de la demo, 10 minutos reales son casi 2 dias de juego: igual sigue despierta.
     assert armar(resumen_con((S,), cuando=AHORA - timedelta(minutes=10)), reloj=DEMO).dormida is False
     assert armar(resumen_con((S,), cuando=AHORA - timedelta(minutes=31)), reloj=DEMO).dormida is True
 

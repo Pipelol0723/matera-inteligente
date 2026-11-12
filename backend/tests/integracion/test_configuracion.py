@@ -42,13 +42,14 @@ def test_por_defecto_el_reloj_del_juego_es_el_real_y_la_matera_duerme_a_los_30_m
 
 
 def test_el_reloj_del_juego_se_acelera_para_la_demo(monkeypatch):
-    monkeypatch.setenv("MATERA_MINUTOS_POR_DIA_JUEGO", " 2 ")
+    # 6 minutos por dia: cada hora de juego dura 15 s, lo que tarda la placa entre lecturas.
+    monkeypatch.setenv("MATERA_MINUTOS_POR_DIA_JUEGO", " 6 ")
     monkeypatch.setenv("MATERA_MINUTOS_SIN_LECTURAS", "0.5")
 
     config = Configuracion.desde_entorno()
 
-    assert (config.minutos_por_dia_juego, config.minutos_sin_lecturas) == (2, 0.5)
-    assert config.reloj_de_juego.hora == timedelta(seconds=5)
+    assert (config.minutos_por_dia_juego, config.minutos_sin_lecturas) == (6, 0.5)
+    assert config.reloj_de_juego.hora == timedelta(seconds=15)
 
 
 _INVALIDOS = ["0", "-2", "dos", "1,5", "nan", "inf", "1e300"]

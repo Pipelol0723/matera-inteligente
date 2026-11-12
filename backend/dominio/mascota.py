@@ -118,8 +118,9 @@ class RitmoCrecimiento:
 class RelojDeJuego:
     """Cuanto dura en tiempo real un dia de juego.
 
-    1440 minutos es el tiempo real. En la demo, con 2, un dia de juego dura 2
-    minutos y una hora de juego, 5 segundos: las reglas no cambian, solo la escala.
+    1440 minutos es el tiempo real. En la demo, con 6, un dia de juego dura 6
+    minutos y una hora de juego, 15 segundos: lo que tarda la placa entre una
+    lectura y otra, asi cada hora tiene su lectura. Las reglas no cambian, solo la escala.
     """
 
     minutos_por_dia: float = 1440

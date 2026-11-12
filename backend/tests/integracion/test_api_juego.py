@@ -2,8 +2,8 @@
 
 Las lecturas llegan como las manda la placa: canje de la clave y POST con su
 token. Para ver crecer y marchitarse una matera, la app usa el reloj del juego
-de la demo (1 dia = 2 minutos: una hora de juego dura 5 segundos) y un reloj que
-solo avanza cuando la prueba lo pide.
+de la demo (1 dia = 6 minutos: una hora de juego dura 15 segundos, lo que tarda
+la placa entre lecturas) y un reloj que solo avanza cuando la prueba lo pide.
 """
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
@@ -73,8 +73,8 @@ def reloj():
 
 @pytest.fixture
 def juego(config, reloj):
-    """La app con 1 dia de juego = 2 minutos, y el reloj de la prueba."""
-    return ClienteApi(replace(config, minutos_por_dia_juego=2), reloj)
+    """La app con el reloj del juego de la demo (1 dia = 6 minutos), y el reloj de la prueba."""
+    return ClienteApi(replace(config, minutos_por_dia_juego=6), reloj)
 
 
 def _get(api, ruta, token):
@@ -153,12 +153,13 @@ def test_con_el_reloj_acelerado_la_matera_crece_de_semilla_a_brote_y_se_marchita
         "ultimaLectura": None,
     }
 
-    # El potos llega a brote con 1 dia de juego bien cuidada: 24 horas de juego, aqui 24 lecturas cada 5 s.
+    # El potos llega a brote con 1 dia de juego bien cuidada: 24 horas de juego. Con la placa mandando cada
+    # 15 s, como en la demo, son 24 lecturas: 6 minutos.
     for _ in range(23):
-        reloj.avanzar(seconds=5)
+        reloj.avanzar(seconds=15)
         assert sala.leer(SALUDABLE).status_code == 201
     assert (_mascota(juego, ana)["etapa"], _mascota(juego, ana)["horasCuidada"]) == ("SEMILLA", 23)
-    reloj.avanzar(seconds=5)
+    reloj.avanzar(seconds=15)
     assert sala.leer(SALUDABLE).status_code == 201
     assert _mascota(juego, ana) == {
         "plantaId": sala.planta["id"],
@@ -173,15 +174,15 @@ def test_con_el_reloj_acelerado_la_matera_crece_de_semilla_a_brote_y_se_marchita
         "ultimaLectura": reloj.ahora().isoformat(),
     }
 
-    # Un minuto despues (12 horas de juego: fuera de la ventana de 6), llega una lectura CRITICO.
-    reloj.avanzar(minutes=1)
+    # Dos minutos despues (8 horas de juego: fuera de la ventana de 6), llega una lectura CRITICO.
+    reloj.avanzar(minutes=2)
     assert sala.leer(CRITICO).status_code == 201
     marchita = _mascota(juego, ana)
     assert (marchita["condicion"], marchita["aviso"], marchita["cara"], marchita["necesidad"]) == (
         "MARCHITA", "SE_MARCHITO", "CRITICO", "SED"
     )
     # Marchita no crece, pero tampoco se achica.
-    reloj.avanzar(seconds=5)
+    reloj.avanzar(seconds=15)
     assert sala.leer(CRITICO).status_code == 201
     sigue = _mascota(juego, ana)
     assert (sigue["etapa"], sigue["horasCuidada"], sigue["condicion"], sigue["aviso"], sigue["puntos"]) == (

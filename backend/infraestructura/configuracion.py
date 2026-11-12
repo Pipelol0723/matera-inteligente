@@ -48,7 +48,8 @@ class Configuracion:
     # y con una base fuera de Google Drive (MATERA_RUTA_BD) queda afuera con ella.
     ruta_csv: Path | None = None
     # El reloj del juego (corte 3): cuantos minutos reales dura un dia de juego. 1440 es el tiempo
-    # real; en la demo, con 2, una hora de juego dura 5 segundos y la matera crece en minutos.
+    # real; en la demo, con 6, una hora de juego dura 15 segundos (lo que tarda la placa entre lecturas)
+    # y la matera crece en minutos. Con menos, quedan horas de juego sin lectura.
     minutos_por_dia_juego: float = 1440
     # Sin lecturas en estos minutos reales, la matera duerme. No cambian con el reloj del juego.
     minutos_sin_lecturas: float = CuidadoDeMascota.MINUTOS_PARA_DORMIR
@@ -65,7 +66,7 @@ class Configuracion:
         ):
             raise ValueError(
                 "MATERA_MINUTOS_POR_DIA_JUEGO debe ser un número de minutos mayor que cero y no tan grande que "
-                "6 horas de juego se salgan del calendario (1440 es el tiempo real; 2, para la demo), "
+                "6 horas de juego se salgan del calendario (1440 es el tiempo real; 6, para la demo), "
                 f"no '{self.minutos_por_dia_juego}'."
             )
         if not _positivo(self.minutos_sin_lecturas) or not _sirve(
