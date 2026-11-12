@@ -2,45 +2,85 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f4f7f2">
   <title>Matera · Diagnóstico</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..600&display=swap">
+  <link rel="preload" href="fuentes/dm-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fuentes/bricolage-grotesque-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/fuentes.css">
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/componentes.css">
+  <link rel="stylesheet" href="css/armazon.css">
   <link rel="stylesheet" href="css/estilos.css">
+  <!-- Clásico y sin defer: pone el estilo y el tema en <html> antes de pintar (ver js/apariencia.js). -->
+  <script src="js/apariencia.js"></script>
   <script type="module" src="js/app.js"></script>
 </head>
 <body>
-  <nav class="navegacion" aria-label="Pantallas">
-    <div class="navegacion__contenido">
+  <header class="cabecera">
+    <div class="cabecera__contenido">
       <div class="marca">
-        <span class="marca__logo" aria-hidden="true"></span>
+        <span class="marca__logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20v-8" fill="none"/><path d="M12 12c0-3.6-2.7-6.2-6.6-6.2 0 3.6 2.7 6.2 6.6 6.2z"/><path d="M12 10.6c0-3.1 2.4-5.4 6-5.4 0 3.1-2.4 5.4-6 5.4z"/></svg>
+        </span>
         <span class="marca__nombre">Matera</span>
         <span class="marca__version">v2</span>
       </div>
-      <div class="pestanas">
-        <button type="button" class="pestana" data-pantalla="diagnostico">Diagnóstico</button>
-        <button type="button" class="pestana" data-pantalla="especies">Especies</button>
-        <button type="button" class="pestana" data-pantalla="materas">Mis materas</button>
-        <button type="button" class="pestana" data-pantalla="historial">Historial</button>
-        <button type="button" class="pestana" data-pantalla="juego">Juego</button>
-        <button type="button" class="pestana" data-pantalla="admin" hidden>Administración</button>
+      <nav class="pestanas" aria-label="Pantallas">
+        <button type="button" class="pestana" data-pantalla="diagnostico">
+          <span class="pestana__icono" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16a8 8 0 1 1 16 0"/><path d="M12 16l3.6-4.6"/><circle cx="12" cy="16" r="1.5" fill="currentColor" stroke="none"/><path d="M4 20h16"/></svg></span>
+          <span class="pestana__texto"><span class="pestana__largo">Diagnóstico</span></span>
+        </button>
+        <button type="button" class="pestana" data-pantalla="especies">
+          <span class="pestana__icono" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19c0-8.2 5.2-14 14-14 0 8.8-5.8 14-14 14z"/><path d="M5 19l8.5-8.5"/></svg></span>
+          <span class="pestana__texto"><span class="pestana__largo">Especies</span></span>
+        </button>
+        <button type="button" class="pestana" data-pantalla="materas">
+          <span class="pestana__icono" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 13h13l-1.6 7.5H7.1z"/><path d="M12 13V8.5"/><path d="M12 9.2c0-2.6-2-4.4-4.8-4.4 0 2.6 2 4.4 4.8 4.4z"/><path d="M12 8.4c0-2.3 1.8-3.9 4.3-3.9 0 2.3-1.8 3.9-4.3 3.9z"/></svg></span>
+          <span class="pestana__texto"><span class="pestana__largo">Mis materas</span><span class="pestana__corto" aria-hidden="true">Materas</span></span>
+        </button>
+        <button type="button" class="pestana" data-pantalla="historial">
+          <span class="pestana__icono" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v16h16"/><path d="M7.5 15l3.4-4 3 2.6L19 7.5"/></svg></span>
+          <span class="pestana__texto"><span class="pestana__largo">Historial</span></span>
+        </button>
+        <button type="button" class="pestana" data-pantalla="juego">
+          <span class="pestana__icono" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.6l2.6 5.2 5.7.8-4.1 4 1 5.7L12 16.6l-5.2 2.7 1-5.7-4.1-4 5.7-.8z"/></svg></span>
+          <span class="pestana__texto"><span class="pestana__largo">Juego</span></span>
+        </button>
+        <button type="button" class="pestana" data-pantalla="admin" hidden>
+          <span class="pestana__icono" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5.2c0 4.4-3 7.9-7 9.8-4-1.9-7-5.4-7-9.8V6z"/><path d="M9 12l2.2 2.2L15.2 10"/></svg></span>
+          <span class="pestana__texto"><span class="pestana__largo">Administración</span><span class="pestana__corto" aria-hidden="true">Admin</span></span>
+        </button>
+      </nav>
+      <div class="cabecera__estado">
+        <div id="conexion" class="conexion conexion--pendiente" role="status">
+          <span class="conexion__punto" aria-hidden="true"></span>
+          <span id="conexion-texto" class="conexion__texto">Conectando con la API…</span>
+        </div>
+        <div id="en-vivo" class="en-vivo" role="status" hidden>
+          <span class="en-vivo__punto" aria-hidden="true"></span>
+          <span id="en-vivo-texto" class="en-vivo__texto"></span>
+        </div>
       </div>
-      <div id="conexion" class="conexion conexion--pendiente" role="status">
-        <span class="conexion__punto" aria-hidden="true"></span>
-        <span id="conexion-texto" class="conexion__texto">Conectando con la API…</span>
+      <div class="cabecera__acciones">
+        <button id="puntaje" type="button" class="puntaje" data-pantalla="juego" aria-label="Sus puntos" title="Sus puntos" hidden>
+          <span class="puntaje__icono" aria-hidden="true"></span>
+          <span id="puntaje-valor" class="puntaje__valor">0</span>
+        </button>
+        <button type="button" class="boton-icono" popovertarget="menu-apariencia" aria-label="Apariencia: estilo y tema" title="Apariencia">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 0 0 0 18c1 0 1.6-.7 1.6-1.5 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.5 1.6-1.5H16a5 5 0 0 0 5-5C21 6.5 17 3 12 3z"/><circle cx="7.5" cy="11.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="10" cy="7.6" r="1.2" fill="currentColor" stroke="none"/><circle cx="14.6" cy="7.6" r="1.2" fill="currentColor" stroke="none"/></svg>
+        </button>
+        <button id="boton-cuenta" type="button" class="boton-cuenta" data-pantalla="acceso">
+          <span class="boton-cuenta__avatar" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="8.6" r="3.6"/><path d="M5 20c.8-3.6 3.6-5.6 7-5.6s6.2 2 7 5.6"/></svg></span>
+          <span id="boton-cuenta-texto" class="boton-cuenta__texto">Ingresar</span>
+        </button>
       </div>
-      <div id="en-vivo" class="en-vivo" role="status" hidden>
-        <span class="en-vivo__punto" aria-hidden="true"></span>
-        <span id="en-vivo-texto" class="en-vivo__texto"></span>
-      </div>
-      <button id="puntaje" type="button" class="puntaje" data-pantalla="juego" aria-label="Sus puntos" title="Sus puntos" hidden>
-        <span class="puntaje__icono" aria-hidden="true"></span>
-        <span id="puntaje-valor" class="puntaje__valor">0</span>
-      </button>
-      <button id="boton-cuenta" type="button" class="boton-cuenta" data-pantalla="acceso">Ingresar</button>
     </div>
-  </nav>
+    <div id="menu-apariencia" class="apariencia" popover aria-labelledby="menu-apariencia-titulo">
+      <p id="menu-apariencia-titulo" class="apariencia__titulo">Apariencia</p>
+      <div class="apariencia__opciones" data-apariencia-lugar="cabecera"></div>
+    </div>
+  </header>
 
   <main id="pantalla-diagnostico" class="pantalla diagnostico">
     <section class="columna">
@@ -163,6 +203,11 @@
         <button id="jugador-salir" type="button" class="boton-secundario" hidden>Dejar de participar</button>
       </div>
     </section>
+    <section class="tarjeta cuenta__tarjeta cuenta__apariencia" aria-labelledby="cuenta-apariencia-titulo">
+      <h2 id="cuenta-apariencia-titulo" class="formulario__titulo">Apariencia</h2>
+      <p class="formulario__ayuda">Profesional es sobrio; Juego es de Tamagotchi, con más color y la planta en grande. Automático usa Juego en el celular y Profesional en pantallas anchas.</p>
+      <div class="apariencia__opciones" data-apariencia-lugar="cuenta"></div>
+    </section>
   </main>
 
   <main id="pantalla-materas" class="pantalla" hidden>
@@ -232,24 +277,32 @@
   </main>
 
   <main id="pantalla-juego" class="pantalla juego" hidden>
-    <p class="ceja">Matera Tamagotchi</p>
-    <h1 class="titulo">Juego</h1>
-    <p class="bajada bajada--sin-margen bajada--angosta">Cada lectura que llega de sus sensores suma puntos si la planta está bien y resta si no. Los puntos, el tamaño y el ánimo de cada matera los calcula la API.</p>
-    <p id="juego-consulta" class="consulta"></p>
+    <div class="juego__encabezado">
+      <p class="ceja">Matera Tamagotchi</p>
+      <h1 class="titulo">Juego</h1>
+      <p class="bajada bajada--sin-margen bajada--angosta">Cada lectura que llega de sus sensores suma puntos si la planta está bien y resta si no. Los puntos, el tamaño y el ánimo de cada matera los calcula la API.</p>
+      <p id="juego-consulta" class="consulta"></p>
+    </div>
     <div id="error-juego" class="tarjeta-error juego__error" role="alert" hidden></div>
-    <div class="juego__columnas">
-      <section class="tarjeta juego__panel" aria-labelledby="juego-puntos-titulo">
-        <h2 id="juego-puntos-titulo" class="rotulo">Sus puntos</h2>
+    <section class="tarjeta juego__marcador" aria-labelledby="juego-puntos-titulo">
+      <div class="juego__puntos">
+        <h2 id="juego-puntos-titulo" class="rotulo juego__puntos-rotulo">Sus puntos</h2>
         <p id="juego-total" class="juego__total">—</p>
-        <h3 class="rotulo juego__subrotulo">Por matera</h3>
-        <ul id="juego-materas" class="juego__lista"></ul>
-        <h3 class="rotulo juego__subrotulo">Últimos movimientos</h3>
-        <ol id="juego-movimientos" class="juego__lista"></ol>
+      </div>
+      <div class="juego__por-matera">
+        <h3 class="rotulo">Por matera</h3>
+        <ul id="juego-materas" class="juego__lista juego__materas"></ul>
+      </div>
+    </section>
+    <div class="juego__columnas">
+      <section class="tarjeta juego__panel" aria-labelledby="juego-movimientos-titulo">
+        <h2 id="juego-movimientos-titulo" class="rotulo">Últimos movimientos</h2>
+        <ol id="juego-movimientos" class="juego__lista juego__movimientos"></ol>
       </section>
       <div class="juego__lado">
         <section class="tarjeta juego__panel" aria-labelledby="juego-tabla-titulo">
           <h2 id="juego-tabla-titulo" class="rotulo">Tabla de posiciones</h2>
-          <div id="juego-tabla"></div>
+          <div id="juego-tabla" class="juego__tabla"></div>
         </section>
         <section class="tarjeta juego__panel" aria-labelledby="juego-avisos-titulo">
           <h2 id="juego-avisos-titulo" class="rotulo">Avisos</h2>
@@ -318,6 +371,28 @@
       <button id="participar-despues" type="button" class="enlace dialogo__despues">Decidir después</button>
     </form>
   </dialog>
+
+  <!-- El selector de estilo y tema: js/apariencia.js lo copia en la cabecera y en Mi cuenta. -->
+  <template id="plantilla-apariencia">
+    <fieldset class="apariencia__grupo">
+      <legend class="apariencia__leyenda">Estilo</legend>
+      <div class="segmentos">
+        <label class="segmento"><input type="radio" data-apariencia="estilo" value="auto"><span>Automático</span></label>
+        <label class="segmento"><input type="radio" data-apariencia="estilo" value="profesional"><span>Profesional</span></label>
+        <label class="segmento"><input type="radio" data-apariencia="estilo" value="juego"><span>Juego</span></label>
+      </div>
+    </fieldset>
+    <fieldset class="apariencia__grupo">
+      <legend class="apariencia__leyenda">Tema</legend>
+      <div class="segmentos segmentos--cuatro">
+        <label class="segmento"><input type="radio" data-apariencia="tema" value="sistema"><span class="muestra muestra--sistema" aria-hidden="true"></span><span>Sistema</span></label>
+        <label class="segmento"><input type="radio" data-apariencia="tema" value="claro"><span class="muestra muestra--claro" aria-hidden="true"></span><span>Claro</span></label>
+        <label class="segmento"><input type="radio" data-apariencia="tema" value="oscuro"><span class="muestra muestra--oscuro" aria-hidden="true"></span><span>Oscuro</span></label>
+        <label class="segmento"><input type="radio" data-apariencia="tema" value="amoled"><span class="muestra muestra--amoled" aria-hidden="true"></span><span>AMOLED</span></label>
+      </div>
+    </fieldset>
+    <p class="apariencia__nota" data-apariencia-nota aria-live="polite"></p>
+  </template>
 
   <div id="avisos" class="avisos"></div>
 </body>

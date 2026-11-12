@@ -110,7 +110,7 @@ function mostrarPantalla() {
     if (activa) pestana.setAttribute("aria-current", "page");
     else pestana.removeAttribute("aria-current");
   }
-  // En el celular las pestañas se desplazan de lado: la de la pantalla actual queda a la vista.
+  // Si las pestañas de arriba se desplazan de lado, la de la pantalla actual queda a la vista.
   document.querySelector(`.pestana[data-pantalla="${pedida}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
   window.scrollTo(0, 0);
   pantallas[pedida]?.mostrar?.();
@@ -119,7 +119,8 @@ function mostrarPantalla() {
 function pintarSesion() {
   const boton = document.getElementById("boton-cuenta");
   const usuario = sesion.usuario();
-  boton.textContent = usuario ? usuario.nombre : "Ingresar";
+  document.getElementById("boton-cuenta-texto").textContent = usuario ? usuario.nombre : "Ingresar";
+  boton.title = usuario ? `${usuario.nombre}: Mi cuenta` : "";
   boton.dataset.pantalla = usuario ? "cuenta" : "acceso";
   boton.classList.toggle("boton-cuenta--activa", Boolean(usuario));
   document.querySelector('.pestana[data-pantalla="admin"]').hidden = !sesion.esAdmin();
@@ -137,17 +138,18 @@ function pintarSesion() {
   }
 }
 
-// La barra pasa a dos filas cuando las pestañas no caben al lado de la marca, los indicadores, el puntaje y
-// la cuenta. Se mide en el cuadro siguiente: así el cambio de filas no vuelve a disparar la medición en el mismo.
-const barra = document.querySelector(".navegacion");
+// En el PC, la cabecera pasa a dos filas cuando las pestañas no caben al lado de la marca, los indicadores, el
+// puntaje y la cuenta. En el celular las pestañas van en la barra de abajo y siempre caben. Se mide en el
+// cuadro siguiente: así el cambio de filas no vuelve a disparar la medición en el mismo.
+const barra = document.querySelector(".cabecera");
 const pestanas = barra.querySelector(".pestanas");
 let ajuste = 0;
 
 function ajustarBarra() {
   cancelAnimationFrame(ajuste);
   ajuste = requestAnimationFrame(() => {
-    barra.classList.remove("navegacion--dos-filas");
-    barra.classList.toggle("navegacion--dos-filas", pestanas.scrollWidth > pestanas.clientWidth + 1);
+    barra.classList.remove("cabecera--dos-filas");
+    barra.classList.toggle("cabecera--dos-filas", pestanas.scrollWidth > pestanas.clientWidth + 1);
   });
 }
 
@@ -165,7 +167,13 @@ function pintarEnVivo(estado) {
   indicador.hidden = estado === "apagado";
   indicador.classList.toggle("en-vivo--activo", estado === "en-vivo");
   indicador.classList.toggle("en-vivo--caido", estado === "caido");
-  document.getElementById("en-vivo-texto").textContent = TEXTOS_EN_VIVO[estado] ?? "";
+  ponerTexto(indicador, "en-vivo-texto", TEXTOS_EN_VIVO[estado] ?? "");
+}
+
+// En pantallas angostas los indicadores muestran solo su punto: el texto también va en su título.
+function ponerTexto(indicador, id, texto) {
+  document.getElementById(id).textContent = texto;
+  indicador.title = texto;
 }
 
 function sesionVencida() {
@@ -178,9 +186,9 @@ function marcarConexion(conectada) {
   const indicador = document.getElementById("conexion");
   indicador.classList.remove("conexion--pendiente");
   indicador.classList.toggle("conexion--caida", !conectada);
-  document.getElementById("conexion-texto").textContent = conectada
+  ponerTexto(indicador, "conexion-texto", conectada
     ? `API conectada · ${contexto.especies.length} especies`
-    : "Sin conexión con la API";
+    : "Sin conexión con la API");
 }
 
 // Sin sesión no hay ruta que consultar: los catálogos también exigen el token.
@@ -188,7 +196,7 @@ function marcarSinSesion() {
   const indicador = document.getElementById("conexion");
   indicador.classList.remove("conexion--caida");
   indicador.classList.add("conexion--pendiente");
-  document.getElementById("conexion-texto").textContent = "Ingrese para usar la API";
+  ponerTexto(indicador, "conexion-texto", "Ingrese para usar la API");
 }
 
 let reintento = null;
@@ -229,7 +237,7 @@ async function confirmarSesion() {
   if (sesion.activa()) contexto.juego.iniciar();
 }
 
-document.querySelector(".navegacion").addEventListener("click", (evento) => {
+document.querySelector(".cabecera").addEventListener("click", (evento) => {
   const destinoClic = evento.target.closest("[data-pantalla]");
   if (destinoClic) contexto.navegar(destinoClic.dataset.pantalla);
 });

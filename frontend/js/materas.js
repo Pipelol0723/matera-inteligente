@@ -12,7 +12,7 @@ import { consultarCadaRato, textoConsulta } from "./consulta-periodica.js";
 import { dibujoDeMatera, macetaVacia, rotulosDeMatera } from "./dibujo-planta.js";
 import { dominioVisual, fraccion, porcentaje } from "./escala.js";
 import {
-  capitalizar, colorDeEstado, crear, etiqueta, numero, pastillaEstado, puntosConSigno, signoDe, tono, unidad,
+  capitalizar, crear, etiqueta, numero, pastillaEstado, puntosConSigno, signoDe, tono, unidad,
 } from "./formato.js";
 import { botonDe, datosDe, fechaCorta, mostrarError, ocupado } from "./formularios.js";
 import { esMasNueva, especieDe, textoOrigen } from "./lecturas.js";
@@ -232,17 +232,16 @@ export function crearPantallaMateras(contexto) {
   function tarjeta(planta) {
     const medicion = planta.ultimaMedicion;
     const especie = especieDe(contexto, planta.especie);
-    const colores = colorDeEstado(medicion?.estado);
 
+    // El nombre y el estado de la última medición arriba; después la matera Tamagotchi, que en el estilo
+    // Juego pasa al frente (css/estilos.css), y las barras de cada parámetro.
     const nodo = crear("article", { clase: "tarjeta matera" },
       crear("div", { clase: "matera__cabecera" },
-        crear("div", { clase: "matera__icono", estilo: { background: colores.fondo } },
-          crear("div", { clase: "matera__punto", estilo: { background: colores.texto } })),
         crear("div", { clase: "matera__nombres" },
-          crear("p", { clase: "matera__lugar", texto: planta.apodo }),
-          crear("p", { clase: "matera__especie", texto: capitalizar(planta.especie) }))),
+          crear("h2", { clase: "matera__lugar", texto: planta.apodo }),
+          crear("p", { clase: "matera__especie", texto: capitalizar(planta.especie) })),
+        pastillaEstado(medicion?.estado)),
       mascota(planta),
-      pastillaEstado(medicion?.estado),
       crear("div", { clase: "matera__barras" }, ...barras(medicion, especie)),
       crear("p", { clase: "matera__nota", texto: nota(planta) }));
     nodo.dataset.planta = planta.id;

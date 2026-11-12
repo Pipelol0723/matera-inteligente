@@ -17,20 +17,16 @@ export const etiqueta = (nombre) => ETIQUETAS[nombre] ?? capitalizar(nombre);
 
 export const unidad = (simbolo) => (simbolo === "C" ? "°C" : simbolo);
 
-// Color de línea y de banda según la posición del parámetro; uno nuevo toma el siguiente.
-const TONOS = [
-  { linea: "#2f6f8f", banda: "#dce9f0" },
-  { linea: "#b58a1b", banda: "#f3e8cb" },
-  { linea: "#b4543f", banda: "#f2ddd7" },
-  { linea: "#6a5a8c", banda: "#e5e0ee" },
-];
+// Color de línea y de banda según la posición del parámetro; uno nuevo toma el siguiente. Son variables CSS
+// (css/variables.css): cada tema tiene los suyos.
+const TONOS = [1, 2, 3, 4].map((n) => ({ linea: `var(--serie-${n})`, banda: `var(--serie-${n}-banda)` }));
 export const tono = (indice) => TONOS[indice % TONOS.length];
 
-// Colores para los estados que devuelve la API.
-const VERDE = { texto: "#2b7a4b", fondo: "#e1f0e6" };
-const AMBAR = { texto: "#87570a", fondo: "#f6ead1" };
-const ROJO = { texto: "#ae3636", fondo: "#f6e0de" };
-const SIN_ESTADO = { texto: "#5a6a5f", fondo: "#eef2ec" };
+// Colores para los estados que devuelve la API, también variables CSS del tema.
+const VERDE = { texto: "var(--saludable)", fondo: "var(--saludable-fondo)" };
+const AMBAR = { texto: "var(--riesgo)", fondo: "var(--riesgo-fondo)" };
+const ROJO = { texto: "var(--critico)", fondo: "var(--critico-fondo)" };
+const SIN_ESTADO = { texto: "var(--sin-estado)", fondo: "var(--sin-estado-fondo)" };
 const COLORES = Object.assign(Object.create(null), { SALUDABLE: VERDE, OPTIMO: VERDE, EN_RIESGO: AMBAR, BAJO: AMBAR, ALTO: AMBAR, CRITICO: ROJO });
 export const colorDeEstado = (estado) => COLORES[estado] ?? SIN_ESTADO;
 

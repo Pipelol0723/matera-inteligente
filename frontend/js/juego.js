@@ -254,6 +254,8 @@ export function crearJuego(contexto) {
       crear("span", { clase: "juego__apodo", texto: fila.soyYo ? `${fila.apodo} (usted)` : fila.apodo }),
       crear("span", { clase: `juego__valor juego__valor--${signoDe(fila.puntos)}`, texto: puntos(fila.puntos) }));
     if (fila.soyYo) nodo.setAttribute("aria-current", "true");
+    // Solo para el color de la medalla (los tres primeros); la posición la decide la API.
+    nodo.dataset.posicion = String(fila.posicion);
     return nodo;
   }
 

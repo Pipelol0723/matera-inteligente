@@ -102,8 +102,10 @@ export function crearPantallaHistorial(contexto) {
         etiqueta(parametro.nombre))));
 
     const fondo = [
-      crearSvg("rect", { x: 0, y: 0, width: ANCHO, height: 200, fill: "#fbfdfa" }),
-      ...[50, 100, 150].map((y) => crearSvg("line", { x1: 0, y1: y, x2: ANCHO, y2: y, stroke: "#eaf0e8", "stroke-width": 1 })),
+      crearSvg("rect", { x: 0, y: 0, width: ANCHO, height: 200, fill: "var(--grafica-fondo)" }),
+      ...[50, 100, 150].map((y) => crearSvg("line", {
+        x1: 0, y1: y, x2: ANCHO, y2: y, stroke: "var(--grafica-linea)", "stroke-width": 1,
+      })),
     ];
     const trazos = contexto.parametros.flatMap((parametro, indice) => {
       // Cada serie con su propia escala: el rango óptimo de la especie con margen, o los límites físicos.

@@ -261,7 +261,7 @@ export function crearPantallaDiagnostico(contexto) {
         : especie?.rangos[parametro.nombre];
       const grupo = crearSvg("g");
       grupo.append(crearSvg("path", {
-        d: arco(radio, -135, 135), fill: "none", stroke: "#e6ece4",
+        d: arco(radio, -135, 135), fill: "none", stroke: "var(--anillo-vacio)",
         "stroke-width": GROSOR_ANILLO, "stroke-linecap": "round",
       }));
       if (!rango) return grupo;
@@ -280,7 +280,7 @@ export function crearPantallaDiagnostico(contexto) {
             "stroke-width": 3, "stroke-linecap": "round", opacity: 0.5,
           }),
           crearSvg("circle", {
-            cx: x.toFixed(1), cy: y.toFixed(1), r: 9, fill: color.linea, stroke: "#fff", "stroke-width": 3,
+            cx: x.toFixed(1), cy: y.toFixed(1), r: 9, fill: color.linea, stroke: "var(--superficie)", "stroke-width": 3,
           }),
         );
       }
@@ -348,7 +348,7 @@ export function crearPantallaDiagnostico(contexto) {
       const colores = colorDeEstado(tipo);
       const activo = diagnostico?.estado === tipo;
       Object.assign(boton.style, {
-        color: activo ? "#fff" : colores.texto,
+        color: activo ? "var(--superficie)" : colores.texto,
         background: activo ? colores.texto : colores.fondo,
         borderColor: activo ? colores.texto : "transparent",
       });

@@ -1,0 +1,736 @@
+/* Componentes base, para todas las pantallas: botones, campos, tarjetas, pastillas de estado, avisos,
+   errores y diálogos. Solo usan las variables de variables.css, así sirven en los dos estilos y los cuatro
+   temas. */
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--fondo);
+  color: var(--tinta);
+  font-family: var(--fuente-texto);
+  font-size: 1rem;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--fuente-titulo);
+  letter-spacing: var(--titulo-espaciado);
+}
+
+a {
+  color: var(--acento-texto);
+}
+
+a:hover {
+  color: var(--acento-oscuro);
+}
+
+::selection {
+  background: var(--acento-suave);
+  color: var(--tinta);
+}
+
+:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.92em;
+}
+
+/* Para lectores de pantalla: no se ve, pero se lee. */
+.solo-lectores {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---- textos ---- */
+
+.titulo {
+  margin: 0 0 var(--esp-2);
+  font-size: var(--titulo-tamano);
+  font-weight: var(--titulo-peso);
+  line-height: 1.1;
+  text-wrap: balance;
+}
+
+.titulo--grande {
+  font-size: calc(var(--titulo-tamano) * 1.15);
+}
+
+.ceja {
+  margin: 0 0 var(--esp-2);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--acento-texto);
+}
+
+.rotulo {
+  display: block;
+  margin: 0 0 var(--esp-3);
+  font-family: var(--fuente-texto);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--tenue);
+}
+
+.bajada {
+  margin: 0 0 26px;
+  color: var(--tenue);
+  text-wrap: pretty;
+}
+
+.bajada--angosta {
+  max-width: 600px;
+}
+
+.bajada--sin-margen {
+  margin: 0;
+}
+
+.bajada--historial {
+  margin-bottom: 24px;
+}
+
+.nota {
+  font-size: 0.75rem;
+  color: var(--tenue);
+}
+
+/* Cuándo se consultó la API por última vez: la pantalla se actualiza sola cada 10 s. */
+.consulta {
+  margin: 6px 0 0;
+  min-height: 1.2em;
+  color: var(--tenue);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ---- botones: píldoras ---- */
+
+.boton-primario,
+.boton-secundario,
+.boton-contorno,
+.boton-icono {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--esp-2);
+  border-radius: var(--radio-pildora);
+  font: inherit;
+  font-weight: 650;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--movimiento), border-color var(--movimiento), color var(--movimiento),
+    transform 0.08s ease, box-shadow 0.08s ease;
+}
+
+.boton-primario {
+  flex: none;
+  min-height: 44px;
+  padding: 10px 20px;
+  border: var(--borde-ancho) solid var(--acento);
+  background: var(--acento);
+  color: var(--sobre-acento);
+  box-shadow: var(--sombra-boton);
+}
+
+.boton-primario:hover {
+  border-color: var(--acento-oscuro);
+  background: var(--acento-oscuro);
+}
+
+.boton-secundario {
+  min-height: 44px;
+  padding: 10px 20px;
+  border: var(--borde-ancho) solid var(--borde);
+  background: var(--superficie);
+  color: var(--tinta);
+}
+
+.boton-secundario:hover {
+  border-color: var(--borde-acento);
+  background: var(--superficie-suave);
+}
+
+.boton-secundario--lleno {
+  border-color: var(--acento);
+  color: var(--acento-texto);
+}
+
+.boton-contorno {
+  min-height: 34px;
+  padding: 6px 14px;
+  border: var(--borde-ancho) solid var(--acento);
+  background: transparent;
+  font-size: 0.8rem;
+  color: var(--acento-texto);
+}
+
+.boton-contorno:hover {
+  background: var(--acento-suave);
+}
+
+.boton-contorno--peligro {
+  border-color: var(--critico);
+  color: var(--critico);
+}
+
+.boton-contorno--peligro:hover {
+  background: var(--critico-fondo);
+}
+
+/* Un botón redondo con un ícono (el selector de apariencia de la cabecera). */
+.boton-icono {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: var(--borde-ancho) solid var(--borde);
+  background: var(--superficie);
+  color: var(--tinta);
+}
+
+.boton-icono:hover {
+  border-color: var(--borde-acento);
+  color: var(--acento-texto);
+}
+
+.boton-icono svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* En el estilo Juego los botones se hunden al tocarlos. */
+:root[data-estilo="juego"] .boton-primario:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: var(--sombra-boton-activo);
+}
+
+:root[data-estilo="juego"] :is(.boton-secundario, .boton-contorno, .boton-icono):active:not(:disabled) {
+  transform: translateY(1px) scale(0.98);
+}
+
+.boton-primario:disabled,
+.boton-secundario:disabled,
+.boton-contorno:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+/* Un botón con aspecto de enlace, para las salidas discretas como «Conectar a mano». */
+.enlace {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 650;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  color: var(--acento-texto);
+  cursor: pointer;
+}
+
+.enlace:hover {
+  color: var(--acento-oscuro);
+}
+
+/* ---- campos ---- */
+
+.formulario__campo,
+.selector,
+.campo__entrada {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: var(--borde-ancho) solid var(--borde-control);
+  border-radius: var(--radio-m);
+  background-color: var(--superficie-suave);
+  font: inherit;
+  color: var(--tinta);
+  transition: border-color var(--movimiento), box-shadow var(--movimiento);
+}
+
+.formulario__campo::placeholder {
+  color: var(--tenue);
+  opacity: 0.8;
+}
+
+.formulario__campo:focus-visible,
+.selector:focus-visible,
+.campo__entrada:focus-visible {
+  outline: none;
+  border-color: var(--acento);
+  box-shadow: 0 0 0 3px var(--anillo);
+}
+
+/* La flecha del selector, dibujada con dos degradados para que siga el color del tema. */
+.selector {
+  padding-right: 38px;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--tenue) 50%),
+    linear-gradient(135deg, var(--tenue) 50%, transparent 50%);
+  background-position: calc(100% - 20px) 52%, calc(100% - 14px) 52%;
+  background-size: 6px 6px;
+  background-repeat: no-repeat;
+  font-weight: 600;
+}
+
+.selector option {
+  background: var(--superficie);
+  color: var(--tinta);
+}
+
+.formulario {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  padding: var(--esp-6);
+}
+
+.formulario .boton-primario,
+.formulario .boton-secundario {
+  align-self: flex-start;
+  margin-top: var(--esp-2);
+}
+
+.formulario__titulo {
+  margin: 0 0 6px;
+  font-size: 1.35rem;
+  font-weight: var(--titulo-peso);
+  line-height: 1.2;
+}
+
+.formulario__etiqueta {
+  margin-top: 6px;
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+.formulario__ayuda {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--tenue);
+  text-wrap: pretty;
+}
+
+.formulario__fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px;
+}
+
+.formulario__fila .boton-primario {
+  align-self: flex-end;
+  margin-top: 0;
+}
+
+.formulario__grupo {
+  display: flex;
+  flex: 1 1 200px;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.formulario__grupo .formulario__etiqueta {
+  margin-top: 0;
+}
+
+.formulario__campo--codigo {
+  font-family: var(--mono);
+  letter-spacing: 0.08em;
+}
+
+/* ---- tarjetas ---- */
+
+.tarjeta {
+  background: var(--superficie);
+  border: var(--borde-ancho) solid var(--borde);
+  border-radius: var(--radio-l);
+  padding: var(--esp-5);
+  box-shadow: var(--sombra-tarjeta);
+}
+
+.tarjeta--punteada {
+  border-style: dashed;
+  border-color: var(--borde-acento);
+  box-shadow: none;
+}
+
+/* ---- pastillas de estado (SALUDABLE, EN RIESGO, CRÍTICO): el color lo pone formato.js con las variables ---- */
+
+.pastilla {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px;
+  border-radius: var(--radio-pildora);
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.07em;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.pastilla::before {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+:root[data-estilo="juego"] .pastilla {
+  padding: 5px 12px;
+  border: var(--borde-ancho) solid color-mix(in srgb, currentColor 30%, transparent);
+}
+
+.pastilla--activa {
+  background: var(--saludable-fondo);
+  color: var(--saludable);
+}
+
+.pastilla--inactiva {
+  background: var(--sin-estado-fondo);
+  color: var(--sin-estado);
+}
+
+/* ---- errores, éxitos y avisos ---- */
+
+.tarjeta-error {
+  padding: var(--esp-4) 18px;
+  border: var(--borde-ancho) solid var(--critico-borde);
+  border-radius: var(--radio-l);
+  background: var(--critico-fondo);
+  color: var(--tinta);
+}
+
+.tarjeta-error__codigo {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--critico);
+}
+
+.tarjeta-error__mensaje {
+  margin: 6px 0 0;
+  font-size: 0.92rem;
+}
+
+.tarjeta-error__detalle {
+  margin: 10px 0 0;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+  color: var(--critico);
+}
+
+.mensaje-exito {
+  margin: 0;
+  padding: 12px 14px;
+  border: var(--borde-ancho) solid var(--borde-acento);
+  border-radius: var(--radio-m);
+  background: var(--saludable-fondo);
+  font-size: 0.9rem;
+  color: var(--saludable);
+}
+
+/* Avisos del juego dentro de la página (cuando no hay notificaciones del navegador). */
+.avisos {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(380px, calc(100vw - 32px));
+}
+
+.avisos:empty {
+  display: none;
+}
+
+.aviso {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 40px 12px 12px;
+  border: var(--borde-ancho) solid var(--critico-borde);
+  border-left: 5px solid var(--critico);
+  border-radius: var(--radio-l);
+  background: var(--superficie-elevada);
+  box-shadow: var(--sombra-flotante);
+  animation: entrar 0.25s ease-out;
+}
+
+.aviso--marchita {
+  border-color: var(--borde);
+  border-left-color: var(--hoja-mal);
+}
+
+.aviso__dibujo {
+  flex: none;
+  width: 52px;
+}
+
+.aviso__cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.aviso__titulo {
+  margin: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.aviso__detalle {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--tenue);
+}
+
+.aviso__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.aviso__cerrar {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  font: inherit;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: var(--tenue);
+  cursor: pointer;
+}
+
+.aviso__cerrar:hover {
+  background: var(--superficie-suave);
+}
+
+@keyframes entrar {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* ---- diálogos (el de participar en el juego) ---- */
+
+.dialogo {
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  padding: 0;
+  border: var(--borde-ancho) solid var(--borde);
+  border-radius: var(--radio-xl);
+  background: var(--superficie-elevada);
+  color: var(--tinta);
+  box-shadow: var(--sombra-flotante);
+}
+
+.dialogo::backdrop {
+  background: var(--velo);
+}
+
+.dialogo[open] {
+  animation: aparecer 0.22s ease-out;
+}
+
+.dialogo__cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: var(--esp-6);
+}
+
+.dialogo__cuerpo .ceja,
+.dialogo__cuerpo .formulario__titulo {
+  margin: 0;
+}
+
+.dialogo__apodo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dialogo__despues {
+  align-self: flex-start;
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+}
+
+/* ---- opciones en segmentos (el selector de estilo y de tema) ---- */
+
+.segmentos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: var(--borde-ancho) solid var(--borde);
+  border-radius: var(--radio-pildora);
+  background: var(--superficie-suave);
+}
+
+.segmentos--cuatro {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-radius: var(--radio-l);
+}
+
+/* Con cuatro opciones, la muestra va encima del nombre para que quepa en el celular. */
+.segmentos--cuatro .segmento {
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px 4px;
+  border-radius: var(--radio-m);
+  font-size: 0.76rem;
+}
+
+.segmento {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 8px;
+  border-radius: var(--radio-pildora);
+  font-size: 0.8rem;
+  font-weight: 650;
+  text-align: center;
+  color: var(--tenue);
+  cursor: pointer;
+  transition: background-color var(--movimiento), color var(--movimiento);
+}
+
+.segmento input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segmento:hover {
+  color: var(--tinta);
+}
+
+.segmento:has(input:checked) {
+  background: var(--superficie);
+  color: var(--acento-texto);
+  box-shadow: 0 1px 3px var(--sombra-color-fuerte);
+}
+
+:root[data-estilo="juego"] .segmento:has(input:checked) {
+  background: var(--acento);
+  color: var(--sobre-acento);
+  box-shadow: var(--sombra-boton);
+}
+
+.segmento:has(input:focus-visible) {
+  outline: 2px solid var(--acento);
+  outline-offset: 1px;
+}
+
+/* La muestra de color de cada tema. */
+.muestra {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--borde-control);
+  border-radius: 50%;
+}
+
+.muestra--sistema {
+  background: linear-gradient(135deg, #ffffff 50%, #151f19 50%);
+}
+
+.muestra--claro {
+  background: #f4f7f2;
+}
+
+.muestra--oscuro {
+  background: #151f19;
+}
+
+.muestra--amoled {
+  background: #000000;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aviso,
+  .dialogo[open] {
+    animation: none;
+  }
+
+  .boton-primario,
+  .boton-secundario,
+  .boton-contorno,
+  .boton-icono,
+  .segmento {
+    transition: none;
+  }
+
+  :root[data-estilo="juego"] :is(.boton-primario, .boton-secundario, .boton-contorno, .boton-icono):active:not(:disabled) {
+    transform: none;
+  }
+}

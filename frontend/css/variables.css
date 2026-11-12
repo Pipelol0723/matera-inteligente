@@ -1,0 +1,376 @@
+/* Variables de la interfaz: dos estilos y cuatro temas.
+
+   js/apariencia.js pone dos atributos en <html> antes de pintar:
+   - data-estilo="profesional" (sobrio, por defecto en pantallas anchas) o "juego" (Tamagotchi, por defecto
+     en el celular, con menos de 900 px);
+   - data-tema="claro", "oscuro" o "amoled". El tema «sistema» (por defecto) se resuelve a claro u oscuro con
+     prefers-color-scheme, y cambia solo si el sistema cambia.
+   Sin atributos, vale Profesional claro.
+
+   El estilo cambia la forma (radios, bordes, sombras y tamaños) y el tema cambia los colores. El estilo Juego
+   además tiene su propia paleta, más viva, para cada tema. Las pantallas solo usan estas variables: ningún
+   color fijo en las reglas de las pantallas ni en el JavaScript. Los contrastes de texto cumplen WCAG AA
+   (4,5:1) en los seis juegos de colores. */
+
+/* ---- 1. Lo que no depende del tema ---- */
+
+:root {
+  --fuente-titulo: "Bricolage Grotesque", "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  --fuente-texto: "DM Sans", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  --mono: Consolas, "Cascadia Mono", "Roboto Mono", monospace;
+
+  /* Espaciado: múltiplos de 4 px */
+  --esp-1: 4px;
+  --esp-2: 8px;
+  --esp-3: 12px;
+  --esp-4: 16px;
+  --esp-5: 20px;
+  --esp-6: 24px;
+  --esp-8: 32px;
+  --esp-10: 40px;
+
+  /* Medidas del armazón */
+  --ancho-max: 1180px;
+  --margen-lateral: 28px;
+  --alto-cabecera: 64px;
+  --alto-barra: 64px; /* la barra de pestañas de abajo, en el celular */
+
+  /* Forma del estilo Profesional (por defecto) */
+  --radio-s: 8px;
+  --radio-m: 10px;
+  --radio-l: 14px;
+  --radio-xl: 18px;
+  --radio-pildora: 999px;
+  --borde-ancho: 1px;
+  --titulo-peso: 650;
+  --titulo-tamano: 2rem;
+  --titulo-espaciado: -0.02em;
+  --sombra-tarjeta: 0 1px 2px var(--sombra-color);
+  --sombra-boton: none;
+  --sombra-boton-activo: none;
+  --sombra-flotante: 0 12px 32px var(--sombra-color-fuerte);
+  --movimiento: 0.18s ease;
+
+  /* Medallas de la tabla de posiciones: claras en todos los temas, con texto oscuro encima */
+  --oro: #f2c94c;
+  --plata: #d3dbd6;
+  --bronce: #e3a874;
+  --medalla-tinta: #2b2100;
+}
+
+/* ---- 2. Forma del estilo Juego: más redondo, bordes gruesos y sombras de juguete ---- */
+
+:root[data-estilo="juego"] {
+  --radio-s: 12px;
+  --radio-m: 16px;
+  --radio-l: 22px;
+  --radio-xl: 28px;
+  --borde-ancho: 2px;
+  --titulo-peso: 760;
+  --titulo-tamano: 2.2rem;
+  --titulo-espaciado: -0.03em;
+  --sombra-tarjeta: 0 4px 0 var(--borde-sombra);
+  --sombra-boton: 0 3px 0 var(--acento-sombra);
+  --sombra-boton-activo: 0 1px 0 var(--acento-sombra);
+  --sombra-flotante: 0 6px 0 var(--borde-sombra), 0 18px 40px var(--sombra-color-fuerte);
+  --movimiento: 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ---- 3. Colores del estilo Profesional ---- */
+
+/* Claro (y el valor por defecto) */
+:root {
+  color-scheme: light;
+  --fondo: #f4f7f2;
+  --superficie: #ffffff;
+  --superficie-suave: #f1f5ef;
+  --superficie-elevada: #ffffff;
+  --tinta: #14211a;
+  --tenue: #4d5d53;
+  --borde: #d7e0d5;
+  --borde-suave: #e9efe7;
+  --borde-acento: #b9d0bd;
+  --borde-control: #78897d;
+  --borde-sombra: #d7e0d5;
+  --acento: #2a6b4b;
+  --acento-oscuro: #1f553b;
+  --acento-sombra: #17432e;
+  --acento-texto: #24603f;
+  --acento-suave: #e1f0e5;
+  --sobre-acento: #ffffff;
+  --anillo: rgba(42, 107, 75, 0.38);
+  --cabecera-fondo: rgba(244, 247, 242, 0.9);
+  --barra-fondo: #ffffff;
+  --velo: rgba(14, 24, 18, 0.42);
+  --sombra-color: rgba(20, 40, 28, 0.08);
+  --sombra-color-fuerte: rgba(20, 40, 28, 0.18);
+
+  /* Estados que manda la API: SALUDABLE, EN RIESGO y CRÍTICO (y sin datos) */
+  --saludable: #1e6a3f;
+  --saludable-fondo: #dff0e4;
+  --riesgo: #7a4e06;
+  --riesgo-fondo: #f7ead0;
+  --critico: #a12d2d;
+  --critico-fondo: #f8e2df;
+  --critico-borde: #e2b4b0;
+  --sin-estado: #536158;
+  --sin-estado-fondo: #ebf0ea;
+  --suma: #1e6a3f;
+  --resta: #a12d2d;
+
+  /* Una serie por parámetro (humedad, luz, temperatura y uno nuevo): línea y banda */
+  --serie-1: #2f6f8f;
+  --serie-1-banda: #d9e8f0;
+  --serie-2: #9a7210;
+  --serie-2-banda: #f3e7c8;
+  --serie-3: #b0503b;
+  --serie-3-banda: #f3dcd5;
+  --serie-4: #6a5a8c;
+  --serie-4-banda: #e6e0ef;
+  --grafica-fondo: #fafcf9;
+  --grafica-linea: #e6ede4;
+  --anillo-vacio: #e5ece3;
+
+  /* La pastilla de puntos de la cabecera */
+  --puntos-fondo: #ffffff;
+  --puntos-borde: var(--borde-acento);
+  --puntos-tinta: #14211a;
+
+  /* El fondo del dibujo de la matera Tamagotchi */
+  --pantallita: var(--superficie-suave);
+  --pantallita-sana: var(--superficie-suave);
+  --pantallita-decaida: var(--superficie-suave);
+  --pantallita-marchita: var(--superficie-suave);
+  --pantallita-dormida: var(--superficie-suave);
+  --estrella: transparent;
+
+  /* La matera Tamagotchi (dibujo-planta.js) */
+  --maceta: #b77c56;
+  --maceta-borde: #9a6443;
+  --hoja-sana: #5fae69;
+  --hoja-riesgo: #c9b347;
+  --hoja-mal: #94764d;
+  --cara: #1c2a21;
+  --mejilla: #f29a9a;
+  --petalo: #e98ab0;
+  --centro-flor: #f2c94c;
+  --gota: #7fb8e6;
+  --zeta: var(--tenue);
+}
+
+:root[data-tema="oscuro"] {
+  color-scheme: dark;
+  --fondo: #0e1511;
+  --superficie: #151f19;
+  --superficie-suave: #1a261f;
+  --superficie-elevada: #1c2922;
+  --tinta: #e4ede6;
+  --tenue: #9cafa2;
+  --borde: #2a392f;
+  --borde-suave: #202d25;
+  --borde-acento: #36583f;
+  --borde-control: #62786a;
+  --borde-sombra: #070c09;
+  --acento: #6fcf96;
+  --acento-oscuro: #8ddcab;
+  --acento-sombra: #2f7a50;
+  --acento-texto: #7fd6a2;
+  --acento-suave: #183427;
+  --sobre-acento: #08190f;
+  --anillo: rgba(111, 207, 150, 0.42);
+  --cabecera-fondo: rgba(14, 21, 17, 0.88);
+  --barra-fondo: #121b16;
+  --velo: rgba(0, 0, 0, 0.62);
+  --sombra-color: rgba(0, 0, 0, 0.35);
+  --sombra-color-fuerte: rgba(0, 0, 0, 0.55);
+
+  --saludable: #7dd69c;
+  --saludable-fondo: #15301f;
+  --riesgo: #edc06a;
+  --riesgo-fondo: #33290f;
+  --critico: #ff9b92;
+  --critico-fondo: #3a1b19;
+  --critico-borde: #6a2f2a;
+  --sin-estado: #a3b3a8;
+  --sin-estado-fondo: #212b25;
+  --suma: #7dd69c;
+  --resta: #ff9b92;
+
+  --serie-1: #6bb3d8;
+  --serie-1-banda: #173040;
+  --serie-2: #e3b54e;
+  --serie-2-banda: #352b12;
+  --serie-3: #f08e78;
+  --serie-3-banda: #3a2019;
+  --serie-4: #ad9be0;
+  --serie-4-banda: #2a2540;
+  --grafica-fondo: #121b16;
+  --grafica-linea: #24322a;
+  --anillo-vacio: #26342b;
+
+  --puntos-fondo: #151f19;
+  --puntos-tinta: #e4ede6;
+
+  --maceta: #b0764f;
+  --maceta-borde: #7c4f33;
+  --cara: #13201a;
+}
+
+/* AMOLED: fondo negro puro (en esas pantallas el negro apaga el píxel). Las tarjetas también son negras y se
+   separan con el borde. */
+:root[data-tema="amoled"] {
+  color-scheme: dark;
+  --fondo: #000000;
+  --superficie: #000000;
+  --superficie-suave: #0c120e;
+  --superficie-elevada: #0c120e;
+  --tinta: #ecf4ee;
+  --tenue: #9aad9f;
+  --borde: #26332b;
+  --borde-suave: #18211b;
+  --borde-acento: #2f5039;
+  --borde-control: #5a6e60;
+  --borde-sombra: #1d2b22;
+  --acento: #7ddca3;
+  --acento-oscuro: #9be6b9;
+  --acento-sombra: #2f7a50;
+  --acento-texto: #85dfaa;
+  --acento-suave: #0f2a1a;
+  --sobre-acento: #04140a;
+  --anillo: rgba(125, 220, 163, 0.45);
+  --cabecera-fondo: rgba(0, 0, 0, 0.92);
+  --barra-fondo: #000000;
+  --velo: rgba(0, 0, 0, 0.75);
+  --sombra-color: rgba(0, 0, 0, 0);
+  --sombra-color-fuerte: rgba(0, 0, 0, 0.6);
+
+  --saludable: #84dba5;
+  --saludable-fondo: #0c2416;
+  --riesgo: #f0c46e;
+  --riesgo-fondo: #271f08;
+  --critico: #ffa59c;
+  --critico-fondo: #2e1110;
+  --critico-borde: #5e2622;
+  --sin-estado: #a3b3a8;
+  --sin-estado-fondo: #141a16;
+  --suma: #84dba5;
+  --resta: #ffa59c;
+
+  --serie-1: #6bb3d8;
+  --serie-1-banda: #10242f;
+  --serie-2: #e3b54e;
+  --serie-2-banda: #2a210b;
+  --serie-3: #f08e78;
+  --serie-3-banda: #2c1510;
+  --serie-4: #ad9be0;
+  --serie-4-banda: #1f1a31;
+  --grafica-fondo: #000000;
+  --grafica-linea: #1c2620;
+  --anillo-vacio: #1d2721;
+
+  --puntos-fondo: #000000;
+  --puntos-tinta: #ecf4ee;
+
+  --maceta: #b0764f;
+  --maceta-borde: #7c4f33;
+  --cara: #0f1a14;
+}
+
+/* ---- 4. Colores del estilo Juego: el mismo verde de planta, más vivo, con un amarillo de sol para los
+   puntos y un fondo para cada condición de la matera ---- */
+
+:root[data-estilo="juego"]:not([data-tema="oscuro"], [data-tema="amoled"]) {
+  --fondo: #e8f4df;
+  --superficie-suave: #f0f8ea;
+  --borde: #c3dbb6;
+  --borde-suave: #ddedd4;
+  --borde-acento: #9fca8e;
+  --borde-control: #6c8760;
+  --borde-sombra: #c3dbb6;
+  --acento: #217247;
+  --acento-oscuro: #195c39;
+  --acento-sombra: #0f3f25;
+  --acento-texto: #1d6840;
+  --acento-suave: #d6efcd;
+  --cabecera-fondo: rgba(232, 244, 223, 0.92);
+  --barra-fondo: #ffffff;
+  --grafica-fondo: #f6fbf2;
+  --grafica-linea: #ddeccf;
+  --anillo-vacio: #dcebd2;
+
+  --puntos-fondo: #ffd95a;
+  --puntos-borde: #e2b72a;
+  --puntos-tinta: #3a2a00;
+
+  --pantallita: linear-gradient(180deg, #f2faec 0%, #dcf0d0 100%);
+  --pantallita-sana: linear-gradient(180deg, #eefae6 0%, #cdeebf 100%);
+  --pantallita-decaida: linear-gradient(180deg, #fdf6dc 0%, #f1e1a9 100%);
+  --pantallita-marchita: linear-gradient(180deg, #f6eee4 0%, #e2d1ba 100%);
+  --pantallita-dormida: linear-gradient(180deg, #27345d 0%, #46578a 100%);
+  --estrella: rgba(255, 255, 255, 0.85);
+  --zeta: #2a3a66;
+}
+
+:root[data-estilo="juego"][data-tema="oscuro"] {
+  --fondo: #0d1a12;
+  --superficie: #14251a;
+  --superficie-suave: #1a2e21;
+  --superficie-elevada: #1a2e21;
+  --borde: #2a4433;
+  --borde-suave: #1f3427;
+  --borde-acento: #3d6b4c;
+  --borde-control: #5f8a6c;
+  --borde-sombra: #07110a;
+  --acento: #7ee0a2;
+  --acento-oscuro: #9debb9;
+  --acento-sombra: #2c7c4c;
+  --acento-texto: #8be5ad;
+  --acento-suave: #1b3d29;
+  --sobre-acento: #06180c;
+  --cabecera-fondo: rgba(13, 26, 18, 0.9);
+  --barra-fondo: #14251a;
+  --grafica-fondo: #112016;
+  --grafica-linea: #234030;
+  --anillo-vacio: #24402f;
+
+  --puntos-fondo: #f5cf55;
+  --puntos-borde: #c99f22;
+  --puntos-tinta: #2e2200;
+
+  --pantallita: linear-gradient(180deg, #1c3526 0%, #24492f 100%);
+  --pantallita-sana: linear-gradient(180deg, #1d3a27 0%, #27532f 100%);
+  --pantallita-decaida: linear-gradient(180deg, #37321a 0%, #4b4220 100%);
+  --pantallita-marchita: linear-gradient(180deg, #352b21 0%, #46382a 100%);
+  --pantallita-dormida: linear-gradient(180deg, #121a36 0%, #1f2b55 100%);
+  --estrella: rgba(255, 255, 255, 0.8);
+  --zeta: #dfe6ff;
+}
+
+:root[data-estilo="juego"][data-tema="amoled"] {
+  --superficie-suave: #0b140e;
+  --superficie-elevada: #0b140e;
+  --borde: #234030;
+  --borde-suave: #142219;
+  --borde-acento: #2f5a3d;
+  --borde-control: #57806a;
+  --borde-sombra: #16301f;
+  --acento: #84e6a8;
+  --acento-oscuro: #a2eebf;
+  --acento-sombra: #2c7c4c;
+  --acento-texto: #8ee8b0;
+  --acento-suave: #0f2a1a;
+  --grafica-linea: #18291e;
+  --anillo-vacio: #1a2c20;
+
+  --puntos-fondo: #f5cf55;
+  --puntos-borde: #c99f22;
+  --puntos-tinta: #2e2200;
+
+  --pantallita: linear-gradient(180deg, #08140c 0%, #10261a 100%);
+  --pantallita-sana: linear-gradient(180deg, #08160d 0%, #123020 100%);
+  --pantallita-decaida: linear-gradient(180deg, #151206 0%, #2a240c 100%);
+  --pantallita-marchita: linear-gradient(180deg, #140f0a 0%, #2a2018 100%);
+  --pantallita-dormida: linear-gradient(180deg, #000000 0%, #10173a 100%);
+  --estrella: rgba(255, 255, 255, 0.75);
+  --zeta: #dfe6ff;
+}
