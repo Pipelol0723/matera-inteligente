@@ -59,6 +59,8 @@ _INVALIDOS = ["0", "-2", "dos", "1,5", "nan", "inf", "1e300"]
     [("MATERA_MINUTOS_POR_DIA_JUEGO", valor) for valor in _INVALIDOS]
     # Una hora de juego de menos de un microsegundo: el reloj no sirve.
     + [("MATERA_MINUTOS_POR_DIA_JUEGO", "1e-12")]
+    # Un dia de juego de miles de anos: 6 horas de juego se salen del calendario.
+    + [("MATERA_MINUTOS_POR_DIA_JUEGO", "1e10")]
     + [("MATERA_MINUTOS_SIN_LECTURAS", valor) for valor in _INVALIDOS],
 )
 def test_un_valor_invalido_no_deja_arrancar_y_dice_cual(monkeypatch, variable, valor):
@@ -66,6 +68,16 @@ def test_un_valor_invalido_no_deja_arrancar_y_dice_cual(monkeypatch, variable, v
 
     with pytest.raises(ValueError, match=variable):
         Configuracion.desde_entorno()
+
+
+def test_un_reloj_cuya_ventana_no_cabe_en_el_calendario_no_se_acepta(tmp_path):
+    """Antes se aceptaba, y despues cada GET /juego/materas fallaba con OverflowError."""
+    with pytest.raises(ValueError, match="MATERA_MINUTOS_POR_DIA_JUEGO"):
+        Configuracion(puerto=5000, ruta_bd=tmp_path / "m.sqlite", origenes_cors=(), minutos_por_dia_juego=1e10)
+
+    # Lento, pero dentro del calendario: se acepta y la ventana se puede calcular.
+    config = Configuracion(puerto=5000, ruta_bd=tmp_path / "m.sqlite", origenes_cors=(), minutos_por_dia_juego=1e9)
+    assert config.reloj_de_juego.horas(6) == timedelta(minutes=2.5e8)
 
 
 def test_el_backend_no_arranca_con_un_reloj_invalido_y_lo_explica(tmp_path):

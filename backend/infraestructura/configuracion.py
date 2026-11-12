@@ -1,6 +1,7 @@
 """Configuracion leida de variables de entorno, con valores por defecto para desarrollo."""
 import math
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
@@ -57,13 +58,18 @@ class Configuracion:
             raise ValueError(
                 f"MATERA_TABLA_REFERENCIA debe ser bd o csv, no '{self.tabla_referencia}'."
             )
-        if not _positivo(self.minutos_por_dia_juego) or not _sirve(RelojDeJuego, self.minutos_por_dia_juego):
+        # Se arma la regla con el reloj, como lo hara main.py: asi tambien se rechaza un dia tan largo
+        # que la ventana de la condicion se sale del calendario, que si no fallaria en cada consulta.
+        if not _positivo(self.minutos_por_dia_juego) or not _sirve(
+            lambda: CuidadoDeMascota(RelojDeJuego(self.minutos_por_dia_juego))
+        ):
             raise ValueError(
-                "MATERA_MINUTOS_POR_DIA_JUEGO debe ser un número de minutos mayor que cero "
-                f"(1440 es el tiempo real; 2, para la demo), no '{self.minutos_por_dia_juego}'."
+                "MATERA_MINUTOS_POR_DIA_JUEGO debe ser un número de minutos mayor que cero y no tan grande que "
+                "6 horas de juego se salgan del calendario (1440 es el tiempo real; 2, para la demo), "
+                f"no '{self.minutos_por_dia_juego}'."
             )
         if not _positivo(self.minutos_sin_lecturas) or not _sirve(
-            CuidadoDeMascota, RelojDeJuego(), self.minutos_sin_lecturas
+            lambda: CuidadoDeMascota(RelojDeJuego(), self.minutos_sin_lecturas)
         ):
             raise ValueError(
                 f"MATERA_MINUTOS_SIN_LECTURAS debe ser un número de minutos mayor que cero, no '{self.minutos_sin_lecturas}'."
@@ -120,11 +126,11 @@ def _positivo(numero: float) -> bool:
     return isinstance(numero, (int, float)) and not isinstance(numero, bool) and math.isfinite(numero) and numero > 0
 
 
-def _sirve(clase, *argumentos) -> bool:
+def _sirve(armar: Callable[[], object]) -> bool:
     """Si el dominio acepta el valor. No lo acepta, por ejemplo, si una hora de juego dura menos de un
-    microsegundo o si los minutos no caben en un timedelta."""
+    microsegundo, si los minutos no caben en un timedelta o si la ventana de la condicion no cabe en el calendario."""
     try:
-        clase(*argumentos)
+        armar()
     except (ValueError, OverflowError):
         return False
     return True

@@ -125,8 +125,12 @@ class RelojDeJuego:
     minutos_por_dia: float = 1440
 
     def __post_init__(self) -> None:
-        if not math.isfinite(self.minutos_por_dia) or self.minutos_por_dia <= 0 or self.hora <= timedelta(0):
-            raise ValueError("Los minutos por dia de juego deben ser un numero mayor que cero.")
+        try:
+            sirve = math.isfinite(self.minutos_por_dia) and self.minutos_por_dia > 0 and self.hora > timedelta(0)
+        except OverflowError:  # un dia tan largo que no cabe en un timedelta
+            sirve = False
+        if not sirve:
+            raise ValueError("Los minutos por dia de juego deben ser un numero mayor que cero y que quepa en el calendario.")
 
     @property
     def dia(self) -> timedelta:
@@ -263,10 +267,23 @@ class CuidadoDeMascota:
     MINUTOS_PARA_DORMIR = 30
 
     def __init__(self, reloj: RelojDeJuego, minutos_para_dormir: float = MINUTOS_PARA_DORMIR):
-        if not math.isfinite(minutos_para_dormir) or minutos_para_dormir <= 0:
-            raise ValueError("Los minutos para dormirse deben ser un numero mayor que cero.")
+        try:
+            para_dormir = timedelta(minutes=minutos_para_dormir) if math.isfinite(minutos_para_dormir) else None
+        except OverflowError:
+            para_dormir = None
+        if para_dormir is None or para_dormir <= timedelta(0):
+            raise ValueError("Los minutos para dormirse deben ser un numero mayor que cero y que quepa en el calendario.")
         self._reloj = reloj
-        self._para_dormir = timedelta(minutes=minutos_para_dormir)
+        self._para_dormir = para_dormir
+        # Cada ventana se cuenta hacia atras desde una lectura: con un dia de juego de miles de anos, 6 horas
+        # de juego se saldrian del calendario y armar la matera fallaria con cada consulta. Se avisa aqui.
+        try:
+            EPOCA - self.ventana
+        except OverflowError:
+            raise ValueError(
+                "Con ese reloj, la ventana de la condicion (6 horas de juego) no cabe en el calendario:"
+                " el dia de juego es demasiado largo."
+            ) from None
 
     @property
     def reloj(self) -> RelojDeJuego:

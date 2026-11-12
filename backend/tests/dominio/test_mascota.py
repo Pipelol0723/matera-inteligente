@@ -153,6 +153,20 @@ def test_el_dia_de_juego_dura_algo(minutos):
         RelojDeJuego(minutos)
 
 
+def test_un_dia_de_juego_que_no_cabe_en_el_calendario_no_sirve():
+    # Antes salia OverflowError, que Configuracion tenia que atrapar aparte.
+    with pytest.raises(ValueError):
+        RelojDeJuego(1e13)
+
+
+def test_la_ventana_de_la_condicion_tiene_que_caber_en_el_calendario():
+    # Con 1e10 minutos por dia, 6 horas de juego son unos 4750 anos: la ventana de una lectura se saldria del calendario.
+    with pytest.raises(ValueError):
+        CuidadoDeMascota(RelojDeJuego(1e10))
+    lento = CuidadoDeMascota(RelojDeJuego(1e9))  # unos 475 anos: cabe
+    assert armar(resumen_con((S, C), (S,)), reloj=lento.reloj).condicion is Condicion.DECAIDA
+
+
 def test_la_ventana_de_la_condicion_son_6_horas_de_juego():
     assert CuidadoDeMascota(REAL).ventana == timedelta(hours=6)
     assert CuidadoDeMascota(DEMO).ventana == timedelta(seconds=30)
@@ -342,8 +356,9 @@ def test_los_minutos_para_dormirse_se_pueden_configurar():
 
     assert cuidado.dormida(movimiento(S, AHORA - timedelta(minutes=6)), AHORA) is True
     assert cuidado.dormida(None, AHORA) is True
-    with pytest.raises(ValueError):
-        CuidadoDeMascota(REAL, minutos_para_dormir=0)
+    for minutos in (0, -1, 1e-12, float("nan"), 1e300):
+        with pytest.raises(ValueError):
+            CuidadoDeMascota(REAL, minutos_para_dormir=minutos)
 
 
 def test_dormida_conserva_la_cara_pero_no_muestra_lo_que_pedia_ni_avisa():
