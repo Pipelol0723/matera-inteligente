@@ -73,3 +73,44 @@ CREATE TABLE IF NOT EXISTS lectura (
     estado      TEXT NOT NULL,
     PRIMARY KEY (medicion_id, parametro)
 );
+
+-- Juego (corte 3, version 4). Tres tablas nuevas: las de arriba no cambian.
+
+-- Un movimiento por cada lectura aceptada: lo que sumo o resto. Borrar la cuenta borra sus
+-- movimientos. Borrar la planta los deja sin planta (SET NULL): siguen sumando en el total de su
+-- dueno, pero no pasan a otra planta que reciba el mismo id (SQLite reutiliza el id mas alto).
+CREATE TABLE IF NOT EXISTS movimiento_puntaje (
+    id         INTEGER PRIMARY KEY,           -- orden de guardado: desempata dos con el mismo momento
+    usuario_id INTEGER NOT NULL REFERENCES usuario (id) ON DELETE CASCADE,
+    planta_id  INTEGER REFERENCES planta (id) ON DELETE SET NULL,
+    momento    TEXT NOT NULL,                 -- ISO 8601 en UTC, con microsegundos: la hora del servidor
+    momento_us INTEGER NOT NULL,              -- el mismo momento en microsegundos desde 1970-01-01 UTC
+    estado     TEXT NOT NULL CHECK (estado IN ('SALUDABLE', 'EN_RIESGO', 'CRITICO')),
+    puntos     INTEGER NOT NULL
+);
+
+-- Con momento_us, la hora de juego es la misma division entera que hace RelojDeJuego.numero_de_hora.
+CREATE INDEX IF NOT EXISTS movimiento_por_planta ON movimiento_puntaje (planta_id, momento_us);
+CREATE INDEX IF NOT EXISTS movimiento_por_usuario ON movimiento_puntaje (usuario_id, momento_us);
+
+-- Quien respondio la pregunta de la tabla de posiciones. Solo quien participa tiene apodo de
+-- jugador, y el apodo no se repite sin importar mayusculas (NOCASE: el apodo solo admite letras
+-- sin tildes, numeros, _ y -). Al dejar de participar, el apodo queda libre.
+CREATE TABLE IF NOT EXISTS jugador (
+    usuario_id INTEGER PRIMARY KEY REFERENCES usuario (id) ON DELETE CASCADE,
+    estado     TEXT NOT NULL CHECK (estado IN ('SIN_DECIDIR', 'PARTICIPA', 'NO_PARTICIPA')),
+    apodo      TEXT COLLATE NOCASE,
+    CHECK ((estado = 'PARTICIPA') = (apodo IS NOT NULL))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS jugador_por_apodo ON jugador (apodo);
+
+-- Cuantos dias de juego bien cuidada necesita cada especie para cada etapa. Va aparte de la
+-- tabla especie del corte 1. Una especie sin fila, como una que agrego el admin, crece a 1/3/7.
+CREATE TABLE IF NOT EXISTS ritmo_crecimiento (
+    especie        TEXT PRIMARY KEY REFERENCES especie (nombre) ON DELETE CASCADE,
+    dias_brote     INTEGER NOT NULL,
+    dias_planta    INTEGER NOT NULL,
+    dias_florecida INTEGER NOT NULL,
+    CHECK (0 < dias_brote AND dias_brote < dias_planta AND dias_planta < dias_florecida)
+);

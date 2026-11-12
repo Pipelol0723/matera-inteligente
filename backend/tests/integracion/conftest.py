@@ -27,9 +27,10 @@ class ClienteApi:
     """Atajos sobre el test_client de Flask: registrar, entrar, crear un admin, pedir rutas con token
     y reportar lecturas como un dispositivo."""
 
-    def __init__(self, config: Configuracion):
+    def __init__(self, config: Configuracion, reloj=None):
+        """reloj: el de la app; sin el, la hora del sistema."""
         self.config = config
-        self.http = construir_app(config).test_client()
+        self.http = construir_app(config, reloj).test_client()
 
     def pedir(self, metodo, ruta, token=None, json=None, cabeceras=None):
         cabeceras = dict(cabeceras or {})

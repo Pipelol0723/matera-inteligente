@@ -16,7 +16,7 @@ backend/
   main.py            raíz de composición: el único archivo que elige clases concretas
   crear_admin.py     da el rol de administrador a una cuenta, desde la consola
   exportar_especies_csv.py  escribe la copia en CSV de la tabla de especies, desde la base
-  datos/             esquema.sql y carga.sql de la base SQLite, y especies.csv (la copia de solo lectura)
+  datos/             esquema.sql, carga.sql y ritmos.sql de la base SQLite, y especies.csv (la copia de solo lectura)
   dominio/           entidades, reglas de negocio y puertos; no importa flask, sqlite3, csv, jwt, json ni http
   aplicacion/        casos de uso: cada uno implementa su puerto de entrada
   presentacion/      adaptadores de entrada: rutas REST del front y de los dispositivos, el WebSocket,
@@ -116,10 +116,14 @@ La API queda en `http://127.0.0.1:5000/api/v1`. Se puede configurar con variable
 | `MATERA_JWT_SECRETO` | Sin valor: el secreto con que se firman los JWT se genera la primera vez y se guarda junto a la base (`matera.sqlite.secreto-jwt`, que Git ignora). Así un reinicio no cierra las sesiones. Si se pierde, todos vuelven a ingresar. |
 | `MATERA_TABLA_REFERENCIA` | `bd`: la tabla de especies sale de la base. Con `csv`, sale de la copia en CSV (ver [Tabla de referencia](#tabla-de-referencia-csv-o-base-de-datos)) |
 | `MATERA_RUTA_CSV` | `especies.csv`, en la carpeta de la base. Con la base por defecto es `backend/datos/especies.csv`; con una base fuera de Google Drive, la copia queda afuera con ella |
+| `MATERA_MINUTOS_POR_DIA_JUEGO` | `1440`: cuántos minutos reales dura un día del juego (el tiempo real). Con `2`, una hora de juego dura 5 segundos y la matera crece y se marchita en minutos, para la demo. Debe ser un número mayor que 0 |
+| `MATERA_MINUTOS_SIN_LECTURAS` | `30`: minutos reales sin lecturas para que la matera se duerma. No cambian con el reloj del juego. Debe ser un número mayor que 0 |
 
-Al arrancar, el backend escribe en la consola qué tabla de referencia usa, crea las tablas que falten y, si no hay ninguna especie, carga las de `datos/carga.sql`. Git ignora el archivo de la base.
+Al arrancar, el backend escribe en la consola qué tabla de referencia usa, crea las tablas que falten y, si no hay ninguna especie, carga las de `datos/carga.sql` con su ritmo de crecimiento (`datos/ritmos.sql`). Si una variable tiene un valor que no sirve, no arranca y dice cuál es. Git ignora el archivo de la base.
 
 Una base de antes de la fase 2 se migra sola la primera vez. Antes de migrarla, el backend saca una copia al lado (`matera.respaldo-v0.sqlite`). Usuarios, plantas, sensores, especies e historial no cambian, pero las sesiones abiertas se cierran, porque los tokens de antes no eran JWT: cada usuario vuelve a ingresar. La clave de cada sensor sigue sirviendo.
+
+Una base de la fase 2 (versión 3) pasa sola a la versión 4, la del juego, y antes deja la copia `matera.respaldo-v3.sqlite`. Solo se agregan tres tablas (`movimiento_puntaje`, `jugador` y `ritmo_crecimiento`, con los ritmos de las especies que haya): nada de lo que había cambia, las sesiones siguen abiertas y todos empiezan con 0 puntos.
 
 Si el repositorio está en una carpeta sincronizada (Google Drive, OneDrive), ponga la base afuera: SQLite escribe a cada rato y la sincronización puede bloquear el archivo. En PowerShell:
 
@@ -420,8 +424,13 @@ En los dos casos el token deja de servir aunque no haya vencido.
 | `GET /red` | sesión | 200 · `{servidores: ["http://<ip>:5000/api/v1", ...]}`: las bases de la API por las que una placa de la red local alcanza este backend (según `MATERA_HOST` y `MATERA_PUERTO`). Si no hay ninguna (host de loopback), trae un `aviso` |
 | `GET /plantas/{id}/historial?limite=30` | sesión | 200 · `{planta, registros}`, el más reciente primero |
 | `POST /dispositivos/{codigo}/token` | la clave del sensor, en el cuerpo `{clave}` | 200 · `{token, venceEn}`: el JWT del sensor. Deja sin efecto el token anterior del mismo sensor |
-| `POST /dispositivos/{codigo}/lecturas` | token del sensor | 201 · `{planta, momento, diagnostico}`. El cuerpo lleva `{dispositivo, momento, lecturas}`; se guarda con la hora del cuerpo y el código como origen, y se avisa en vivo |
+| `POST /dispositivos/{codigo}/lecturas` | token del sensor | 201 · `{planta, momento, diagnostico, necesidad}`. El cuerpo lleva `{dispositivo, momento, lecturas}`; se guarda con la hora del cuerpo y el código como origen, suma o resta puntos y se avisa en vivo. `necesidad` es lo que más le falta a la planta para el globo de la pantalla (`SED`, `EXCESO_AGUA`, `FRIO`, `CALOR`, `POCA_LUZ` o `MUCHA_LUZ`), o `null` |
 | `WS /tiempo-real` | token en el primer mensaje | WebSocket: una medición nueva de las plantas del usuario por mensaje (ver abajo) |
+| `GET /juego/materas` | sesión | 200 · `{materas: [{plantaId, etapa, condicion, cara, dormida, necesidad, aviso, puntos, horasCuidada, ultimaLectura}]}`: la matera Tamagotchi de cada planta propia |
+| `GET /juego/puntaje` | sesión | 200 · `{puntos, materas: [{planta, puntos}], movimientos: [{momento, planta, estado, puntos}]}`. Los puntos de una matera borrada siguen en el total, y en sus movimientos `planta` es `null` |
+| `GET /juego/participacion` | sesión | 200 · `{estado, apodo}`; `estado` es `SIN_DECIDIR`, `PARTICIPA` o `NO_PARTICIPA` |
+| `PUT /juego/participacion` | sesión | 200 · `{estado, apodo}`. El cuerpo lleva `{participa: true, apodo}` o `{participa: false}` |
+| `GET /juego/tabla` | sesión, y participar | 200 · `{posiciones: [{posicion, apodo, puntos, soyYo}]}`: solo quienes participan con la cuenta activa |
 | `GET /admin/usuarios` | admin | 200 · lista de `{id, correo, nombre, rol, activo, cantidadPlantas}` |
 | `PATCH /admin/usuarios/{id}` | admin | 200 · el cuerpo lleva `{activo}` o `{rol}` |
 | `DELETE /admin/usuarios/{id}` | admin | 200 · borra la cuenta con sus plantas, sensores e historial |
@@ -475,6 +484,9 @@ Todas las respuestas de error, incluidas las de rutas inexistentes, tienen la fo
 | Sin token del sensor, con la firma alterada, vencido o anulado por otro canje o por un cambio de sensor: la placa vuelve a canjear | 401 | `CREDENCIAL_DISPOSITIVO_INVALIDA` | vacío |
 | Cuenta desactivada al iniciar sesión, o el sensor de una matera suya canjea o reporta | 403 | `CUENTA_DESACTIVADA` | vacío |
 | Acción de administración sin ser admin | 403 | `PERMISO_DENEGADO` | vacío |
+| La tabla de posiciones, sin participar en ella | 403 | `PARTICIPACION_REQUERIDA` | vacío |
+| Un apodo de jugador que no tiene de 3 a 20 caracteres (letras sin tildes, números, `_` o `-`) | 400 | `APODO_JUGADOR_INVALIDO` | `campo`, `motivo`, `minimo`, `maximo` |
+| Un apodo de jugador que ya usa otra persona, sin importar mayúsculas | 409 | `APODO_JUGADOR_REPETIDO` | `campo`, `apodo` |
 | Un token válido de otro alcance: el de un sensor en una ruta de usuario o al revés | 403 | `ALCANCE_INVALIDO` | `esperado` |
 | Un sensor que reporta por otro (en la URL o en el cuerpo) | 403 | `DISPOSITIVO_AJENO` | `autenticado`, `reportado` |
 | Abrir el WebSocket desde un origen que no es el del front | 403 | `ORIGEN_NO_PERMITIDO` | `origen` |

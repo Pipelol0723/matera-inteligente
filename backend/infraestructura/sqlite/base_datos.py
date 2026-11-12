@@ -7,6 +7,7 @@ from pathlib import Path
 _DATOS = Path(__file__).resolve().parents[2] / "datos"
 ESQUEMA = _DATOS / "esquema.sql"
 CARGA = _DATOS / "carga.sql"
+RITMOS = _DATOS / "ritmos.sql"
 
 # Un INTEGER de SQLite tiene 64 bits. Un id de la URL mas grande no existe: se busca como None, no da 500.
 _ENTERO_MAXIMO = 2**63 - 1
@@ -21,7 +22,7 @@ def cabe_en_sqlite(numero: int) -> bool:
 
 
 # Version del esquema, guardada en PRAGMA user_version. Una base sin numero es de antes de la fase 2.
-VERSION = 3
+VERSION = 4
 # Lo que hay que hacer en una base que ya tenia tablas para llegar a cada version. Despues,
 # esquema.sql crea lo que falte. Una base nueva no las necesita: esquema.sql ya trae lo ultimo.
 _MIGRACIONES = {
@@ -29,7 +30,12 @@ _MIGRACIONES = {
     2: "DROP TABLE IF EXISTS sesion;",
     # Cada sensor guarda el id de su JWT vigente. La clave de cada uno sigue sirviendo para el canje.
     3: "ALTER TABLE sensor ADD COLUMN token_id TEXT;",
+    # El juego (corte 3) solo agrega tablas, y las crea esquema.sql: antes no hay nada que cambiar.
+    # Despues del esquema, la misma transaccion carga los ritmos de crecimiento (ritmos.sql).
+    4: "",
 }
+# La version que trajo los ritmos de crecimiento: una base anterior los recibe al migrar.
+_VERSION_RITMOS = 4
 
 
 class BaseDatos:
@@ -56,12 +62,18 @@ class BaseDatos:
         finally:
             conexion.close()
 
-    def preparar(self, esquema: Path = ESQUEMA, carga: Path | None = CARGA) -> "BaseDatos":
+    def preparar(
+        self, esquema: Path = ESQUEMA, carga: Path | None = CARGA, ritmos: Path | None = RITMOS
+    ) -> "BaseDatos":
         """Migra una base vieja, crea las tablas que falten y, si no hay ninguna especie, ejecuta carga.sql.
 
         Antes de migrar una base con datos saca una copia al lado, por ejemplo
-        matera.respaldo-v0.sqlite: usuarios, plantas, sensores e historial no se tocan,
+        matera.respaldo-v3.sqlite: usuarios, plantas, sensores e historial no se tocan,
         pero si algo sale mal, la copia queda.
+
+        Los ritmos de crecimiento (ritmos.sql) se cargan una sola vez, y solo los de las
+        especies que existen: en una base anterior a la version 4, en la misma transaccion
+        que la migra; en una base nueva, junto con las especies de carga.sql.
         """
         self._ruta.parent.mkdir(parents=True, exist_ok=True)
         with self.conexion() as conexion:
@@ -70,12 +82,14 @@ class BaseDatos:
             pendientes = [sql for numero, sql in sorted(_MIGRACIONES.items()) if numero > version] if con_tablas else []
             if pendientes:
                 self._respaldar(conexion, version)
+            ritmos_nuevos = [_leer(ritmos)] if ritmos is not None and con_tablas and version < _VERSION_RITMOS else []
             # Todo en una transaccion: si algo falla, la base queda como estaba.
-            script = "\n".join([*pendientes, _leer(esquema), f"PRAGMA user_version = {VERSION};"])
+            script = "\n".join([*pendientes, _leer(esquema), *ritmos_nuevos, f"PRAGMA user_version = {VERSION};"])
             conexion.executescript(_en_una_transaccion(script))
             sin_especies = conexion.execute("SELECT COUNT(*) FROM especie").fetchone()[0] == 0
             if carga is not None and sin_especies:
-                conexion.executescript(_en_una_transaccion(_leer(carga)))
+                cargas = [_leer(carga), *([_leer(ritmos)] if ritmos is not None else [])]
+                conexion.executescript(_en_una_transaccion("\n".join(cargas)))
         return self
 
     def _respaldar(self, conexion: sqlite3.Connection, version: int) -> None:

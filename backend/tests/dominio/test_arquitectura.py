@@ -71,7 +71,7 @@ def test_las_pruebas_de_dominio_y_aplicacion_no_dependen_de_infraestructura_ni_d
     archivos = (
         sorted((BACKEND / "tests" / "dominio").glob("*.py"))
         + sorted((BACKEND / "tests" / "aplicacion").glob("*.py"))
-        + [BACKEND / "tests" / "dobles.py", BACKEND / "tests" / "dobles_usuarios.py"]
+        + [BACKEND / "tests" / nombre for nombre in ("dobles.py", "dobles_usuarios.py", "dobles_juego.py")]
     )
 
     assert _violaciones(archivos, {"flask", "flask_sock", "jwt", "infraestructura", "presentacion", "main"}) == {}

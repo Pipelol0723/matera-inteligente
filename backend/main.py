@@ -20,19 +20,29 @@ from aplicacion.administracion import (
     EliminarUsuario,
     ListarUsuarios,
 )
+from aplicacion.avisos import AvisarATodos
 from aplicacion.cuentas import CerrarSesion, ConsultarCuenta, IdentificarUsuario, IniciarSesion, RegistrarUsuario
 from aplicacion.diagnosticar_planta import DiagnosticarPlanta
 from aplicacion.diagnosticar_planta_de_usuario import DiagnosticarPlantaDeUsuario
 from aplicacion.historial import ConsultarHistorial
+from aplicacion.juego import (
+    ConsultarMascotas,
+    ConsultarParticipacion,
+    ConsultarPuntaje,
+    ConsultarTablaPosiciones,
+    ElegirParticipacion,
+    PuntuarLectura,
+)
 from aplicacion.listar_especies import ListarEspecies
 from aplicacion.listar_parametros import ListarParametros
 from aplicacion.plantas import EliminarPlanta, ListarPlantas, RegistrarPlanta
 from aplicacion.sensores import CanjearClaveDispositivo, ReemplazarSensor, RegistrarLectura
 from dominio import puertos_entrada as entrada
 from dominio.evaluador import EvaluadorPlanta
+from dominio.mascota import CuidadoDeMascota
 from dominio.parametros import PARAMETROS
 from dominio.puertos import ConsultaRangos
-from dominio.puertos_usuarios import RegistroEspecies
+from dominio.puertos_usuarios import RegistroEspecies, Reloj
 from dominio.recomendaciones import GeneradorRecomendaciones
 from dominio.reglas import ReglaHibrida
 from dominio.servicio_diagnostico import ServicioDiagnostico
@@ -52,11 +62,14 @@ from infraestructura.servidor_web import crear_app
 from infraestructura.sqlite import (
     BaseDatos,
     HistorialMedicionesSqlite,
+    MovimientosPuntajeSqlite,
+    RegistroJugadoresSqlite,
     RepositorioEspeciesSqlite,
     RepositorioPlantasSqlite,
     RepositorioSensoresSqlite,
     RepositorioSesionesSqlite,
     RepositorioUsuariosSqlite,
+    RitmosCrecimientoSqlite,
 )
 from infraestructura.tiempo_real import CanalesTiempoReal, NotificadorWebSocket
 from infraestructura.tokens_jwt import TokensJwt, secreto_guardado
@@ -65,6 +78,7 @@ from presentacion.autenticacion import Autenticacion
 from presentacion.rutas import crear_blueprint
 from presentacion.rutas_admin import crear_blueprint_admin
 from presentacion.rutas_dispositivos import crear_blueprint_dispositivos
+from presentacion.rutas_juego import crear_blueprint_juego
 from presentacion.rutas_plantas import crear_blueprint_plantas
 from presentacion.rutas_red import crear_blueprint_red
 from presentacion.rutas_usuarios import crear_blueprint_usuarios
@@ -86,7 +100,8 @@ def _tabla_de_referencia(config: Configuracion, bd: BaseDatos) -> tuple[Consulta
     return sqlite, RegistroEspeciesConCopiaCsv(sqlite, sqlite, config.ruta_tabla_csv)
 
 
-def construir_app(config: Configuracion) -> Flask:
+def construir_app(config: Configuracion, reloj: Reloj | None = None) -> Flask:
+    """reloj: la hora del sistema; las pruebas pueden pasar uno que controlan."""
     bd = BaseDatos(config.ruta_bd).preparar()
     especies, registro_especies = _tabla_de_referencia(config, bd)
 
@@ -103,7 +118,7 @@ def construir_app(config: Configuracion) -> Flask:
     historial = HistorialMedicionesSqlite(bd)
     cifrador = CifradorPbkdf2(config.iteraciones_contrasena)
     secretos = GeneradorSecretosSeguro()
-    reloj = RelojSistema()
+    reloj = reloj or RelojSistema()
     # Los JWT: los emite IniciarSesion y los verifican el decorador de las rutas y el WebSocket.
     tokens = TokensJwt(config.secreto_jwt or secreto_guardado(config.ruta_secreto_jwt), reloj)
     identificar = IdentificarUsuario(sesiones, usuarios, reloj)
@@ -133,9 +148,20 @@ def construir_app(config: Configuracion) -> Flask:
         autenticacion=autenticacion,
     )
 
-    # El aviso en vivo de cada medicion. Cambiar el WebSocket por MQTT: cambiar solo esta linea.
+    # Corte 3: el juego, en la misma base. El reloj del juego (MATERA_MINUTOS_POR_DIA_JUEGO) solo cambia
+    # la escala del tamano y de la condicion; los minutos para dormirse son reales.
+    movimientos = MovimientosPuntajeSqlite(bd)
+    jugadores = RegistroJugadoresSqlite(bd)
+    cuidado = CuidadoDeMascota(config.reloj_de_juego, config.minutos_sin_lecturas)
+
+    # El aviso de cada medicion va a varios suscriptores; si uno falla, los demas igual lo reciben.
+    # Los puntos van primero: cuando el front recibe el mensaje en vivo y pide /juego, ya estan guardados.
+    # Cambiar el WebSocket por MQTT, o sumar otro suscriptor: cambiar solo esta lista.
     canales = CanalesTiempoReal()
-    notificador = NotificadorWebSocket(canales, esquemas_usuarios.medicion_en_vivo_a_json)
+    notificador = AvisarATodos([
+        PuntuarLectura(movimientos, reloj),
+        NotificadorWebSocket(canales, esquemas_usuarios.medicion_en_vivo_a_json),
+    ])
 
     # Las mediciones solo llegan del sensor, por el caso de uso de la 5.3, que reutiliza el servicio del corte 1.
     diagnosticar_planta = DiagnosticarPlantaDeUsuario(plantas, servicio, historial, notificador)
@@ -160,7 +186,18 @@ def construir_app(config: Configuracion) -> Flask:
     red_local = RedLocal(config.host, config.puerto)
     red = crear_blueprint_red(red_local.servidores, red_local.aviso, autenticacion)
 
-    return crear_app([api, cuentas, administracion, mis_plantas, dispositivos, en_vivo, red], config)
+    juego = crear_blueprint_juego(
+        consultar_mascotas=ConsultarMascotas(
+            plantas, historial, movimientos, RitmosCrecimientoSqlite(bd), cuidado, reloj
+        ),
+        consultar_puntaje=ConsultarPuntaje(movimientos, plantas),
+        consultar_participacion=ConsultarParticipacion(jugadores),
+        elegir_participacion=ElegirParticipacion(jugadores),
+        consultar_tabla=ConsultarTablaPosiciones(jugadores, movimientos),
+        autenticacion=autenticacion,
+    )
+
+    return crear_app([api, cuentas, administracion, mis_plantas, dispositivos, en_vivo, red, juego], config)
 
 
 @dataclass(frozen=True)
@@ -183,7 +220,10 @@ def construir_consola(config: Configuracion) -> Consola:
 
 
 if __name__ == "__main__":
-    configuracion = Configuracion.desde_entorno()
+    try:
+        configuracion = Configuracion.desde_entorno()
+    except ValueError as error:
+        raise SystemExit(f"No se pudo arrancar: {error}") from None
     if configuracion.tabla_referencia == "csv":
         print(f"Tabla de referencia: la copia en CSV, {configuracion.ruta_tabla_csv} (solo lectura)")
     else:

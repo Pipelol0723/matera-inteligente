@@ -1,9 +1,11 @@
 """Configuracion leida de variables de entorno, con valores por defecto para desarrollo."""
+import math
 import os
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
 
+from dominio.mascota import CuidadoDeMascota, RelojDeJuego
 from infraestructura import red_local
 from infraestructura.seguridad import ITERACIONES_RECOMENDADAS
 
@@ -44,12 +46,32 @@ class Configuracion:
     # La copia en CSV. Sin ruta, va junto a su base: con la base por defecto es la del repositorio,
     # y con una base fuera de Google Drive (MATERA_RUTA_BD) queda afuera con ella.
     ruta_csv: Path | None = None
+    # El reloj del juego (corte 3): cuantos minutos reales dura un dia de juego. 1440 es el tiempo
+    # real; en la demo, con 2, una hora de juego dura 5 segundos y la matera crece en minutos.
+    minutos_por_dia_juego: float = 1440
+    # Sin lecturas en estos minutos reales, la matera duerme. No cambian con el reloj del juego.
+    minutos_sin_lecturas: float = CuidadoDeMascota.MINUTOS_PARA_DORMIR
 
     def __post_init__(self) -> None:
         if self.tabla_referencia not in TABLAS_DE_REFERENCIA:
             raise ValueError(
                 f"MATERA_TABLA_REFERENCIA debe ser bd o csv, no '{self.tabla_referencia}'."
             )
+        if not _positivo(self.minutos_por_dia_juego) or not _sirve(RelojDeJuego, self.minutos_por_dia_juego):
+            raise ValueError(
+                "MATERA_MINUTOS_POR_DIA_JUEGO debe ser un número de minutos mayor que cero "
+                f"(1440 es el tiempo real; 2, para la demo), no '{self.minutos_por_dia_juego}'."
+            )
+        if not _positivo(self.minutos_sin_lecturas) or not _sirve(
+            CuidadoDeMascota, RelojDeJuego(), self.minutos_sin_lecturas
+        ):
+            raise ValueError(
+                f"MATERA_MINUTOS_SIN_LECTURAS debe ser un número de minutos mayor que cero, no '{self.minutos_sin_lecturas}'."
+            )
+
+    @property
+    def reloj_de_juego(self) -> RelojDeJuego:
+        return RelojDeJuego(self.minutos_por_dia_juego)
 
     @property
     def ruta_tabla_csv(self) -> Path:
@@ -76,4 +98,33 @@ class Configuracion:
             secreto_jwt=os.environ.get("MATERA_JWT_SECRETO", "").strip() or None,
             tabla_referencia=os.environ.get("MATERA_TABLA_REFERENCIA", "bd").strip().lower(),
             ruta_csv=Path(os.environ["MATERA_RUTA_CSV"]) if os.environ.get("MATERA_RUTA_CSV", "").strip() else None,
+            minutos_por_dia_juego=_minutos("MATERA_MINUTOS_POR_DIA_JUEGO", 1440),
+            minutos_sin_lecturas=_minutos("MATERA_MINUTOS_SIN_LECTURAS", CuidadoDeMascota.MINUTOS_PARA_DORMIR),
         )
+
+
+def _minutos(variable: str, por_defecto: float) -> float:
+    """Un numero de minutos de una variable de entorno. Si no es un numero, no arranca y dice cual fallo."""
+    texto = os.environ.get(variable, "").strip()
+    if not texto:
+        return por_defecto
+    try:
+        return float(texto)
+    except ValueError:
+        raise ValueError(
+            f"{variable} debe ser un número de minutos mayor que cero, con punto decimal, no '{texto}'."
+        ) from None
+
+
+def _positivo(numero: float) -> bool:
+    return isinstance(numero, (int, float)) and not isinstance(numero, bool) and math.isfinite(numero) and numero > 0
+
+
+def _sirve(clase, *argumentos) -> bool:
+    """Si el dominio acepta el valor. No lo acepta, por ejemplo, si una hora de juego dura menos de un
+    microsegundo o si los minutos no caben en un timedelta."""
+    try:
+        clase(*argumentos)
+    except (ValueError, OverflowError):
+        return False
+    return True

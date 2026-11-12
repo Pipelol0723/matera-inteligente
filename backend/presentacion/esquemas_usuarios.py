@@ -12,6 +12,7 @@ from dominio.diagnostico import Diagnostico
 from dominio.errores import RangoInvalido
 from dominio.especie import Especie
 from dominio.historial import RegistroMedicion
+from dominio.mascota import necesidad_principal
 from dominio.parametros import PARAMETROS
 from dominio.plantas import Planta
 from dominio.puertos_entrada import LIMITE_HISTORIAL
@@ -169,11 +170,15 @@ def medicion_en_vivo_a_json(planta: Planta, registro: RegistroMedicion, diagnost
 
 
 def resultado_medicion_a_json(resultado: ResultadoMedicion) -> dict[str, Any]:
+    """La respuesta 201 a la placa. Con el apodo, el estado y la necesidad dibuja su carita y su globo."""
+    necesidad = necesidad_principal((r.parametro.nombre, r.estado) for r in resultado.diagnostico.resultados)
     return {
         "planta": planta_a_json(resultado.planta),
         "momento": resultado.registro.momento.isoformat(),
         # El mismo formato de POST /diagnosticos, con sus recomendaciones.
         "diagnostico": diagnostico_a_json(resultado.diagnostico),
+        # Lo que mas necesita la planta (SED, CALOR...), o null si nada esta fuera de rango. Lo decide el dominio.
+        "necesidad": necesidad.value if necesidad is not None else None,
     }
 
 
