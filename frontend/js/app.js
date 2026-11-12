@@ -102,6 +102,7 @@ function mostrarPantalla() {
   }
   for (const nombre of PANTALLAS) {
     document.getElementById(`pantalla-${nombre}`).hidden = nombre !== pedida;
+    if (nombre !== pedida) pantallas[nombre]?.ocultar?.();
   }
   for (const pestana of document.querySelectorAll("[data-pantalla]")) {
     const activa = pestana.dataset.pantalla === pedida;

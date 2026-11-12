@@ -4,37 +4,37 @@
 // Los colores salen de variables CSS (estilos.css). El SVG se arma con piezas fijas y números: ningún texto
 // que mande la API entra al marcado sin pasar por las tablas de abajo.
 
-const ETAPAS = {
+const ETAPAS = Object.assign(Object.create(null), {
   SEMILLA: { clave: "semilla", tamano: [9, 7], nombre: "Semilla", genero: "f" },
   BROTE: { clave: "brote", tamano: [13, 12], nombre: "Brote", genero: "m" },
   PLANTA: { clave: "planta", tamano: [18, 17], nombre: "Planta joven", genero: "f" },
   FLORECIDA: { clave: "florecida", tamano: [21, 20], nombre: "Planta florecida", genero: "f" },
-};
+});
 
-const CONDICIONES = {
+const CONDICIONES = Object.assign(Object.create(null), {
   SANA: { clave: "sana", color: "var(--hoja-sana)", f: "sana", m: "sano" },
   DECAIDA: { clave: "decaida", color: "var(--hoja-riesgo)", f: "decaída", m: "decaído" },
   MARCHITA: { clave: "marchita", color: "var(--hoja-mal)", f: "marchita", m: "marchito" },
-};
+});
 
 // La cara sale del estado de la última lectura; si la API dice que duerme, la cara es la dormida.
-const CARAS = {
+const CARAS = Object.assign(Object.create(null), {
   SALUDABLE: { clave: "feliz", f: "feliz", m: "feliz" },
   EN_RIESGO: { clave: "preocupada", f: "preocupada", m: "preocupado" },
   CRITICO: { clave: "triste", f: "triste", m: "triste" },
-};
+});
 const DORMIDA = { clave: "dormida", f: "dormida", m: "dormido" };
 // Solo para un valor que este front todavía no conozca: no inventa un ánimo.
 const SIN_CARA = { clave: "neutra", f: "sin ánimo", m: "sin ánimo" };
 
-const NECESIDADES = {
+const NECESIDADES = Object.assign(Object.create(null), {
   SED: { globo: "¡tengo sed!", texto: "tiene sed" },
   EXCESO_AGUA: { globo: "¡me ahogo!", texto: "tiene demasiada agua" },
   FRIO: { globo: "¡tengo frío!", texto: "tiene frío" },
   CALOR: { globo: "¡tengo calor!", texto: "tiene calor" },
   POCA_LUZ: { globo: "¡poca luz!", texto: "le falta luz" },
   MUCHA_LUZ: { globo: "¡mucha luz!", texto: "le sobra luz" },
-};
+});
 
 // Trazos de cada cara, centrados en 0,0 para una planta de tamaño completo; se escalan con la planta.
 const TRAZOS = {

@@ -9,12 +9,11 @@ import { elegirParticipacion, obtenerMascotas, obtenerParticipacion, obtenerPunt
 import { crearAvisos, estadoPermiso } from "./avisos.js";
 import { consultarCadaRato, textoConsulta } from "./consulta-periodica.js";
 import { dibujoDeMatera, macetaVacia } from "./dibujo-planta.js";
-import { capitalizar, crear, puntos, puntosConSigno, signoDe } from "./formato.js";
+import { capitalizar, crear, puntos, puntosConSigno, rotuloDeEstado, signoDe } from "./formato.js";
 import { mostrarError } from "./formularios.js";
 import { crearDialogoParticipar } from "./participacion.js";
 import { sesion } from "./sesion.js";
 
-const ESTADOS = { SALUDABLE: "SALUDABLE", EN_RIESGO: "EN RIESGO", CRITICO: "CRÍTICO" };
 // Con segundos: con el reloj del juego acelerado llegan varias lecturas por minuto.
 const HORA = new Intl.DateTimeFormat("es-CO", { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
 const DIA_Y_HORA = new Intl.DateTimeFormat("es-CO", {
@@ -166,7 +165,7 @@ export function crearJuego(contexto) {
     if (!puntaje) return;
     const total = puntos(puntaje.puntos);
     $("puntaje-valor").textContent = total;
-    boton.setAttribute("aria-label", `Tus puntos: ${total}. Ver el juego`);
+    boton.setAttribute("aria-label", `Sus puntos: ${total}. Ver el juego`);
     if (antes !== undefined && antes !== puntaje.puntos) {
       void boton.offsetWidth; // vuelve a empezar la animación
       boton.classList.add(puntaje.puntos > antes ? "puntaje--sube" : "puntaje--baja");
@@ -213,7 +212,7 @@ export function crearJuego(contexto) {
   function filaMovimiento(movimiento) {
     const cuando = new Date(movimiento.momento);
     const hora = cuando.toDateString() === new Date().toDateString() ? HORA.format(cuando) : DIA_Y_HORA.format(cuando);
-    const detalle = `${movimiento.planta ?? "matera borrada"} · ${ESTADOS[movimiento.estado] ?? movimiento.estado} · ${hora}`;
+    const detalle = `${movimiento.planta ?? "matera borrada"} · ${rotuloDeEstado(movimiento.estado)} · ${hora}`;
     return crear("li", { clase: "juego__fila juego__fila--movimiento" },
       crear("span", {
         clase: `juego__valor juego__valor--${signoDe(movimiento.puntos)}`,
@@ -252,7 +251,7 @@ export function crearJuego(contexto) {
   function filaPosicion(fila) {
     const nodo = crear("li", { clase: `juego__fila juego__fila--posicion${fila.soyYo ? " juego__fila--yo" : ""}` },
       crear("span", { clase: "juego__posicion", texto: String(fila.posicion) }),
-      crear("span", { clase: "juego__apodo", texto: fila.soyYo ? `${fila.apodo} (tú)` : fila.apodo }),
+      crear("span", { clase: "juego__apodo", texto: fila.soyYo ? `${fila.apodo} (usted)` : fila.apodo }),
       crear("span", { clase: `juego__valor juego__valor--${signoDe(fila.puntos)}`, texto: puntos(fila.puntos) }));
     if (fila.soyYo) nodo.setAttribute("aria-current", "true");
     return nodo;

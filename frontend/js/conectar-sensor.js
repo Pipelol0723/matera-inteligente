@@ -11,7 +11,7 @@
 // Mientras el equipo está en la red de la placa no alcanza la API, y al cambiar de red la página puede
 // recargarse: por eso el avance se guarda en sessionStorage (paso, matera, código, huella y servidores).
 import { cambiarSensor, ErrorApi, obtenerPlantas, obtenerRed, registrarPlanta } from "./api.js";
-import { API_BASE, API_EN_ESTE_EQUIPO, PLACA_BASE } from "./config.js";
+import { API_BASE, API_EN_ESTE_EQUIPO, PLACA_BASE, PLACA_DE_PRUEBA } from "./config.js";
 import { capitalizar, crear, pastillaEstado } from "./formato.js";
 import { mostrarError, ocupado } from "./formularios.js";
 import { textoLecturas } from "./lecturas.js";
@@ -34,6 +34,9 @@ const API_MS = 2000; // cada cuánto se pregunta si la API ya responde
 const API_MAXIMO_MS = 4000;
 const LECTURA_MS = 3000;
 const PISTAS_MS = 120000; // a los 2 minutos sin novedad, la app da pistas
+const UNIRSE_MAXIMO_MS = 600000; // buscar la placa: a los 10 minutos activos la app para y lo dice
+const REVISAR_ENVIO_MS = 3000; // antes de reenviar una petición sin respuesta, se vuelve a mirar
+const VISTA_MS = 400; // cada cuánto se mira si Mis materas volvió a la vista
 
 const PASOS = [
   { id: "preparar", texto: "Preparar" },
@@ -50,13 +53,13 @@ const PASOS_VALIDOS = new Set([...PASOS.map((p) => p.id), "conectando", "listo"]
 const PASOS_EN_LA_PLACA = new Set(["unirse", "wifi", "conectando", "volver"]);
 
 // Cómo se cuenta cada etapa que dice la placa (GET /estado). Las etapas las decide la placa.
-const ETAPAS = {
+const ETAPAS = Object.assign(Object.create(null), {
   conectando: "La placa se está uniendo a su WiFi…",
   "buscando-servidor": "La placa ya entró a su WiFi y está buscando el servidor…",
   "esperando-matera": "La placa encontró el servidor.",
   conectada: "La placa ya tiene su matera y quedó conectada.",
   "sin-red": "La placa no pudo unirse a esa red.",
-};
+});
 
 const RED_DE_LA_PLACA = "Matera-…";
 
@@ -161,6 +164,11 @@ function aviso(texto) {
   return nodo;
 }
 
+// Solo con ?placa= (pruebas): la clave del WiFi viaja a esa dirección, no a la placa de verdad.
+function avisoDePrueba() {
+  return aviso(`Prueba: este asistente habla con ${PLACA_BASE} y no con la placa real (http://192.168.4.1). La clave del WiFi se enviará a esa dirección.`);
+}
+
 function cajaError() {
   const nodo = crear("div", { clase: "tarjeta-error" });
   nodo.hidden = true;
@@ -218,11 +226,26 @@ export function crearAsistente(contexto, { raiz, alAbrirOCerrar, alCambiarLasMat
   let redElegida = ""; // solo para mostrarla mientras la placa se conecta
   let ultimaLectura = null; // la primera lectura, para mostrarla en «Listo»
   let alLlegarMedicion = null;
+  let vista = false; // Mis materas está a la vista: solo entonces el asistente consulta
 
   // Si la conexión en vivo trae la lectura, no hay que esperar la próxima consulta.
   contexto.tiempoReal.alRecibir((mensaje) => alLlegarMedicion?.(mensaje));
 
   const nueva = () => estado.modo === "nueva";
+
+  // Mis materas a la vista y la pestaña visible. Fuera de ahí, el asistente no consulta ni crea nada.
+  const visible = () => vista && !document.hidden;
+
+  // Espera a que el asistente vuelva a estar a la vista. Devuelve false si el paso ya no está vigente.
+  async function alVer(mia) {
+    while (!visible() && vigente(mia)) await esperar(VISTA_MS);
+    return vigente(mia);
+  }
+
+  // La lista de materas solo se vuelve a pedir con la sesión abierta.
+  function cambiaronLasMateras() {
+    if (sesion.activa()) alCambiarLasMateras();
+  }
 
   function guardar() {
     escribirGuardado(Object.fromEntries(CAMPOS_GUARDADOS.map((campo) => [campo, estado[campo]])));
@@ -335,7 +358,7 @@ export function crearAsistente(contexto, { raiz, alAbrirOCerrar, alCambiarLasMat
     raiz.replaceChildren(
       crear("div", { clase: "asistente__cabecera" }, titulo, crear("p", { clase: "asistente__matera", texto: descripcion() })),
       lista,
-      crear("div", { clase: "asistente__cuerpo" }, ...cuerpo),
+      crear("div", { clase: "asistente__cuerpo" }, ...(PLACA_DE_PRUEBA && PASOS_EN_LA_PLACA.has(paso) ? [avisoDePrueba()] : []), ...cuerpo),
       pie(paso));
     mostrarse();
     subtitulo?.focus?.();
@@ -380,6 +403,7 @@ export function crearAsistente(contexto, { raiz, alAbrirOCerrar, alCambiarLasMat
       parrafo("Mientras este equipo sigue en su WiFi, la app le pregunta a la API a qué dirección tendrá que mandar la placa sus lecturas. Tenga a mano el nombre y la clave de su WiFi."),
       estadoNodo, resultado, error, principal);
 
+    if (!await alVer(mia)) return;
     let red;
     try {
       red = await obtenerRed();
@@ -429,8 +453,15 @@ export function crearAsistente(contexto, { raiz, alAbrirOCerrar, alCambiarLasMat
       parrafo("Cuando este equipo entre a esa red, la app encuentra la placa sola. Esa red no tiene internet: es normal.", "asistente__texto asistente__texto--tenue"),
       estadoNodo, ayuda);
 
-    const inicio = Date.now();
+    let activo = 0; // tiempo buscando con el asistente a la vista
     while (vigente(mia)) {
+      if (!await alVer(mia)) return;
+      if (activo >= UNIRSE_MAXIMO_MS) {
+        cambiarLinea(estadoNodo, "No se encontró la placa. Revise que este equipo siga unido a su red y vuelva a buscarla.", { esperando: false });
+        ayuda.hidden = false;
+        estadoNodo.after(boton("Buscar la placa otra vez", "boton-primario", () => irA("unirse")));
+        return;
+      }
       const intento = Date.now();
       let info = null;
       try {
@@ -450,14 +481,16 @@ export function crearAsistente(contexto, { raiz, alAbrirOCerrar, alCambiarLasMat
         }
         cambiarLinea(estadoNodo, "La placa respondió, pero sin su código o sin la huella de su clave. Volviendo a preguntar…");
       }
-      if (Date.now() - inicio >= PISTAS_MS) ayuda.hidden = false;
       await esperar(Math.max(0, BUSCAR_PLACA_MS - (Date.now() - intento)));
+      activo += Date.now() - intento;
+      if (activo >= PISTAS_MS) ayuda.hidden = false;
     }
   }
 
   // ---- 3. Elegir el WiFi: la placa dice qué redes ve; la clave va directo a ella ----
 
-  function elegirWifi(mia) {
+  // previo: lo que la persona ya había escrito, si solo se actualiza la lista de redes.
+  function elegirWifi(mia, previo = null) {
     if (!redesEnMemoria) {
       unirse(mia);
       return;
@@ -490,7 +523,7 @@ export function crearAsistente(contexto, { raiz, alAbrirOCerrar, alCambiarLasMat
 
     const claveId = `asistente-clave-${mia}`;
     const clave = crear("input", { clase: "formulario__campo" });
-    Object.assign(clave, { id: claveId, type: "password", autocomplete: "off", spellcheck: false });
+    Object.assign(clave, { id: claveId, type: "password", autocomplete: "new-password", spellcheck: false });
     const rotuloClave = crear("label", { clase: "formulario__etiqueta", texto: "Clave del WiFi" });
     rotuloClave.htmlFor = claveId;
     const ver = crear("input");
@@ -498,6 +531,15 @@ export function crearAsistente(contexto, { raiz, alAbrirOCerrar, alCambiarLasMat
     ver.addEventListener("change", () => {
       clave.type = ver.checked ? "text" : "password";
     });
+    if (previo) {
+      const radios = [...lista.querySelectorAll("input[type=radio]")];
+      const igual = radios.find((r) => r.value === previo.red && r.value !== "");
+      const elegir = igual ?? radios.find((r) => r.value === "");
+      for (const r of radios) r.checked = r === elegir;
+      otraNombre.value = igual ? previo.otra : previo.red || previo.otra;
+      otraNombre.hidden = elegir.value !== "";
+      clave.value = previo.clave;
+    }
     const error = cajaError();
     const enviar = crear("button", { clase: "boton-primario", texto: "Conectar la matera a este WiFi" });
     enviar.type = "submit";
@@ -535,7 +577,11 @@ export function crearAsistente(contexto, { raiz, alAbrirOCerrar, alCambiarLasMat
         const info = await ocupado(actualizar, () => pedirPlaca("/info"));
         if (!vigente(mia)) return;
         redes = sinRepetir(Array.isArray(info?.redes) ? info.redes : []);
-        elegirWifi(++vuelta);
+        elegirWifi(++vuelta, {
+          red: lista.querySelector("input[type=radio]:checked")?.value ?? "",
+          otra: otraNombre.value,
+          clave: clave.value,
+        });
       } catch (fallo) {
         if (vigente(mia)) mostrarError(error, fallo);
       }
@@ -577,6 +623,7 @@ export function crearAsistente(contexto, { raiz, alAbrirOCerrar, alCambiarLasMat
     let ultimaRespuesta = Date.now();
     let buscandoDesde = null;
     while (vigente(mia)) {
+      if (!await alVer(mia)) return;
       const intento = Date.now();
       let respuesta = null;
       try {
@@ -647,6 +694,7 @@ export function crearAsistente(contexto, { raiz, alAbrirOCerrar, alCambiarLasMat
 
     // Si la placa no contesta, puede que ya la haya apagado: se sigue igual.
     for (let intento = 0; intento < 3 && vigente(mia); intento += 1) {
+      if (!await alVer(mia)) return;
       try {
         await pedirPlaca("/cerrar", { metodo: "POST" });
         break;
@@ -660,6 +708,7 @@ export function crearAsistente(contexto, { raiz, alAbrirOCerrar, alCambiarLasMat
 
     const inicio = Date.now();
     while (vigente(mia)) {
+      if (!await alVer(mia)) return;
       const intento = Date.now();
       try {
         await obtenerRed({ signal: senalCon(API_MAXIMO_MS) });
@@ -704,6 +753,7 @@ export function crearAsistente(contexto, { raiz, alAbrirOCerrar, alCambiarLasMat
         : "La app le pone a la matera el código de la placa y la huella de su clave. Su historial se conserva."),
       estadoNodo, error, pista, campos.nodo, principal);
 
+    if (!await alVer(mia)) return;
     try {
       if (estado.yaVinculada) await buscarSuMatera(mia);
       else if (nueva()) await crearMatera(mia);
@@ -747,12 +797,19 @@ export function crearAsistente(contexto, { raiz, alAbrirOCerrar, alCambiarLasMat
     // Si la página se recargó (o se cortó la red) justo después de enviarla, la matera ya puede existir:
     // no se crea dos veces.
     if (estado.enviado) {
-      const creada = (await obtenerPlantas()).find((p) => p.sensor?.codigo === estado.codigo);
+      const buscar = async () => (await obtenerPlantas()).find((p) => p.sensor?.codigo === estado.codigo);
+      let creada = await buscar();
+      if (!creada) {
+        // Sin respuesta no se sabe si la API terminó de crearla: se espera un momento y se vuelve a mirar.
+        await esperar(REVISAR_ENVIO_MS);
+        if (!await alVer(mia)) return;
+        creada = await buscar();
+      }
       if (!vigente(mia)) return;
       if (creada) {
         estado.plantaId = creada.id;
         estado.plantaApodo = creada.apodo;
-        alCambiarLasMateras();
+        cambiaronLasMateras();
         irA("lectura");
         return;
       }
@@ -765,7 +822,7 @@ export function crearAsistente(contexto, { raiz, alAbrirOCerrar, alCambiarLasMat
       codigo: estado.codigo,
       huella: estado.huella,
     });
-    alCambiarLasMateras(); // aunque se haya cancelado mientras tanto, la matera ya existe
+    cambiaronLasMateras(); // aunque se haya cancelado mientras tanto, la matera ya existe
     if (!vigente(mia)) return;
     estado.plantaId = planta.id;
     estado.plantaApodo = planta.apodo;
@@ -776,11 +833,18 @@ export function crearAsistente(contexto, { raiz, alAbrirOCerrar, alCambiarLasMat
     // La primera lectura es la primera de esta placa que llegue después de la última que había.
     const antes = (await obtenerPlantas()).find((p) => p.id === estado.plantaId);
     if (!vigente(mia)) return;
+    if (estado.enviado && antes?.sensor?.codigo === estado.codigo) {
+      // Ya se había enviado y la API lo aplicó: no se reenvía, y momentoAntes sigue siendo el de entonces.
+      cambiaronLasMateras();
+      estado.plantaApodo = antes.apodo;
+      irA("lectura");
+      return;
+    }
     estado.momentoAntes = antes?.ultimaMedicion?.momento ?? null;
     estado.enviado = true;
     guardar();
     const { planta } = await cambiarSensor(estado.plantaId, estado.codigo, estado.huella);
-    alCambiarLasMateras();
+    cambiaronLasMateras();
     if (!vigente(mia)) return;
     estado.plantaApodo = planta.apodo;
     irA("lectura");
@@ -829,7 +893,7 @@ export function crearAsistente(contexto, { raiz, alAbrirOCerrar, alCambiarLasMat
     const terminar = (medicion) => {
       if (!vigente(mia)) return;
       ultimaLectura = medicion;
-      alCambiarLasMateras();
+      cambiaronLasMateras();
       irA("listo");
     };
     alLlegarMedicion = (mensaje) => {
@@ -840,6 +904,7 @@ export function crearAsistente(contexto, { raiz, alAbrirOCerrar, alCambiarLasMat
 
     const inicio = Date.now();
     while (vigente(mia)) {
+      if (!await alVer(mia)) return;
       const intento = Date.now();
       try {
         const planta = (await obtenerPlantas({ signal: senalCon(API_MAXIMO_MS) })).find((p) => p.id === estado.plantaId);
@@ -884,6 +949,7 @@ export function crearAsistente(contexto, { raiz, alAbrirOCerrar, alCambiarLasMat
     // Si la página se recargó en este paso, la lectura se vuelve a pedir.
     let medicion = ultimaLectura;
     if (!medicion) {
+      if (!await alVer(mia)) return;
       try {
         medicion = (await obtenerPlantas()).find((p) => p.id === estado.plantaId)?.ultimaMedicion ?? null;
       } catch {
@@ -914,7 +980,12 @@ export function crearAsistente(contexto, { raiz, alAbrirOCerrar, alCambiarLasMat
     reanudar,
     reiniciar,
     activo: () => Boolean(estado),
+    // Mis materas entra o sale de la vista: fuera de ella, el asistente se pausa.
+    ponerVista(valor) {
+      vista = valor;
+    },
     // Mientras el equipo puede estar en la red de la placa, Mis materas no consulta la API (no la alcanza).
-    sinApi: () => Boolean(estado) && !API_EN_ESTE_EQUIPO && PASOS_EN_LA_PLACA.has(estado.paso),
+    // Solo vale mientras Mis materas está a la vista: en las otras pantallas no hay nada que la pause.
+    sinApi: () => vista && Boolean(estado) && !API_EN_ESTE_EQUIPO && PASOS_EN_LA_PLACA.has(estado.paso),
   };
 }

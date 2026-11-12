@@ -11,16 +11,19 @@ export const API_EN_ESTE_EQUIPO = esLoopback(EQUIPO);
 const PLACA_POR_DEFECTO = "http://192.168.4.1";
 
 // Para probar sin la placa: ?placa=http://127.0.0.1:8099 en la dirección del front. Solo se acepta una
-// dirección de este equipo o de una red privada: la clave del WiFi viaja a ella, y un enlace con
-// ?placa= que apunte a internet no debe poder llevársela.
+// dirección de este equipo o de la red de la placa (192.168.4.x): la clave del WiFi viaja a ella, y un
+// enlace con ?placa= no debe poder llevársela a otro equipo de la red.
 export const PLACA_BASE = placaPedida() ?? PLACA_POR_DEFECTO;
+
+// Verdadero si la placa no está en su dirección de siempre (una prueba): el asistente lo avisa.
+export const PLACA_DE_PRUEBA = PLACA_BASE !== PLACA_POR_DEFECTO;
 
 function placaPedida() {
   try {
     const pedida = new URLSearchParams(globalThis.location?.search ?? "").get("placa");
     if (!pedida) return null;
     const url = new URL(pedida);
-    return url.protocol === "http:" && (esLoopback(url.hostname) || esPrivada(url.hostname)) ? url.origin : null;
+    return url.protocol === "http:" && (esLoopback(url.hostname) || esRedDeLaPlaca(url.hostname)) ? url.origin : null;
   } catch {
     return null;
   }
@@ -30,6 +33,6 @@ function esLoopback(nombre) {
   return nombre === "localhost" || nombre === "[::1]" || /^127\.\d+\.\d+\.\d+$/.test(nombre);
 }
 
-function esPrivada(nombre) {
-  return /^(10\.\d+|192\.168|172\.(1[6-9]|2\d|3[01]))\.\d+\.\d+$/.test(nombre);
+function esRedDeLaPlaca(nombre) {
+  return /^192.168.4.d+$/.test(nombre);
 }

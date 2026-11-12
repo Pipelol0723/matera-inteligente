@@ -417,9 +417,14 @@ export function crearPantallaMateras(contexto) {
 
   return {
     mostrar() {
+      asistente.ponerVista(true);
       ocultarClave();
       cargar();
       asistente.reanudar(); // si había una placa a medio conectar (también después de recargar la página)
+    },
+    // Al salir de Mis materas: el asistente deja de consultar hasta que vuelva.
+    ocultar() {
+      asistente.ponerVista(false);
     },
     alCargarCatalogos,
     // Mientras el equipo está en la red de la placa no hay API: el juego tampoco consulta.

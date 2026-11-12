@@ -31,12 +31,14 @@ const VERDE = { texto: "#2b7a4b", fondo: "#e1f0e6" };
 const AMBAR = { texto: "#87570a", fondo: "#f6ead1" };
 const ROJO = { texto: "#ae3636", fondo: "#f6e0de" };
 const SIN_ESTADO = { texto: "#5a6a5f", fondo: "#eef2ec" };
-const COLORES = { SALUDABLE: VERDE, OPTIMO: VERDE, EN_RIESGO: AMBAR, BAJO: AMBAR, ALTO: AMBAR, CRITICO: ROJO };
+const COLORES = Object.assign(Object.create(null), { SALUDABLE: VERDE, OPTIMO: VERDE, EN_RIESGO: AMBAR, BAJO: AMBAR, ALTO: AMBAR, CRITICO: ROJO });
 export const colorDeEstado = (estado) => COLORES[estado] ?? SIN_ESTADO;
 
-const NOMBRES_DE_ESTADO = { SALUDABLE: "Saludable", EN_RIESGO: "En riesgo", CRITICO: "Crítico" };
+const NOMBRES_DE_ESTADO = Object.assign(Object.create(null), { SALUDABLE: "Saludable", EN_RIESGO: "En riesgo", CRITICO: "Crítico" });
 export const nombreDeEstado = (estado) => NOMBRES_DE_ESTADO[estado] ?? capitalizar(estado.toLowerCase());
-export const rotuloDeEstado = (estado) => estado.replace("_", " ");
+// Una sola tabla de rótulos para pastillas, juego y avisos.
+const ROTULOS_DE_ESTADO = Object.assign(Object.create(null), { SALUDABLE: "SALUDABLE", EN_RIESGO: "EN RIESGO", CRITICO: "CRÍTICO" });
+export const rotuloDeEstado = (estado) => ROTULOS_DE_ESTADO[estado] ?? String(estado).replace("_", " ");
 
 export function textoDetalle(detalle) {
   const pares = Object.entries(detalle ?? {}).map(([clave, valor]) => `"${clave}": ${JSON.stringify(valor)}`);
