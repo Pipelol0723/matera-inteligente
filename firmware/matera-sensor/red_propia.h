@@ -48,5 +48,8 @@ void redPropiaEstado(const char *etapa, const String &detalle);
 // de responder 202, para que la respuesta salga antes de que la placa cambie de canal al unirse al WiFi.
 bool redPropiaConfiguracion(Conexion &conexion);
 
+// Corta la busqueda de redes que este en curso. Se llama antes de entrar a una red WiFi.
+void redPropiaCortarBusqueda();
+
 // Imprime el flash que usa el programa y la RAM libre, con `momento` («modo de conexion abierto»...).
 void redPropiaImprimirRecursos(const char *momento);

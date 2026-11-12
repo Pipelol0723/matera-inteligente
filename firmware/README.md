@@ -75,7 +75,7 @@ Solo responde a quien está unido a la red propia (lo que llega por el WiFi de l
 
 | Ruta | Respuesta |
 |---|---|
-| `GET /info` | `{"codigo": "MT-7518-JP", "huella": "<64 hex>", "redes": [{"nombre": "honor de pipe", "senal": -52, "segura": true}]}`. Las redes que ve la placa, de la mejor señal a la peor, sin repetir ni las ocultas. |
+| `GET /info` | `{"codigo": "MT-7518-JP", "huella": "<64 hex>", "redes": [{"nombre": "honor de pipe", "senal": -52, "segura": true}]}`. Las redes que ve la placa, de la mejor señal a la peor, sin repetir ni las ocultas: las 15 de mejor señal. Es la lista de la última búsqueda: la placa busca al abrir su red, cada 30 s mientras nadie está unido a ella (estar conectado por Bluetooth no cuenta) y después de cada `info` si la lista tiene más de 30 s. |
 | `POST /configurar` | Con `{"red": "honor de pipe", "claveRed": "...", "servidores": ["http://10.34.101.124:5000/api/v1"]}` responde 202 `{"etapa": "conectando", "detalle": "..."}`, guarda en la memoria y se une al WiFi sin cerrar su red. El cuerpo se lee como JSON con cualquier `Content-Type`: la app lo manda como `text/plain` para evitar la consulta previa de CORS. `red` tiene de 1 a 32 bytes; `claveRed` de 8 a 63 caracteres, o va vacía si la red es abierta; `servidores` es una lista de 1 a 4 direcciones `http://`. Un cuerpo que no es JSON da 400 `SOLICITUD_INVALIDA`; si falta algo, 400 `PARAMETRO_INVALIDO` con el `campo`. |
 | `GET /estado` | `{"etapa": "conectando", "detalle": "..."}`, con las etapas de la tabla de arriba. Si la clave del WiFi está mal, `sin-red` con el motivo («la clave del WiFi no es correcta»). |
 | `POST /cerrar` | Sin cuerpo. 204, y apaga su red medio segundo después; la placa sigue buscando el servidor. Si la placa todavía no tiene red, 409 `SIN_RED`. |
@@ -91,6 +91,13 @@ Para probarla desde el PC, se une el PC a la red `Matera-...` con la clave de la
 ```powershell
 Invoke-RestMethod http://192.168.4.1/info
 ```
+
+### Si una red no aparece en la lista
+
+- **La placa solo ve redes de 2,4 GHz.** Un celular que comparte internet mientras él mismo está en un WiFi de 5 GHz suele poner su hotspot en 5 GHz; en iPhone hay que encender «Maximizar compatibilidad».
+- **La lista puede ser de antes de encender la red.** La placa abre su modo de conexión justamente cuando no encuentra su red guardada (por ejemplo, el hotspot apagado). Esa búsqueda no lo ve, y antes la lista solo se renovaba después de una `info`, con el resultado en la `info` siguiente: así le pasó a «honor de pipe» en la prueba del 12 de noviembre (la placa se conectó igual con «Otra red»). Ahora la lista se renueva sola cada 30 s mientras nadie está unido a la red propia, y si la app pide `info` otra vez a los pocos segundos, ya sale.
+- **Con muchas redes alrededor entran las 15 de mejor señal.** En el edificio de la prueba la búsqueda encontró de 18 a 37 puntos de acceso, y la 15.ª red quedó en unos −80 dBm: una red más lejana queda fuera. Si hace falta, se escribe a mano («Otra red»).
+- **El monitor serie dice qué ve la placa:** al abrir el modo de conexión imprime todas las redes que entrega `info`, con su señal y su canal, y cuántos puntos de acceso encontró; después, cada vez que una búsqueda de fondo cambia la lista. Con la red propia abierta, la búsqueda no se salta canales: en la prueba salieron redes en los canales 3, 5, 6, 7, 8 y 9, y una búsqueda de fondo (con la red propia ya abierta) encontró 27 puntos de acceso, tantos como la primera. El orden por señal también está bien.
 
 ## Bluetooth LE
 

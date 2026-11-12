@@ -45,8 +45,12 @@ RespuestaLocal apiLocalCerrar();
 // Busca las redes WiFi y espera el resultado (unos segundos). Se usa al abrir el modo de conexion.
 void apiLocalBuscarRedes();
 
-// Termina una busqueda de fondo (la pide info). Va en cada vuelta de loop().
+// Termina una busqueda de fondo y, mientras nadie este unido a la red propia, renueva la lista cada 30 s
+// (con alguien unido, solo despues de una info). Va en cada vuelta de loop().
 void apiLocalRevisarBusqueda();
+
+// Corta una busqueda de fondo: antes de entrar a una red WiFi, que no se lleva bien con buscar.
+void apiLocalCortarBusqueda();
 
 int apiLocalCuantasRedes();
 

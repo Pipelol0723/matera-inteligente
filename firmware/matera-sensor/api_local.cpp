@@ -2,12 +2,14 @@
 
 #include <WiFi.h>
 #include <esp_task_wdt.h>
+#include <esp_wifi.h>
 
 #include "lector_json.h"
 
 namespace {
 
-const unsigned long VIGENCIA_REDES_MS = 30000;  // info pide otra busqueda si la lista es mas vieja
+const unsigned long VIGENCIA_REDES_MS = 30000;  // la lista se renueva si es mas vieja que esto
+const unsigned long REINTENTO_BUSQUEDA_MS = 5000;  // despues de una busqueda que fallo
 const unsigned long DEMORA_MS = 400;            // entre responder y cambiar de red o cerrar
 const size_t MAX_DIRECCION = 120;
 
@@ -20,10 +22,14 @@ struct Red {
   String nombre;
   int senal;
   bool segura;
+  int canal;  // solo para el monitor serie
 };
 Red redes[MAX_REDES];
 int cuantasRedes = 0;
-unsigned long redesDesde = 0;
+int puntosVistos = 0;  // lo que encontro la ultima busqueda, con repetidas y ocultas
+unsigned long redesDesde = 0;    // la ultima busqueda que termino bien
+unsigned long busquedaDesde = 0;  // el ultimo intento, haya salido o no
+bool hayRedes = false;
 bool escaneando = false;
 
 bool hayConfiguracion = false;
@@ -36,27 +42,29 @@ unsigned long cierreDesde = 0;
 
 void guardarRedes(int encontradas) {
   cuantasRedes = 0;
+  puntosVistos = encontradas;
   for (int i = 0; i < encontradas; i++) {
     const String ssid = WiFi.SSID(i);
     if (ssid.length() == 0) continue;  // red oculta
     const int senal = WiFi.RSSI(i);
     const bool segura = WiFi.encryptionType(i) != WIFI_AUTH_OPEN;
+    const int canal = WiFi.channel(i);
     // La misma red con varios puntos de acceso aparece una vez, con la mejor senal.
     int j = 0;
     while (j < cuantasRedes && redes[j].nombre != ssid) j++;
     if (j < cuantasRedes) {
-      if (senal > redes[j].senal) redes[j] = {ssid, senal, segura};
+      if (senal > redes[j].senal) redes[j] = {ssid, senal, segura, canal};
       continue;
     }
     if (cuantasRedes < MAX_REDES) {
-      redes[cuantasRedes++] = {ssid, senal, segura};
+      redes[cuantasRedes++] = {ssid, senal, segura, canal};
       continue;
     }
     int peor = 0;
     for (int k = 1; k < cuantasRedes; k++) {
       if (redes[k].senal < redes[peor].senal) peor = k;
     }
-    if (senal > redes[peor].senal) redes[peor] = {ssid, senal, segura};
+    if (senal > redes[peor].senal) redes[peor] = {ssid, senal, segura, canal};
   }
   // De la mejor senal a la peor.
   for (int i = 1; i < cuantasRedes; i++) {
@@ -70,13 +78,48 @@ void guardarRedes(int encontradas) {
   }
   WiFi.scanDelete();
   redesDesde = millis();
+  hayRedes = true;
 }
 
-// Pide otra busqueda en segundo plano. Mientras la placa intenta entrar a una red, buscar corta el intento:
-// solo se busca sin red o ya conectada.
+// Los nombres de la lista, cada uno entre saltos de linea: "\nred1\nred2\n". Sirve para saber si cambio.
+String nombresDeRedes() {
+  String nombres = "\n";
+  for (int i = 0; i < cuantasRedes; i++) nombres += redes[i].nombre + "\n";
+  return nombres;
+}
+
+// true si la lista tiene las mismas redes que `antes` (de nombresDeRedes), en cualquier orden: la senal
+// cambia el orden a cada rato.
+bool mismasRedes(const String &antes) {
+  int cuantasAntes = 0;
+  for (size_t i = 1; i < antes.length(); i++) {
+    if (antes[i] == '\n') cuantasAntes++;
+  }
+  if (cuantasAntes != cuantasRedes) return false;
+  for (int i = 0; i < cuantasRedes; i++) {
+    if (antes.indexOf("\n" + redes[i].nombre + "\n") < 0) return false;
+  }
+  return true;
+}
+
+// Al monitor serie, todas las redes que entrega info, con su canal: sirve para saber si la red de la casa
+// esta al alcance y es de 2,4 GHz.
+void imprimirRedes() {
+  Serial.printf("La búsqueda encontró %d puntos de acceso; info entrega estas %d redes:\n", puntosVistos,
+                cuantasRedes);
+  for (int i = 0; i < cuantasRedes; i++) {
+    Serial.printf("  «%s», señal %d dBm, canal %d%s\n", redes[i].nombre.c_str(), redes[i].senal, redes[i].canal,
+                  redes[i].segura ? "" : ", abierta");
+  }
+}
+
+// Pide otra busqueda en segundo plano si la lista tiene mas de 30 s. Mientras la placa intenta entrar a una
+// red, buscar corta el intento: solo se busca sin red o ya conectada.
 void pedirBusqueda() {
-  if (escaneando || millis() - redesDesde < VIGENCIA_REDES_MS) return;
+  if (escaneando || (hayRedes && millis() - redesDesde < VIGENCIA_REDES_MS)) return;
+  if (busquedaDesde != 0 && millis() - busquedaDesde < REINTENTO_BUSQUEDA_MS) return;
   if (etapaActual != "sin-red" && WiFi.status() != WL_CONNECTED) return;
+  busquedaDesde = millis();
   if (WiFi.scanNetworks(true, false) == WIFI_SCAN_RUNNING) escaneando = true;
 }
 
@@ -124,10 +167,7 @@ void apiLocalIniciar(const String &codigo, const String &huella) {
 }
 
 void apiLocalTerminar() {
-  if (escaneando) {
-    WiFi.scanDelete();
-    escaneando = false;
-  }
+  apiLocalCortarBusqueda();
   hayConfiguracion = false;
   cierrePedido = false;
 }
@@ -199,23 +239,45 @@ RespuestaLocal apiLocalCerrar() {
 }
 
 void apiLocalBuscarRedes() {
+  apiLocalCortarBusqueda();
   esp_task_wdt_reset();
+  busquedaDesde = millis();
   const int encontradas = WiFi.scanNetworks(false, false);
-  if (encontradas >= 0) guardarRedes(encontradas);
   esp_task_wdt_reset();
-  // Sirve para saber si la red de la casa esta al alcance y es de 2,4 GHz.
-  Serial.printf("La placa ve %d redes:\n", cuantasRedes);
-  for (int i = 0; i < cuantasRedes && i < 10; i++) {
-    Serial.printf("  «%s», señal %d dBm%s\n", redes[i].nombre.c_str(), redes[i].senal, redes[i].segura ? "" : ", abierta");
+  if (encontradas < 0) {
+    Serial.printf("La búsqueda de redes falló (%d): la placa vuelve a buscar en unos segundos.\n", encontradas);
+    return;
   }
+  guardarRedes(encontradas);
+  imprimirRedes();
 }
 
 void apiLocalRevisarBusqueda() {
+  if (escaneando) {
+    const int resultado = WiFi.scanComplete();
+    if (resultado == WIFI_SCAN_RUNNING) return;
+    escaneando = false;
+    if (resultado < 0) return;
+    const String antes = nombresDeRedes();
+    guardarRedes(resultado);
+    if (!mismasRedes(antes)) {
+      Serial.print("Cambió la lista de redes. ");
+      imprimirRedes();
+    }
+    return;
+  }
+  // Mientras nadie este unido a la red propia, la lista se renueva sola cada 30 s: asi la primera info ya
+  // trae una red que se encendio despues de abrir el modo de conexion (el hotspot del celular, por
+  // ejemplo). Con alguien unido solo se busca despues de una info, porque buscar saca a la red propia de
+  // su canal unos segundos.
+  if (WiFi.softAPgetStationNum() == 0) pedirBusqueda();
+}
+
+void apiLocalCortarBusqueda() {
   if (!escaneando) return;
-  const int resultado = WiFi.scanComplete();
-  if (resultado == WIFI_SCAN_RUNNING) return;
+  esp_wifi_scan_stop();
+  WiFi.scanDelete();
   escaneando = false;
-  if (resultado >= 0) guardarRedes(resultado);
 }
 
 int apiLocalCuantasRedes() {

@@ -210,6 +210,10 @@ bool redPropiaConfiguracion(Conexion &conexion) {
   return apiLocalConfiguracion(conexion);
 }
 
+void redPropiaCortarBusqueda() {
+  apiLocalCortarBusqueda();
+}
+
 void redPropiaImprimirRecursos(const char *momento) {
   const esp_partition_t *particion = esp_ota_get_running_partition();
   static const uint32_t programa = ESP.getSketchSize();  // lee el programa entero: se mide una vez

@@ -188,6 +188,7 @@ String motivoWifi() {
 }
 
 void conectarWifi(const String &motivo) {
+  redPropiaCortarBusqueda();  // la lista de redes se renueva sola: no tiene que cruzarse con este intento
   razonDesconexion = 0;
   fallosDeClave = 0;
   reintentoDeFondo = false;
