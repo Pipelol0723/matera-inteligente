@@ -34,5 +34,5 @@ function esLoopback(nombre) {
 }
 
 function esRedDeLaPlaca(nombre) {
-  return /^192.168.4.d+$/.test(nombre);
+  return /^192\.168\.4\.\d{1,3}$/.test(nombre);
 }
