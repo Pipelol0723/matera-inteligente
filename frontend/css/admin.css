@@ -1,0 +1,190 @@
+/* Administración: las cifras de las cuentas y la tabla con sus acciones. En el celular, la tabla se ve como
+   una tarjeta por cuenta. Solo usa las variables de variables.css: sigue a los dos estilos y a los cuatro
+   temas. */
+
+.admin__usuarios {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 22px;
+}
+
+.admin__usuarios .rotulo {
+  margin: 0;
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.tabla th {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--borde);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-align: left;
+  text-transform: uppercase;
+  color: var(--tenue);
+}
+
+.tabla td {
+  padding: 12px;
+  border-bottom: 1px solid var(--borde-suave);
+  vertical-align: middle;
+}
+
+.tabla tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.tabla__numero {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabla__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* La cuenta: su inicial en un círculo, el nombre y el correo. */
+.cuenta-fila {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.cuenta-fila__avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--acento-suave);
+  font-family: var(--fuente-titulo);
+  font-weight: 760;
+  color: var(--acento-texto);
+}
+
+.cuenta-fila__textos {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cuenta-fila__nombre {
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.cuenta-fila__usted {
+  font-weight: 500;
+  color: var(--tenue);
+}
+
+.cuenta-fila__correo {
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+  color: var(--tenue);
+}
+
+.cuenta-fila--inactiva .cuenta-fila__avatar {
+  background: var(--sin-estado-fondo);
+  color: var(--sin-estado);
+}
+
+.cuenta-fila--propia > td {
+  background: var(--superficie-suave);
+}
+
+:root[data-estilo="juego"] .cuenta-fila__avatar {
+  border: var(--borde-ancho) solid var(--borde-acento);
+  box-shadow: 0 2px 0 var(--borde-sombra);
+}
+
+/* ---- celular: una tarjeta por cuenta ---- */
+
+@media (max-width: 759.98px) {
+  .admin__usuarios {
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+  }
+
+  .tabla--cuentas thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .tabla--cuentas,
+  .tabla--cuentas tbody,
+  .tabla--cuentas td {
+    display: block;
+  }
+
+  .tabla--cuentas tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* La cuenta arriba, el rol, el estado y las plantas en una fila (que baja si no cabe) y las acciones abajo. */
+  .tabla--cuentas tr {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 22px;
+    padding: 16px;
+    border: var(--borde-ancho) solid var(--borde);
+    border-radius: var(--radio-l);
+    background: var(--superficie);
+    box-shadow: var(--sombra-tarjeta);
+  }
+
+  .tabla--cuentas td,
+  .tabla--cuentas tbody tr:last-child td {
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+
+  .tabla--cuentas td:first-child,
+  .tabla--cuentas td:last-child {
+    flex-basis: 100%;
+  }
+
+  .cuenta-fila--propia {
+    border-color: var(--borde-acento);
+  }
+
+  .tabla--cuentas tr.cuenta-fila--propia {
+    background: var(--superficie-suave);
+  }
+
+  .tabla--cuentas td[data-etiqueta]::before {
+    content: attr(data-etiqueta);
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--tenue);
+  }
+
+  .tabla__acciones {
+    justify-content: flex-start;
+    padding-top: 12px;
+    border-top: 1px solid var(--borde-suave);
+  }
+}

@@ -24,7 +24,9 @@ export function consultarCadaRato(estaALaVista, consultar, ms = CONSULTA_MS) {
   });
 }
 
-// El texto que dice cuándo se consultó la API por última vez.
+// El texto que dice cuándo se consultó la API por última vez. La hora va con espacios que no se parten
+// («02:42:42 p. m.» nunca queda con la «m.» sola en el renglón siguiente).
 export function textoConsulta(momento = new Date()) {
-  return `Se consulta la API cada ${CONSULTA_MS / 1000} s · última consulta ${HORA.format(momento)}`;
+  const hora = HORA.format(momento).replace(/\s/g, "\u00a0");
+  return `Se consulta la API cada ${CONSULTA_MS / 1000}\u00a0s · última consulta ${hora}`;
 }

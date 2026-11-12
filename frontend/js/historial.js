@@ -5,7 +5,9 @@
 import { obtenerHistorial, obtenerPlantas } from "./api.js";
 import { consultarCadaRato, textoConsulta } from "./consulta-periodica.js";
 import { dominioVisual, fraccion } from "./escala.js";
-import { capitalizar, crear, crearSvg, etiqueta, nombreDeEstado, pastillaEstado, tono } from "./formato.js";
+import {
+  capitalizar, colorDeEstado, crear, crearSvg, etiqueta, nombreDeEstado, pastillaEstado, tono,
+} from "./formato.js";
 import { fechaCorta, mostrarError } from "./formularios.js";
 import { especieDe, textoLecturas, textoOrigen } from "./lecturas.js";
 
@@ -56,6 +58,7 @@ export function crearPantallaHistorial(contexto) {
     }
     selector.replaceChildren(...plantas.map((p) => new Option(`${p.apodo} · ${capitalizar(p.especie)}`, p.id)));
     if (plantas.some((p) => p.id === contexto.plantaElegida)) selector.value = String(contexto.plantaElegida);
+    $("pantalla-historial").classList.toggle("historial--sin-materas", plantas.length === 0);
     if (plantas.length) {
       cargarHistorial();
     } else {
@@ -133,29 +136,61 @@ export function crearPantallaHistorial(contexto) {
       ];
     });
     $("grafica").replaceChildren(...fondo, ...trazos);
+    // Debajo, la fecha de la primera y de la última medición de la gráfica.
+    const primera = cronologicos[0];
+    const ultima = cronologicos.at(-1);
+    $("grafica-desde").textContent = primera ? fechaCorta(primera.momento) : "";
+    $("grafica-hasta").textContent = ultima && ultima !== primera ? fechaCorta(ultima.momento) : "";
+    $("grafica-vacia").hidden = cronologicos.length > 0;
   }
 
+  // Cada medición en una fila: la fecha, una ficha por lectura (con el color de su línea en la gráfica),
+  // el origen y el estado que calculó la API.
   function pintarRegistros(registros) {
     $("registros").replaceChildren(...registros.map((registro) =>
-      crear("div", { clase: "registro registro--origen" },
+      crear("li", { clase: "registro" },
         crear("span", { clase: "registro__fecha", texto: fechaCorta(registro.momento) }),
-        crear("span", { clase: "registro__lectura", texto: textoLecturas(registro.lecturas, contexto.parametros) }),
+        crear("span", { clase: "registro__lecturas" }, ...fichasDeLecturas(registro.lecturas)),
         crear("span", { clase: "registro__origen", texto: textoOrigen(registro.origen) }),
-        pastillaEstado(registro.estado))));
+        crear("span", { clase: "registro__estado" }, pastillaEstado(registro.estado)))));
     $("registros").hidden = registros.length === 0;
+    document.querySelector("#pantalla-historial .registros__titulos").hidden = registros.length === 0;
   }
 
+  // En el orden de GET /parametros. El nombre del parámetro queda para los lectores de pantalla.
+  function fichasDeLecturas(lecturas) {
+    return contexto.parametros.flatMap((parametro, indice) => {
+      const lectura = lecturas.find((l) => l.nombre === parametro.nombre);
+      if (!lectura) return [];
+      return [crear("span", { clase: "registro__dato" },
+        crear("span", { clase: "registro__punto", estilo: { background: tono(indice).linea } }),
+        crear("span", { clase: "solo-lectores", texto: `${etiqueta(parametro.nombre)}: ` }),
+        textoLecturas([lectura], contexto.parametros))];
+    });
+  }
+
+  // Las cifras de arriba: cuántas mediciones, cuántas en cada estado (con una barra que las reparte) y la última.
   function pintarResumen(registros) {
     const cuantos = (estado) => registros.filter((r) => r.estado === estado).length;
-    const filas = [
-      ["Mediciones", String(registros.length)],
-      ...ESTADOS.map((estado) => [nombreDeEstado(estado), String(cuantos(estado))]),
-      ["Última", registros.length ? fechaCorta(registros[0].momento) : "—"],
+    const total = registros.length;
+    const reparto = crear("span", { clase: "cifra__reparto" }, ...ESTADOS.filter((e) => cuantos(e) > 0).map((estado) =>
+      crear("span", { estilo: { flexGrow: String(cuantos(estado)), background: colorDeEstado(estado).texto } })));
+    reparto.setAttribute("aria-hidden", "true");
+    const cifras = [
+      cifra("Mediciones", String(total), { clase: "cifra--total", extra: total ? reparto : null }),
+      ...ESTADOS.map((estado) => cifra(nombreDeEstado(estado), String(cuantos(estado)), { color: colorDeEstado(estado).texto })),
+      cifra("Última", total ? fechaCorta(registros[0].momento) : "—", { clase: "cifra--fecha" }),
     ];
-    $("resumen-filas").replaceChildren(...filas.map(([nombre, valor]) =>
-      crear("div", { clase: "resumen__fila" },
-        crear("span", { clase: "resumen__nombre", texto: nombre }),
-        crear("span", { clase: "resumen__valor", texto: valor }))));
+    $("resumen-filas").replaceChildren(...cifras);
+  }
+
+  function cifra(nombre, valor, { clase = "", color = null, extra = null } = {}) {
+    const rotulo = crear("span", { clase: "cifra__nombre" });
+    if (color) rotulo.append(crear("span", { clase: "cifra__punto", estilo: { background: color } }));
+    rotulo.append(nombre);
+    const nodo = crear("div", { clase: `cifra ${clase}`.trim() }, rotulo, crear("span", { clase: "cifra__valor", texto: valor }));
+    if (extra) nodo.append(extra);
+    return nodo;
   }
 
   // Al cerrar la sesión: nada de esta cuenta queda para la que entre después en la misma pestaña.
@@ -163,6 +198,7 @@ export function crearPantallaHistorial(contexto) {
     plantas = [];
     actual = null;
     selector.replaceChildren();
+    $("pantalla-historial").classList.remove("historial--sin-materas");
     $("historial-consulta").textContent = "";
     mostrarError($("error-historial"), null);
     pintar(null, []);

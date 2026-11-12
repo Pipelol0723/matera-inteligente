@@ -4,6 +4,9 @@ export const numero = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 
 
 export const capitalizar = (texto) => texto.charAt(0).toUpperCase() + texto.slice(1);
 
+// La inicial de un nombre, para los avatares redondos de Mi cuenta y Administración.
+export const inicialDe = (nombre) => (Array.from((nombre ?? "").trim())[0] ?? "?").toUpperCase();
+
 // Puntos del juego, como los manda la API: «1.250», «−40» (con el signo menos tipográfico).
 const ENTERO = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 });
 export const puntos = (valor) => (valor < 0 ? `−${ENTERO.format(-valor)}` : ENTERO.format(valor));

@@ -1,0 +1,485 @@
+/* Ingresar / Crear cuenta, Mi cuenta y el diálogo de participar en la tabla de posiciones. Solo usan las
+   variables de variables.css: siguen a los dos estilos y a los cuatro temas. */
+
+/* ---- Ingresar / Crear cuenta ---- */
+
+/* En el PC: la presentación a la izquierda y la tarjeta con los formularios a la derecha. En el celular, la
+   tarjeta va antes que la lista de ventajas, para no tener que bajar para ingresar. */
+.acceso {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 440px);
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    "intro tarjeta"
+    "ventajas tarjeta";
+  gap: 32px 64px;
+  align-items: start;
+  max-width: 1060px;
+  padding-top: 56px;
+}
+
+.acceso__intro {
+  grid-area: intro;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 22px;
+}
+
+.acceso__textos {
+  min-width: 0;
+}
+
+.acceso__textos .titulo {
+  margin-bottom: 10px;
+}
+
+.acceso__textos .bajada {
+  max-width: 460px;
+}
+
+.acceso__ilustracion {
+  flex: none;
+  width: 112px;
+  aspect-ratio: 1;
+  padding: 10px 14px 6px;
+  border: 1px solid var(--borde-suave);
+  border-radius: var(--radio-xl);
+  background: var(--superficie-suave);
+}
+
+.acceso__ilustracion svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.acceso__ventajas {
+  grid-area: ventajas;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.acceso__ventaja {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  max-width: 440px;
+  font-size: 0.94rem;
+  color: var(--tenue);
+  text-wrap: pretty;
+}
+
+.acceso__ventaja strong {
+  color: var(--tinta);
+}
+
+.acceso__icono {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radio-m);
+  background: var(--acento-suave);
+  color: var(--acento-texto);
+}
+
+.acceso__icono svg {
+  width: 20px;
+  height: 20px;
+}
+
+.acceso__tarjeta {
+  grid-area: tarjeta;
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  box-shadow: 0 10px 30px var(--sombra-color);
+}
+
+:root[data-estilo="juego"] .acceso__tarjeta {
+  box-shadow: var(--sombra-flotante);
+}
+
+/* Las dos pestañas, en una píldora como el selector de apariencia. */
+.acceso__selector {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: var(--borde-ancho) solid var(--borde);
+  border-radius: var(--radio-pildora);
+  background: var(--superficie-suave);
+}
+
+.acceso__pestana {
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--radio-pildora);
+  background: transparent;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 650;
+  color: var(--tenue);
+  cursor: pointer;
+  transition: background-color var(--movimiento), color var(--movimiento);
+}
+
+.acceso__pestana:hover {
+  color: var(--tinta);
+}
+
+.acceso__pestana[aria-selected="true"] {
+  background: var(--superficie);
+  color: var(--acento-texto);
+  box-shadow: 0 1px 3px var(--sombra-color-fuerte);
+}
+
+:root[data-estilo="juego"] .acceso__pestana[aria-selected="true"] {
+  background: var(--acento);
+  color: var(--sobre-acento);
+  box-shadow: var(--sombra-boton);
+}
+
+.acceso__formulario {
+  padding: 18px 14px 12px;
+}
+
+.acceso__formulario .formulario__titulo {
+  margin-bottom: 2px;
+  font-size: 1.25rem;
+}
+
+.acceso__formulario .acceso__enviar {
+  align-self: stretch;
+  margin-top: 14px;
+}
+
+.acceso__cambiar {
+  margin: 6px 0 0;
+  font-size: 0.86rem;
+  text-align: center;
+  color: var(--tenue);
+}
+
+/* La contraseña, con «Mostrar» dentro del campo. */
+.campo-clave {
+  position: relative;
+}
+
+.campo-clave .formulario__campo {
+  padding-right: 92px;
+}
+
+.campo-clave__boton {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  min-width: 76px;
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 0;
+  border-radius: var(--radio-pildora);
+  background: transparent;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: var(--acento-texto);
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.campo-clave__boton:hover {
+  background: var(--acento-suave);
+}
+
+/* En Juego, la matera del saludo va en su pantallita y da un saltito de vez en cuando. */
+:root[data-estilo="juego"] .acceso__ilustracion {
+  width: 156px;
+  padding: 14px 22px 6px;
+  border: var(--borde-ancho) solid var(--borde);
+  background: radial-gradient(34% 7% at 50% 95%, var(--sombra-color-fuerte), transparent 70%), var(--pantallita-sana);
+  box-shadow: var(--sombra-tarjeta);
+}
+
+:root[data-estilo="juego"] .acceso__ilustracion svg {
+  animation: brinco 3.6s ease-in-out infinite;
+}
+
+:root[data-estilo="juego"] .acceso__icono {
+  border: var(--borde-ancho) solid var(--borde-acento);
+  border-radius: 50%;
+  box-shadow: 0 3px 0 var(--borde-sombra);
+}
+
+/* ---- Mi cuenta ---- */
+
+.cuenta {
+  max-width: 1000px;
+}
+
+/* Sus datos: el avatar con la inicial, el nombre, el correo, el rol y cuántas materas tiene. */
+.perfil {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px 22px;
+  margin-bottom: 22px;
+  padding: 22px 24px;
+}
+
+.perfil__avatar {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--acento);
+  font-family: var(--fuente-titulo);
+  font-size: 2rem;
+  font-weight: 760;
+  line-height: 1;
+  color: var(--sobre-acento);
+}
+
+.perfil__datos {
+  min-width: 0;
+}
+
+.perfil__nombre {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: var(--titulo-peso);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.perfil__correo {
+  margin: 2px 0 0;
+  color: var(--tenue);
+  overflow-wrap: anywhere;
+}
+
+.perfil__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 10px;
+}
+
+.perfil__dato {
+  font-size: 0.86rem;
+  font-weight: 650;
+  color: var(--tenue);
+}
+
+.perfil__error {
+  grid-column: 1 / -1;
+}
+
+:root[data-estilo="juego"] .perfil {
+  border-color: var(--borde-acento);
+  background: var(--acento-suave);
+}
+
+:root[data-estilo="juego"] .perfil__avatar {
+  border: 3px solid var(--superficie);
+  box-shadow: 0 4px 0 var(--acento-sombra);
+}
+
+/* La tabla de posiciones y la apariencia, una al lado de la otra en el PC. */
+.cuenta__columnas {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+  align-items: start;
+}
+
+.cuenta__tarjeta {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px 24px;
+}
+
+.cuenta__cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+}
+
+.cuenta__cabecera .formulario__titulo {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+.cuenta__icono {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radio-m);
+  background: var(--acento-suave);
+  color: var(--acento-texto);
+}
+
+.cuenta__icono svg {
+  width: 21px;
+  height: 21px;
+}
+
+/* La copa del juego, con los colores de la pastilla de puntos. */
+.cuenta__icono--juego {
+  border: 1px solid var(--puntos-borde);
+  background: var(--puntos-fondo);
+  color: var(--puntos-tinta);
+}
+
+:root[data-estilo="juego"] .cuenta__icono {
+  border-radius: 50%;
+  box-shadow: 0 3px 0 var(--borde-sombra);
+}
+
+:root[data-estilo="juego"] .cuenta__icono--juego {
+  box-shadow: 0 3px 0 var(--puntos-borde);
+}
+
+.cuenta__jugador {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.cuenta__jugador .formulario__grupo {
+  flex: 1 1 200px;
+}
+
+/* ---- el diálogo de participar: un podio con las tres medallas ---- */
+
+.participar__podio {
+  padding: 16px 16px 0;
+  border: 1px solid var(--borde-suave);
+  border-radius: var(--radio-l);
+  background: var(--superficie-suave);
+}
+
+.participar__podio svg {
+  display: block;
+  width: min(220px, 100%);
+  margin: 0 auto;
+}
+
+.participar__podio text {
+  font-family: var(--fuente-titulo);
+}
+
+.participar__escalon {
+  fill: var(--borde-acento);
+}
+
+.participar__escalon--alto {
+  fill: var(--acento);
+}
+
+:root[data-estilo="juego"] .participar__podio {
+  border: var(--borde-ancho) solid var(--borde);
+  background: var(--pantallita-sana);
+}
+
+.eliminar__ceja {
+  color: var(--critico);
+}
+
+/* ---- celular ---- */
+
+@media (max-width: 759.98px) {
+  .acceso {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    grid-template-areas:
+      "intro"
+      "tarjeta"
+      "ventajas";
+    gap: 22px;
+    padding-top: 22px;
+  }
+
+  .acceso__intro {
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .acceso__ilustracion {
+    width: 76px;
+    padding: 6px 8px 4px;
+  }
+
+  :root[data-estilo="juego"] .acceso__ilustracion {
+    width: 92px;
+    padding: 8px 10px 4px;
+  }
+
+  .acceso .titulo--grande {
+    font-size: 1.65rem;
+  }
+
+  .acceso__textos .bajada {
+    font-size: 0.9rem;
+  }
+
+  .acceso__ventajas {
+    gap: 12px;
+  }
+
+  .perfil {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 14px 16px;
+    padding: 18px;
+  }
+
+  .perfil__avatar {
+    width: 56px;
+    height: 56px;
+    font-size: 1.55rem;
+  }
+
+  .perfil__nombre {
+    font-size: 1.25rem;
+  }
+
+  .perfil__salir {
+    grid-column: 1 / -1;
+  }
+
+  .cuenta__columnas {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+
+  .cuenta__tarjeta {
+    padding: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-estilo="juego"] .acceso__ilustracion svg {
+    animation: none;
+  }
+
+  .acceso__pestana {
+    transition: none;
+  }
+}

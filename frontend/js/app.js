@@ -17,8 +17,13 @@ const PUBLICAS = ["acceso"];
 // responde 401 sin token, y 403 en administración si el usuario no es ADMIN.
 const PRIVADAS = ["diagnostico", "especies", "materas", "historial", "juego", "cuenta", "admin"];
 const PANTALLAS = [...PUBLICAS, ...PRIVADAS];
-const PANTALLA_INICIAL = "diagnostico";
+const PANTALLA_INICIAL = "materas";
 const DESPUES_DE_INGRESAR = "materas";
+// El título de la pestaña del navegador sigue a la pantalla.
+const TITULOS = {
+  acceso: "Ingresar", diagnostico: "Diagnóstico", especies: "Especies", materas: "Mis materas",
+  historial: "Historial", juego: "Juego", cuenta: "Mi cuenta", admin: "Administración",
+};
 const REINTENTO_MS = 5000;
 
 // La pantalla privada que se pidió antes de ingresar: se vuelve a ella después.
@@ -78,6 +83,7 @@ const especies = crearPantallaEspecies(contexto);
 const pantallas = {
   diagnostico,
   acceso: crearPantallaAcceso(contexto),
+  especies,
   cuenta: crearPantallaCuenta(contexto),
   materas: crearPantallaMateras(contexto),
   historial: crearPantallaHistorial(contexto),
@@ -105,6 +111,7 @@ function mostrarPantalla() {
     document.getElementById(`pantalla-${nombre}`).hidden = nombre !== pedida;
     if (nombre !== pedida) pantallas[nombre]?.ocultar?.();
   }
+  document.title = `${TITULOS[pedida]} · Matera`;
   for (const pestana of document.querySelectorAll("[data-pantalla]")) {
     const activa = pestana.dataset.pantalla === pedida;
     pestana.classList.toggle("pestana--activa", activa);
@@ -172,10 +179,12 @@ function pintarEnVivo(estado) {
   ponerTexto(indicador, "en-vivo-texto", TEXTOS_EN_VIVO[estado] ?? "");
 }
 
-// En pantallas angostas los indicadores muestran solo su punto: el texto también va en su título.
+// En pantallas angostas los indicadores muestran solo su punto: el texto también va en su título y en su
+// nombre accesible.
 function ponerTexto(indicador, id, texto) {
   document.getElementById(id).textContent = texto;
   indicador.title = texto;
+  indicador.setAttribute("aria-label", texto);
 }
 
 function sesionVencida() {
@@ -222,7 +231,6 @@ async function cargarCatalogos() {
   diagnostico.alCargarCatalogos();
   especies.pintar();
   pantallas.materas.alCargarCatalogos();
-  pantallas.admin.alCargarCatalogos();
 }
 
 // Si había una sesión guardada, se pregunta a la API quién es: el rol pudo cambiar. Después arranca el

@@ -118,10 +118,6 @@ code {
   margin: 0;
 }
 
-.bajada--historial {
-  margin-bottom: 24px;
-}
-
 .nota {
   font-size: 0.75rem;
   color: var(--tenue);
@@ -141,6 +137,80 @@ code {
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
+}
+
+/* El encabezado de una pantalla: el título y su bajada a la izquierda, y a la derecha una acción o un selector
+   (en el celular, debajo). */
+.encabezado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 28px;
+  margin-bottom: 24px;
+}
+
+.encabezado__textos {
+  flex: 1 1 380px;
+  min-width: 0;
+}
+
+.encabezado__textos .titulo {
+  margin-bottom: 6px;
+}
+
+/* Las cifras de un resumen (Historial y Administración): una ficha por número. */
+.cifras {
+  margin-bottom: 20px;
+}
+
+.cifras__lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.cifra {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: var(--borde-ancho) solid var(--borde);
+  border-radius: var(--radio-l);
+  background: var(--superficie);
+  box-shadow: var(--sombra-tarjeta);
+}
+
+.cifra__nombre {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tenue);
+}
+
+.cifra__punto {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.cifra__valor {
+  font-family: var(--fuente-titulo);
+  font-size: 1.65rem;
+  font-weight: var(--titulo-peso);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+:root[data-estilo="juego"] .cifra__valor {
+  font-size: 1.85rem;
 }
 
 /* ---- botones: píldoras ---- */
@@ -216,6 +286,29 @@ code {
 
 .boton-contorno--peligro:hover {
   background: var(--critico-fondo);
+}
+
+/* La acción que no tiene vuelta atrás, en grande (el diálogo de eliminar una cuenta). */
+.boton-secundario--peligro {
+  border-color: var(--critico);
+  color: var(--critico);
+}
+
+.boton-secundario--peligro:hover {
+  border-color: var(--critico);
+  background: var(--critico-fondo);
+}
+
+/* El ícono dentro de un botón con texto («Agregar especie», «Cerrar sesión»). */
+.boton__icono {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+
+a.boton-primario,
+a.boton-secundario {
+  text-decoration: none;
 }
 
 /* Un botón redondo con un ícono (el selector de apariencia de la cabecera). */
@@ -354,6 +447,11 @@ code {
   text-wrap: pretty;
 }
 
+.formulario__opcional {
+  font-weight: 500;
+  color: var(--tenue);
+}
+
 .formulario__fila {
   display: flex;
   flex-wrap: wrap;
@@ -435,6 +533,12 @@ code {
 .pastilla--inactiva {
   background: var(--sin-estado-fondo);
   color: var(--sin-estado);
+}
+
+/* El rol de administrador (Mi cuenta, Administración y el formulario de especies). */
+.pastilla--admin {
+  background: var(--acento-suave);
+  color: var(--acento-texto);
 }
 
 /* ---- errores, éxitos y avisos ---- */
@@ -612,6 +716,22 @@ code {
 
 .dialogo__despues {
   align-self: flex-start;
+}
+
+.dialogo__acciones {
+  margin-top: 4px;
+}
+
+/* En el celular, los botones de un diálogo van uno debajo del otro y a todo lo ancho. */
+@media (max-width: 479.98px) {
+  .dialogo__acciones {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dialogo__despues {
+    align-self: center;
+  }
 }
 
 @keyframes aparecer {

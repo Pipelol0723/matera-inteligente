@@ -2,11 +2,12 @@
 // participar con un apodo de jugador, cambiarlo o dejar de participar (PUT /juego/participacion). Si el
 // apodo sirve lo decide la API; aquí se muestra su respuesta, también los errores.
 import { cerrarSesion, obtenerMiCuenta } from "./api.js";
-import { crear } from "./formato.js";
+import { crear, inicialDe } from "./formato.js";
 import { botonDe, mostrarError, mostrarExito, ocupado } from "./formularios.js";
 import { sesion } from "./sesion.js";
 
-const ROLES = { USUARIO: "Usuario", ADMIN: "Administrador" };
+// En una pastilla, en mayúsculas como los estados.
+const ROLES = { USUARIO: "USUARIO", ADMIN: "ADMINISTRADOR" };
 
 export function crearPantallaCuenta(contexto) {
   const $ = (id) => document.getElementById(id);
@@ -48,6 +49,8 @@ export function crearPantallaCuenta(contexto) {
 
   async function mostrar() {
     mostrarError($("error-cuenta"), null);
+    // Mientras responde la API, lo que ya se sabe de la sesión; la cantidad de plantas llega con la respuesta.
+    pintarPerfil(sesion.usuario(), null);
     mostrarJugador();
     let cuenta;
     try {
@@ -59,16 +62,27 @@ export function crearPantallaCuenta(contexto) {
     const { plantas, ...usuario } = cuenta;
     sesion.actualizarUsuario(usuario);
     contexto.alCambiarUsuario();
-    const filas = [
-      ["Nombre", usuario.nombre],
-      ["Correo", usuario.correo],
-      ["Rol", ROLES[usuario.rol] ?? usuario.rol],
-      ["Plantas", String(plantas)],
+    pintarPerfil(usuario, plantas);
+  }
+
+  function pintarPerfil(usuario, plantas) {
+    if (!usuario) {
+      $("perfil-avatar").textContent = "";
+      $("datos-cuenta").replaceChildren();
+      return;
+    }
+    $("perfil-avatar").textContent = inicialDe(usuario.nombre);
+    const esAdmin = usuario.rol === "ADMIN";
+    const datos = [
+      crear("span", { clase: `pastilla ${esAdmin ? "pastilla--admin" : "pastilla--inactiva"}`, texto: ROLES[usuario.rol] ?? usuario.rol }),
     ];
-    $("datos-cuenta").replaceChildren(...filas.map(([nombre, valor]) =>
-      crear("div", { clase: "resumen__fila" },
-        crear("span", { clase: "resumen__nombre", texto: nombre }),
-        crear("span", { clase: "cuenta__valor", texto: valor }))));
+    if (plantas !== null && plantas !== undefined) {
+      datos.push(crear("span", { clase: "perfil__dato", texto: `${plantas} ${plantas === 1 ? "matera" : "materas"}` }));
+    }
+    $("datos-cuenta").replaceChildren(
+      crear("h2", { clase: "perfil__nombre", texto: usuario.nombre }),
+      crear("p", { clase: "perfil__correo", texto: usuario.correo }),
+      crear("div", { clase: "perfil__chips" }, ...datos));
   }
 
   async function mostrarJugador() {
@@ -89,11 +103,20 @@ export function crearPantallaCuenta(contexto) {
     NO_PARTICIPA: () => "No participa: no aparece en la tabla de posiciones ni la ve. Sus materas suman y restan puntos igual.",
     SIN_DECIDIR: () => "Todavía no ha decidido si quiere aparecer en la tabla de posiciones.",
   };
+  const INSIGNIAS = {
+    PARTICIPA: { texto: "PARTICIPA", clase: "pastilla--activa" },
+    NO_PARTICIPA: { texto: "NO PARTICIPA", clase: "pastilla--inactiva" },
+    SIN_DECIDIR: { texto: "SIN DECIDIR", clase: "pastilla--inactiva" },
+  };
 
   function pintarJugador(participacion) {
     const participa = participacion.estado === "PARTICIPA";
     formularioJugador.dataset.estado = participacion.estado;
     $("jugador-estado").textContent = (ESTADOS[participacion.estado] ?? ESTADOS.SIN_DECIDIR)(participacion);
+    const insignia = INSIGNIAS[participacion.estado] ?? INSIGNIAS.SIN_DECIDIR;
+    $("jugador-insignia").textContent = insignia.texto;
+    $("jugador-insignia").className = `pastilla ${insignia.clase}`;
+    $("jugador-insignia").hidden = false;
     $("jugador-apodo").value = participa ? participacion.apodo : "";
     $("jugador-guardar").textContent = participa ? "Cambiar apodo" : "Participar";
     $("jugador-salir").hidden = !participa;
@@ -101,8 +124,9 @@ export function crearPantallaCuenta(contexto) {
 
   // Al cerrar la sesión: nada de esta cuenta queda en la pantalla.
   function reiniciar() {
-    $("datos-cuenta").replaceChildren();
+    pintarPerfil(null);
     $("jugador-estado").textContent = "";
+    $("jugador-insignia").hidden = true;
     formularioJugador.reset();
     delete formularioJugador.dataset.estado;
     $("jugador-salir").hidden = true;

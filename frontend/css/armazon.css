@@ -59,17 +59,6 @@
   letter-spacing: var(--titulo-espaciado);
 }
 
-.marca__version {
-  padding: 2px 6px;
-  border: 1px solid var(--borde-acento);
-  border-radius: var(--radio-pildora);
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--acento-texto);
-}
-
 /* ---- pestañas: arriba en el PC ---- */
 
 .pestanas {
@@ -465,8 +454,9 @@
   left: 0;
 }
 
-/* Con menos de 1440 px, los indicadores muestran solo su punto; el texto queda para los lectores de pantalla
-   y en el título del indicador. Así las pestañas caben en una fila a 1280 px. */
+/* Con menos de 1440 px, los indicadores muestran solo su punto; el texto queda en su title (al pasar el mouse)
+   y en su aria-label (app.js). Así las pestañas caben en una fila a 1280 px. Cada punto tiene un área de 24 px
+   para que el mouse lo encuentre. */
 @media (max-width: 1439.98px) {
   .conexion__texto,
   .en-vivo__texto {
@@ -476,6 +466,18 @@
     overflow: hidden;
     clip: rect(0 0 0 0);
     white-space: nowrap;
+  }
+
+  .conexion,
+  .en-vivo {
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    cursor: help;
+  }
+
+  .cabecera__estado {
+    gap: 2px;
   }
 
   .cabecera__contenido {
@@ -511,12 +513,13 @@
     height: 32px;
   }
 
-  .marca__version {
-    display: none;
+  .cabecera__estado {
+    gap: 0;
   }
 
-  .cabecera__estado {
-    gap: 8px;
+  .conexion,
+  .en-vivo {
+    width: 18px;
   }
 
   .cabecera__acciones {
@@ -579,6 +582,12 @@
     font-size: 0.65rem;
     font-weight: 650;
     letter-spacing: -0.01em;
+  }
+
+  /* Con las seis pestañas del admin, la letra se achica con el ancho para que «Diagnóstico» quepa entero
+     también a 360 px (el Honor Magic5 Lite): 9 px ahí, y el tamaño normal desde unos 416 px. */
+  .pestanas:has(> .pestana[data-pantalla="admin"]:not([hidden])) .pestana {
+    font-size: min(0.65rem, 2.5vw);
   }
 
   .pestana::after {

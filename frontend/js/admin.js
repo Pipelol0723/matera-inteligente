@@ -1,64 +1,19 @@
-// Administración: cuentas y especies. La pestaña solo aparece para un ADMIN, pero eso es comodidad:
-// los permisos los revisa la API en cada caso de uso, y a cualquier otro le responde 403.
-import { agregarEspecie, cambiarUsuario, eliminarUsuario, obtenerUsuarios } from "./api.js";
-import { crear, etiqueta, unidad } from "./formato.js";
-import { botonDe, mostrarError, mostrarExito, ocupado } from "./formularios.js";
+// Administración de cuentas. La pestaña solo aparece para un ADMIN, pero eso es comodidad: los permisos los
+// revisa la API en cada caso de uso, y a cualquier otro le responde 403. Las especies se agregan en la
+// pantalla Especies (especies.js).
+import { cambiarUsuario, eliminarUsuario, obtenerUsuarios } from "./api.js";
+import { crear, inicialDe } from "./formato.js";
+import { mostrarError, ocupado } from "./formularios.js";
 import { sesion } from "./sesion.js";
 
-const ROLES = { USUARIO: "Usuario", ADMIN: "Administrador" };
+// En una pastilla, en mayúsculas como los estados.
+const ROLES = { USUARIO: "USUARIO", ADMIN: "ADMINISTRADOR" };
 
-export function crearPantallaAdmin(contexto) {
+export function crearPantallaAdmin() {
   const $ = (id) => document.getElementById(id);
-  const formulario = $("form-especie");
-
-  formulario.addEventListener("submit", async (evento) => {
-    evento.preventDefault();
-    mostrarExito($("exito-especie"), null);
-    let especie;
-    try {
-      especie = await ocupado(botonDe(evento), () => agregarEspecie(leerEspecie()));
-    } catch (error) {
-      mostrarError($("error-especie"), error);
-      return;
-    }
-    mostrarError($("error-especie"), null);
-    formulario.reset();
-    mostrarExito($("exito-especie"),
-      `Especie «${especie.nombre}» agregada. Ya aparece en Especies y se puede usar en Mis materas.`);
-    contexto.recargarCatalogos();
-  });
-
-  // Un mínimo y un máximo por cada parámetro de GET /parametros: si se agrega el pH, aparece solo.
-  function alCargarCatalogos() {
-    $("rangos-especie").replaceChildren(...contexto.parametros.map((parametro) => {
-      const limite = (cual) => {
-        const entrada = crear("input", { clase: "formulario__campo admin__limite" });
-        Object.assign(entrada, { name: `${parametro.nombre}-${cual}`, inputMode: "decimal", autocomplete: "off", placeholder: cual });
-        entrada.setAttribute("aria-label", `${etiqueta(parametro.nombre)}, ${cual === "min" ? "mínimo" : "máximo"}`);
-        return entrada;
-      };
-      return crear("div", { clase: "admin__rango" },
-        crear("span", { clase: "formulario__etiqueta", texto: `${etiqueta(parametro.nombre)} (${unidad(parametro.unidad)})` }),
-        limite("min"),
-        limite("max"));
-    }));
-  }
-
-  // Se envía lo escrito: un número si se puede leer como número, y si no, el texto, para que la API lo rechace.
-  function leerEspecie() {
-    const valor = (nombre) => {
-      const texto = (formulario.elements[nombre]?.value ?? "").trim();
-      const numero = Number(texto.replace(",", "."));
-      return texto === "" ? null : Number.isFinite(numero) ? numero : texto;
-    };
-    return {
-      nombre: formulario.elements.nombre.value,
-      nombreCientifico: formulario.elements.nombreCientifico.value,
-      rangos: Object.fromEntries(contexto.parametros.map((p) => [
-        p.nombre, { min: valor(`${p.nombre}-min`), max: valor(`${p.nombre}-max`) },
-      ])),
-    };
-  }
+  const dialogo = $("dialogo-eliminar");
+  const formularioEliminar = $("form-eliminar");
+  let aEliminar = null; // la cuenta del diálogo «¿Eliminar la cuenta?»
 
   async function mostrar() {
     mostrarError($("error-admin"), null);
@@ -69,9 +24,27 @@ export function crearPantallaAdmin(contexto) {
       mostrarError($("error-admin"), error);
       return;
     }
+    pintarCifras(usuarios);
     $("filas-usuarios").replaceChildren(...usuarios.map(fila));
   }
 
+  // Solo cuenta lo que trajo GET /admin/usuarios.
+  function pintarCifras(usuarios) {
+    const cuantas = (condicion) => usuarios.filter(condicion).length;
+    const plantas = usuarios.reduce((suma, usuario) => suma + usuario.cantidadPlantas, 0);
+    const cifras = [
+      ["Cuentas", usuarios.length],
+      ["Activas", cuantas((u) => u.activo)],
+      ["Administradores", cuantas((u) => u.rol === "ADMIN")],
+      ["Plantas", plantas],
+    ];
+    $("admin-cifras").replaceChildren(...cifras.map(([nombre, valor]) =>
+      crear("div", { clase: "cifra" },
+        crear("span", { clase: "cifra__nombre", texto: nombre }),
+        crear("span", { clase: "cifra__valor", texto: String(valor) }))));
+  }
+
+  // Cada celda lleva su rótulo en data-etiqueta: en el celular la tabla se ve como una tarjeta por cuenta.
   function fila(usuario) {
     const propia = usuario.id === sesion.usuario()?.id;
     const boton = (texto, accion, peligro = false) => {
@@ -80,22 +53,36 @@ export function crearPantallaAdmin(contexto) {
       nodo.addEventListener("click", () => accion(nodo));
       return nodo;
     };
-    const estado = crear("span", {
-      clase: `pastilla ${usuario.activo ? "pastilla--activa" : "pastilla--inactiva"}`,
-      texto: usuario.activo ? "ACTIVA" : "DESACTIVADA",
-    });
-    return crear("tr", {},
-      crear("td", { clase: "tabla__fuerte", texto: propia ? `${usuario.nombre} (usted)` : usuario.nombre }),
-      crear("td", { texto: usuario.correo }),
-      crear("td", { texto: ROLES[usuario.rol] ?? usuario.rol }),
-      crear("td", {}, estado),
-      crear("td", { clase: "tabla__numero", texto: String(usuario.cantidadPlantas) }),
-      crear("td", {},
+    const celda = (etiqueta, clase, ...hijos) => {
+      const nodo = crear("td", { clase }, ...hijos);
+      if (etiqueta) nodo.dataset.etiqueta = etiqueta;
+      return nodo;
+    };
+    const avatar = crear("span", { clase: "cuenta-fila__avatar", texto: inicialDe(usuario.nombre) });
+    avatar.setAttribute("aria-hidden", "true");
+    const nombre = crear("span", { clase: "cuenta-fila__nombre", texto: usuario.nombre });
+    if (propia) nombre.append(crear("span", { clase: "cuenta-fila__usted", texto: " (usted)" }));
+    const esAdmin = usuario.rol === "ADMIN";
+    const nodo = crear("tr", { clase: usuario.activo ? "" : "cuenta-fila--inactiva" },
+      celda(null, "",
+        crear("div", { clase: "cuenta-fila" },
+          avatar,
+          crear("span", { clase: "cuenta-fila__textos" }, nombre, crear("span", { clase: "cuenta-fila__correo", texto: usuario.correo })))),
+      celda("Rol", "", crear("span", {
+        clase: `pastilla ${esAdmin ? "pastilla--admin" : "pastilla--inactiva"}`, texto: ROLES[usuario.rol] ?? usuario.rol,
+      })),
+      celda("Estado", "", crear("span", {
+        clase: `pastilla ${usuario.activo ? "pastilla--activa" : "pastilla--inactiva"}`,
+        texto: usuario.activo ? "ACTIVA" : "DESACTIVADA",
+      })),
+      celda("Plantas", "tabla__numero", String(usuario.cantidadPlantas)),
+      celda(null, "tabla__acciones-celda",
         crear("div", { clase: "tabla__acciones" },
-          boton(usuario.activo ? "Desactivar" : "Reactivar", (nodo) => cambiar(nodo, usuario, { activo: !usuario.activo })),
-          boton(usuario.rol === "ADMIN" ? "Quitar admin" : "Dar admin",
-            (nodo) => cambiar(nodo, usuario, { rol: usuario.rol === "ADMIN" ? "USUARIO" : "ADMIN" })),
-          boton("Eliminar", (nodo) => eliminar(nodo, usuario), true))));
+          boton(usuario.activo ? "Desactivar" : "Reactivar", (b) => cambiar(b, usuario, { activo: !usuario.activo })),
+          boton(esAdmin ? "Quitar admin" : "Dar admin", (b) => cambiar(b, usuario, { rol: esAdmin ? "USUARIO" : "ADMIN" })),
+          boton("Eliminar", () => pedirConfirmacion(usuario), true))));
+    if (propia) nodo.classList.add("cuenta-fila--propia");
+    return nodo;
   }
 
   async function cambiar(nodo, usuario, cambio) {
@@ -103,28 +90,54 @@ export function crearPantallaAdmin(contexto) {
       await ocupado(nodo, () => cambiarUsuario(usuario.id, cambio));
     } catch (error) {
       mostrarError($("error-admin"), error);
+      $("error-admin").scrollIntoView({ block: "nearest" });
       return;
     }
     mostrar();
   }
 
-  async function eliminar(nodo, usuario) {
-    // Eliminar no tiene vuelta atrás: se pide escribir el correo de la cuenta.
-    const escrito = window.prompt(
-      `Se eliminará la cuenta de ${usuario.nombre} con sus plantas, sensores e historial. Escriba su correo para confirmar:`);
-    if (escrito === null) return;
-    if (escrito.trim().toLowerCase() !== usuario.correo) {
-      mostrarError($("error-admin"), { codigo: "CONFIRMACION", message: "El correo no coincide. No se eliminó nada.", detalle: {} });
+  // ---- eliminar: no tiene vuelta atrás, así que se pide escribir el correo de la cuenta ----
+
+  function pedirConfirmacion(usuario) {
+    aEliminar = usuario;
+    formularioEliminar.reset();
+    mostrarError($("error-eliminar"), null);
+    $("eliminar-texto").textContent =
+      `Se eliminará la cuenta de ${usuario.nombre} (${usuario.correo}) con sus plantas, sensores e historial. No se puede deshacer.`;
+    dialogo.showModal();
+    $("eliminar-correo").focus();
+  }
+
+  $("eliminar-cancelar").addEventListener("click", () => dialogo.close());
+  // El evento close llega después: si el diálogo ya se abrió para otra cuenta, esa se conserva.
+  dialogo.addEventListener("close", () => {
+    if (!dialogo.open) aEliminar = null;
+  });
+
+  formularioEliminar.addEventListener("submit", async (evento) => {
+    evento.preventDefault();
+    const usuario = aEliminar;
+    if (!usuario) return;
+    if ($("eliminar-correo").value.trim().toLowerCase() !== usuario.correo) {
+      mostrarError($("error-eliminar"), { codigo: "CONFIRMACION", message: "El correo no coincide. No se eliminó nada.", detalle: {} });
+      $("eliminar-correo").focus();
       return;
     }
     try {
-      await ocupado(nodo, () => eliminarUsuario(usuario.id));
+      await ocupado($("eliminar-confirmar"), () => eliminarUsuario(usuario.id));
     } catch (error) {
-      mostrarError($("error-admin"), error);
+      mostrarError($("error-eliminar"), error);
       return;
     }
+    dialogo.close();
     mostrar();
-  }
+  });
 
-  return { mostrar, alCargarCatalogos };
+  return {
+    mostrar,
+    // Al salir de Administración (también al cerrar la sesión), el diálogo no queda abierto encima de otra pantalla.
+    ocultar() {
+      if (dialogo.open) dialogo.close();
+    },
+  };
 }

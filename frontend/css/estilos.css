@@ -1,6 +1,6 @@
 /* Las pantallas. Usan las variables de variables.css y los componentes de componentes.css, así heredan los
-   dos estilos y los cuatro temas. Mis materas y Juego ya tienen el rediseño (fase 12); las demás solo
-   heredan la base nueva y se rediseñan en la fase 13. */
+   dos estilos y los cuatro temas. Ingresar y Mi cuenta, Especies, Historial y Administración tienen su propio
+   archivo (cuenta.css, especies.css, historial.css y admin.css). */
 
 @keyframes destello {
   from {
@@ -8,254 +8,6 @@
   }
 }
 
-
-/* ---- especies ---- */
-
-.catalogo {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 18px;
-}
-
-.especie__cabecera {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.especie__nombre {
-  margin: 0;
-  font-size: 1.32rem;
-  font-weight: var(--titulo-peso);
-}
-
-.especie__cientifico {
-  margin: 2px 0 16px;
-  font-size: 0.92rem;
-  font-style: italic;
-  color: var(--tenue);
-}
-
-.barras {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.barra__cabecera {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 5px;
-  font-size: 0.78rem;
-}
-
-.barra__etiqueta {
-  font-weight: 650;
-}
-
-.barra__texto {
-  font-variant-numeric: tabular-nums;
-  color: var(--tenue);
-}
-
-.barra__pista {
-  position: relative;
-  height: 8px;
-  border-radius: var(--radio-pildora);
-  background: var(--superficie-suave);
-}
-
-.barra__banda {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  border-radius: var(--radio-pildora);
-}
-
-/* ---- historial ---- */
-
-.historial {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 340px);
-  gap: 26px;
-  align-items: start;
-}
-
-.historial__selector {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-width: 360px;
-  margin: 12px 0 8px;
-}
-
-.consulta--historial {
-  margin: -16px 0 20px;
-}
-
-.grafica {
-  margin-bottom: 18px;
-  padding: 22px;
-}
-
-.leyenda {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 18px;
-  margin-bottom: 14px;
-}
-
-.leyenda__item {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 0.8rem;
-  color: var(--tenue);
-}
-
-.leyenda__linea {
-  width: 14px;
-  height: 3px;
-  border-radius: 2px;
-}
-
-.grafica__svg {
-  display: block;
-  width: 100%;
-  height: 200px;
-}
-
-.registros {
-  overflow: hidden;
-  border: var(--borde-ancho) solid var(--borde);
-  border-radius: var(--radio-l);
-  background: var(--superficie);
-}
-
-.registro {
-  display: grid;
-  grid-template-columns: 110px 1fr auto;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 20px;
-  border-bottom: 1px solid var(--borde-suave);
-}
-
-.registro--origen {
-  grid-template-columns: 160px 1fr auto auto;
-}
-
-.registro__fecha {
-  font-size: 0.8rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--tenue);
-}
-
-.registro__lectura {
-  font-size: 0.88rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.registro__origen {
-  font-family: var(--mono);
-  font-size: 0.74rem;
-  color: var(--tenue);
-}
-
-.resumen {
-  padding: 22px;
-}
-
-.resumen .rotulo {
-  margin-bottom: 16px;
-}
-
-.resumen__filas {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.resumen__fila {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  padding-bottom: 12px;
-  border-bottom: 1px dashed var(--borde);
-}
-
-.resumen__nombre {
-  font-size: 0.88rem;
-  color: var(--tenue);
-}
-
-.resumen__valor {
-  font-family: var(--fuente-titulo);
-  font-size: 1.3rem;
-  font-weight: var(--titulo-peso);
-  font-variant-numeric: tabular-nums;
-}
-
-.resumen__nota {
-  margin: 18px 0 0;
-  font-size: 0.84rem;
-  text-wrap: pretty;
-  color: var(--tenue);
-}
-
-/* ---- acceso y cuenta ---- */
-
-.acceso {
-  max-width: 920px;
-}
-
-.acceso__formularios {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 22px;
-  align-items: start;
-}
-
-.cuenta {
-  max-width: 680px;
-}
-
-.cuenta__tarjeta {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  padding: var(--esp-6);
-}
-
-.cuenta__valor {
-  font-weight: 650;
-  overflow-wrap: anywhere;
-  text-align: right;
-}
-
-.cuenta__juego,
-.cuenta__apariencia {
-  margin-top: 22px;
-  gap: 12px;
-}
-
-.cuenta__juego .formulario__titulo,
-.cuenta__apariencia .formulario__titulo {
-  margin: 0;
-}
-
-.cuenta__jugador {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 12px;
-}
-
-.cuenta__jugador .formulario__grupo {
-  flex: 1 1 220px;
-}
 
 /* ---- mis materas: el formulario y la clave (el asistente «Conectar sensor» está en asistente.css) ---- */
 
@@ -964,6 +716,28 @@
   overflow-wrap: anywhere;
 }
 
+/* En el celular la lista se corta en 10 movimientos (juego.js) y «Ver más» la abre; en el PC va entera. */
+.juego__ver-mas {
+  align-self: center;
+  margin-top: 4px;
+}
+
+@media (min-width: 760px) {
+  .juego__ver-mas {
+    display: none;
+  }
+}
+
+@media (max-width: 759.98px) {
+  .juego__movimientos--cortos > .juego__fila:nth-child(n + 11) {
+    display: none;
+  }
+
+  .juego__movimientos--cortos > .juego__fila:nth-child(10) {
+    border-bottom: 0;
+  }
+}
+
 /* La tabla de posiciones, con medalla para los tres primeros. */
 .juego__tabla {
   display: flex;
@@ -1083,92 +857,6 @@
   font-size: 0.95rem;
 }
 
-/* ---- administración ---- */
-
-.admin {
-  display: flex;
-  flex-direction: column;
-  gap: 22px;
-}
-
-.admin > .bajada {
-  margin-bottom: 4px;
-}
-
-.admin__usuarios {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.admin__usuarios .rotulo {
-  margin: 0;
-}
-
-.tabla__contenedor {
-  overflow-x: auto;
-}
-
-.tabla {
-  width: 100%;
-  min-width: 720px;
-  border-collapse: collapse;
-  font-size: 0.88rem;
-}
-
-.tabla th {
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--borde);
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-align: left;
-  text-transform: uppercase;
-  color: var(--tenue);
-}
-
-.tabla td {
-  padding: 10px;
-  border-bottom: 1px solid var(--borde-suave);
-  vertical-align: middle;
-}
-
-.tabla__fuerte {
-  font-weight: 650;
-}
-
-.tabla__numero {
-  font-variant-numeric: tabular-nums;
-}
-
-.tabla__acciones {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.admin__especie {
-  max-width: 760px;
-}
-
-.admin__rangos {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 6px;
-}
-
-.admin__rango {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 110px 110px;
-  align-items: center;
-  gap: 10px;
-}
-
-.admin__rango .formulario__etiqueta {
-  margin: 0;
-}
-
 /* ---- pantallas más angostas ---- */
 
 @media (max-width: 900px) {
@@ -1183,29 +871,6 @@
 }
 
 @media (max-width: 759.98px) {
-  .historial,
-  .catalogo,
-  .acceso__formularios {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .registro--origen {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .registro--origen .registro__lectura {
-    grid-column: 1 / -1;
-  }
-
-  .admin__rango {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-
-  .admin__rango .formulario__etiqueta {
-    grid-column: 1 / -1;
-  }
-
-
   .materas {
     grid-template-columns: minmax(0, 1fr);
   }

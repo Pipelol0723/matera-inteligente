@@ -32,6 +32,18 @@ backend/
 simulador/
   simulador_esp32.py manda lecturas a la API como el ESP32, sin hardware (ver «Simulador del ESP32»)
 frontend/            HTML, CSS y JavaScript estáticos, servidos aparte
+  index.html         la cabecera, las pantallas y los diálogos
+  fuentes/           Bricolage Grotesque y DM Sans, locales y con su licencia OFL (sin CDN)
+  css/fuentes.css    las dos fuentes
+  css/variables.css  los dos estilos (Profesional y Juego) y los colores de cada tema, con contraste AA
+  css/componentes.css  botones, campos, tarjetas, pastillas, cifras, errores, avisos y diálogos
+  css/armazon.css    la cabecera, las pestañas (arriba en el PC y abajo en el celular), el puntaje y la cuenta
+  css/estilos.css    Diagnóstico, Mis materas con el asistente, la matera Tamagotchi y Juego
+  css/cuenta.css     Ingresar, Mi cuenta y el diálogo de participar en la tabla de posiciones
+  css/especies.css   el catálogo de especies y el formulario para agregar una
+  css/historial.css  el historial de una matera
+  css/admin.css      la administración de cuentas
+  js/apariencia.js   el estilo y el tema elegidos, antes de pintar (se recuerdan en este equipo)
   js/config.js       dónde está la API (en el mismo equipo desde el que se abrió el front) y la placa
   js/api.js          peticiones a la API, con el token en las rutas privadas
   js/app.js          arranque, navegación y pantallas que exigen sesión
@@ -39,7 +51,7 @@ frontend/            HTML, CSS y JavaScript estáticos, servidos aparte
   js/consulta-periodica.js  vuelve a pedir los datos de la pantalla cada 10 s
   js/tiempo-real.js  el WebSocket que trae las mediciones en vivo, con su reconexión
   js/diagnostico.js  pantalla de diagnóstico
-  js/especies.js     catálogo de especies
+  js/especies.js     catálogo de especies y, para el admin, agregar una
   js/acceso.js       ingresar y crear cuenta
   js/cuenta.js       mi cuenta, cerrar sesión y participar en la tabla de posiciones
   js/materas.js      mis materas: crearlas con su sensor, cambiarles el sensor y su matera Tamagotchi
@@ -54,7 +66,7 @@ frontend/            HTML, CSS y JavaScript estáticos, servidos aparte
   js/canal-bluetooth-web.js su adaptador por Web Bluetooth (Chrome o Edge)
   js/canales-placa.js       qué canales ofrece el asistente: el punto de composición del lado del cliente
   js/historial.js    historial de una planta
-  js/admin.js        administración de cuentas y especies
+  js/admin.js        administración de cuentas
   js/formularios.js  errores de la API en los formularios
   js/lecturas.js     texto de unas lecturas y de su origen
   js/escala.js       geometría de escalas y anillos
@@ -351,16 +363,18 @@ El front busca la API en el mismo equipo desde el que se abrió: `http://<equipo
 
 El front no tiene rangos, umbrales ni reglas. Los parámetros, las especies, los estados y las recomendaciones salen de la API. Del juego tampoco calcula nada: los puntos, la etapa, la condición, la cara, la necesidad, el aviso y quién ve la tabla vienen de `GET /juego/...`, y el front solo los dibuja.
 
+Tiene dos estilos, Profesional (por defecto en el PC) y Juego (por defecto en el celular), y cuatro temas: claro, oscuro, AMOLED y el del sistema. Se eligen en el botón de la paleta de la cabecera o en Mi cuenta, y se recuerdan en ese equipo. Las pestañas van en este orden, arriba en el PC y abajo en el celular: Mis materas, Diagnóstico, Juego, Historial, Especies y, para el admin, Administración. Después de ingresar se entra a Mis materas, y el título de la pestaña del navegador dice en qué pantalla se está.
+
 | Pantalla | Acceso | Qué hace |
 |---|---|---|
 | Diagnóstico | con sesión | Consulta `POST /diagnosticos` mientras se escribe (espera 400 ms después de la última tecla) y muestra el estado en los anillos. Los botones Saludable, En riesgo y Crítico llenan valores de ejemplo a partir de los rangos, y la API decide el estado. El panel "Errores de la API" envía peticiones inválidas a propósito. No guarda nada. |
-| Especies | con sesión | Muestra el catálogo de `GET /especies` con bandas escaladas según los límites físicos de `GET /parametros`. |
-| Ingresar / Crear cuenta | pública | Dos formularios. Al entrar guarda el token y vuelve a la pantalla privada que se había pedido. |
+| Especies | con sesión | Muestra el catálogo de `GET /especies` con bandas escaladas según los límites físicos de `GET /parametros`. Al admin le muestra además «Agregar especie»: el nombre, el nombre científico y un mínimo y un máximo por parámetro, con una vista previa de la banda (`POST /admin/especies`). Los rangos los revisa la API, y a quien no es admin le responde 403. |
+| Ingresar / Crear cuenta | pública | Una tarjeta con dos pestañas, Ingresar y Crear cuenta. Al entrar guarda el token y vuelve a la pantalla privada que se había pedido, o a Mis materas. |
 | Mis materas | con sesión | Las materas del usuario con su última medición, que se actualiza sola (ver abajo). «Agregar matera» pide apodo y especie y abre el asistente «Conectar sensor» (ver [Conectar una matera](#conectar-una-matera)); «Cambiar sensor», en cada tarjeta, abre el mismo asistente y conserva el historial. Para el simulador y las placas con el programa de la fase 2 (código y clave en `config.h`) queda «Conectar a mano»: se escribe el código del sensor y la clave se muestra una sola vez (va en `--clave=` o en `config.h`); con el mismo código, da una clave nueva y la anterior deja de servir con su token. Cada tarjeta también permite ver el historial y eliminar la matera. Desde el front no se escriben mediciones. Cada tarjeta muestra además la matera Tamagotchi (ver [La matera Tamagotchi](#la-matera-tamagotchi)) con los puntos de esa matera y sus horas de juego bien cuidada. |
-| Historial | con sesión | La lista, la gráfica y el resumen de las mediciones de una planta, con el estado que calculó la API en su momento. Se actualiza solo, igual que Mis materas. |
-| Juego | con sesión | Tus puntos: el total, los puntos de cada matera y los últimos 20 movimientos («+10 · sala · SALUDABLE · 14:03:15»). A quien participa le muestra la tabla de posiciones con su fila resaltada; a quien no, lo invita a participar desde Mi cuenta. También dice cómo llegan los avisos y tiene el botón para activar las notificaciones del navegador. |
-| Mi cuenta | con sesión | Nombre, correo, rol, cantidad de plantas y cerrar sesión. En «Tabla de posiciones», participar con un apodo de jugador, cambiarlo o dejar de participar (`PUT /juego/participacion`); los errores del apodo los responde la API. |
-| Administración | solo admin | Activar, desactivar, dar o quitar el rol y eliminar cuentas; agregar especies. La pestaña solo aparece para un admin, pero los permisos los revisa la API. |
+| Historial | con sesión | El resumen (cuántas mediciones hay en cada estado y la última), la gráfica y la lista de las mediciones de una matera, con el estado que calculó la API en su momento. Se actualiza solo, igual que Mis materas. |
+| Juego | con sesión | Tus puntos: el total, los puntos de cada matera y los últimos 20 movimientos («+10 · sala · SALUDABLE · 14:03:15»); en el celular se ven 10 y «Ver más» muestra el resto. A quien participa le muestra la tabla de posiciones con su fila resaltada; a quien no, lo invita a participar desde Mi cuenta. También dice cómo llegan los avisos y tiene el botón para activar las notificaciones del navegador. |
+| Mi cuenta | con sesión | Nombre, correo, rol, cantidad de plantas y cerrar sesión. En «Tabla de posiciones», participar con un apodo de jugador, cambiarlo o dejar de participar (`PUT /juego/participacion`); los errores del apodo los responde la API. En «Apariencia», el estilo y el tema. |
+| Administración | solo admin | Las cifras de las cuentas y, en cada una, activar, desactivar, dar o quitar el rol y eliminar (hay que escribir su correo para confirmar). Las especies se agregan en Especies. La pestaña solo aparece para un admin, pero los permisos los revisa la API. |
 
 Todas las pantallas menos Ingresar exigen sesión (R7): sin ella, el front lleva a Ingresar y no llama a la API. Si la API responde `401 SESION_INVALIDA`, el front borra el token y lleva a Ingresar.
 
@@ -443,7 +457,7 @@ python main.py
 - Quien no participa conserva su puntaje, sus movimientos y su matera Tamagotchi, pero no aparece en la tabla y no la ve: `GET /juego/tabla` le responde `403 PARTICIPACION_REQUERIDA`. Lo decide `Participacion.exigir_participacion`, en el dominio.
 - Las cuentas desactivadas no aparecen. Con los mismos puntos, misma posición (1, 2, 2, 4), y entre ellas, por apodo. La fila de quien pregunta viene con `soyYo`.
 
-**Dónde se ve.** En Mis materas, el dibujo de cada tarjeta (`js/dibujo-planta.js`, un SVG con los colores de `estilos.css` y su descripción accesible). En la cabecera, el puntaje total. En la pantalla Juego, los puntos de cada matera, los últimos 20 movimientos y la tabla. Las rutas están en la [API](#cuentas-plantas-y-sensores-corte-2), y el recorrido de una lectura hasta los puntos, en [`secuencia-puntaje`](docs/diagramas/README.md#secuencia-del-puntaje).
+**Dónde se ve.** En Mis materas, el dibujo de cada tarjeta (`js/dibujo-planta.js`, un SVG con los colores de `css/variables.css` y su descripción accesible). En la cabecera, el puntaje total. En la pantalla Juego, los puntos de cada matera, los últimos 20 movimientos y la tabla. Las rutas están en la [API](#cuentas-plantas-y-sensores-corte-2), y el recorrido de una lectura hasta los puntos, en [`secuencia-puntaje`](docs/diagramas/README.md#secuencia-del-puntaje).
 
 ### Modo prueba (solo administradores)
 

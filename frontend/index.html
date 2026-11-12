@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f4f7f2">
-  <title>Matera · Diagnóstico</title>
+  <title>Matera</title>
   <link rel="preload" href="fuentes/dm-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fuentes/bricolage-grotesque-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="css/fuentes.css">
@@ -12,6 +12,10 @@
   <link rel="stylesheet" href="css/componentes.css">
   <link rel="stylesheet" href="css/armazon.css">
   <link rel="stylesheet" href="css/estilos.css">
+  <link rel="stylesheet" href="css/cuenta.css">
+  <link rel="stylesheet" href="css/especies.css">
+  <link rel="stylesheet" href="css/historial.css">
+  <link rel="stylesheet" href="css/admin.css">
   <link rel="stylesheet" href="css/diagnostico.css">
   <link rel="stylesheet" href="css/asistente.css">
   <link rel="stylesheet" href="css/modo-prueba.css">
@@ -27,28 +31,28 @@
           <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20v-8" fill="none"/><path d="M12 12c0-3.6-2.7-6.2-6.6-6.2 0 3.6 2.7 6.2 6.6 6.2z"/><path d="M12 10.6c0-3.1 2.4-5.4 6-5.4 0 3.1-2.4 5.4-6 5.4z"/></svg>
         </span>
         <span class="marca__nombre">Matera</span>
-        <span class="marca__version">v2</span>
       </div>
+      <!-- El mismo orden en el PC y en la barra de abajo del celular. -->
       <nav class="pestanas" aria-label="Pantallas">
+        <button type="button" class="pestana" data-pantalla="materas">
+          <span class="pestana__icono" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 13h13l-1.6 7.5H7.1z"/><path d="M12 13V8.5"/><path d="M12 9.2c0-2.6-2-4.4-4.8-4.4 0 2.6 2 4.4 4.8 4.4z"/><path d="M12 8.4c0-2.3 1.8-3.9 4.3-3.9 0 2.3-1.8 3.9-4.3 3.9z"/></svg></span>
+          <span class="pestana__texto"><span class="pestana__largo">Mis materas</span><span class="pestana__corto" aria-hidden="true">Materas</span></span>
+        </button>
         <button type="button" class="pestana" data-pantalla="diagnostico">
           <span class="pestana__icono" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16a8 8 0 1 1 16 0"/><path d="M12 16l3.6-4.6"/><circle cx="12" cy="16" r="1.5" fill="currentColor" stroke="none"/><path d="M4 20h16"/></svg></span>
           <span class="pestana__texto"><span class="pestana__largo">Diagnóstico</span></span>
         </button>
-        <button type="button" class="pestana" data-pantalla="especies">
-          <span class="pestana__icono" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19c0-8.2 5.2-14 14-14 0 8.8-5.8 14-14 14z"/><path d="M5 19l8.5-8.5"/></svg></span>
-          <span class="pestana__texto"><span class="pestana__largo">Especies</span></span>
-        </button>
-        <button type="button" class="pestana" data-pantalla="materas">
-          <span class="pestana__icono" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 13h13l-1.6 7.5H7.1z"/><path d="M12 13V8.5"/><path d="M12 9.2c0-2.6-2-4.4-4.8-4.4 0 2.6 2 4.4 4.8 4.4z"/><path d="M12 8.4c0-2.3 1.8-3.9 4.3-3.9 0 2.3-1.8 3.9-4.3 3.9z"/></svg></span>
-          <span class="pestana__texto"><span class="pestana__largo">Mis materas</span><span class="pestana__corto" aria-hidden="true">Materas</span></span>
+        <button type="button" class="pestana" data-pantalla="juego">
+          <span class="pestana__icono" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.6l2.6 5.2 5.7.8-4.1 4 1 5.7L12 16.6l-5.2 2.7 1-5.7-4.1-4 5.7-.8z"/></svg></span>
+          <span class="pestana__texto"><span class="pestana__largo">Juego</span></span>
         </button>
         <button type="button" class="pestana" data-pantalla="historial">
           <span class="pestana__icono" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v16h16"/><path d="M7.5 15l3.4-4 3 2.6L19 7.5"/></svg></span>
           <span class="pestana__texto"><span class="pestana__largo">Historial</span></span>
         </button>
-        <button type="button" class="pestana" data-pantalla="juego">
-          <span class="pestana__icono" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.6l2.6 5.2 5.7.8-4.1 4 1 5.7L12 16.6l-5.2 2.7 1-5.7-4.1-4 5.7-.8z"/></svg></span>
-          <span class="pestana__texto"><span class="pestana__largo">Juego</span></span>
+        <button type="button" class="pestana" data-pantalla="especies">
+          <span class="pestana__icono" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19c0-8.2 5.2-14 14-14 0 8.8-5.8 14-14 14z"/><path d="M5 19l8.5-8.5"/></svg></span>
+          <span class="pestana__texto"><span class="pestana__largo">Especies</span></span>
         </button>
         <button type="button" class="pestana" data-pantalla="admin" hidden>
           <span class="pestana__icono" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5.2c0 4.4-3 7.9-7 9.8-4-1.9-7-5.4-7-9.8V6z"/><path d="M9 12l2.2 2.2L15.2 10"/></svg></span>
@@ -56,7 +60,7 @@
         </button>
       </nav>
       <div class="cabecera__estado">
-        <div id="conexion" class="conexion conexion--pendiente" role="status">
+        <div id="conexion" class="conexion conexion--pendiente" role="status" title="Conectando con la API…" aria-label="Conectando con la API…">
           <span class="conexion__punto" aria-hidden="true"></span>
           <span id="conexion-texto" class="conexion__texto">Conectando con la API…</span>
         </div>
@@ -142,72 +146,184 @@
     </section>
   </main>
 
-  <main id="pantalla-especies" class="pantalla" hidden>
-    <h1 class="titulo">Catálogo de especies</h1>
-    <p id="especies-bajada" class="bajada bajada--angosta">Cargando especies…</p>
+  <main id="pantalla-especies" class="pantalla especies" hidden>
+    <header class="encabezado">
+      <div class="encabezado__textos">
+        <p class="ceja">Tabla de referencia</p>
+        <h1 class="titulo">Catálogo de especies</h1>
+        <p id="especies-bajada" class="bajada bajada--sin-margen bajada--angosta">Cargando especies…</p>
+      </div>
+      <button id="abrir-especie" type="button" class="boton-primario" aria-expanded="false" aria-controls="form-especie" hidden>
+        <svg class="boton__icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        Agregar especie
+      </button>
+    </header>
+
+    <!-- Solo para el admin: la API responde 403 a cualquier otro. Los rangos se escriben a mano y la API los revisa. -->
+    <form id="form-especie" class="tarjeta formulario nueva-especie" novalidate hidden aria-labelledby="nueva-especie-titulo">
+      <div class="nueva-especie__cabecera">
+        <div>
+          <h2 id="nueva-especie-titulo" class="formulario__titulo">Agregar una especie</h2>
+          <p class="formulario__ayuda">Un mínimo y un máximo por cada parámetro que se mide. Desde ese momento aparece en el catálogo y se puede usar en Mis materas.</p>
+        </div>
+        <span class="pastilla pastilla--admin">Administración</span>
+      </div>
+      <div class="formulario__fila">
+        <div class="formulario__grupo">
+          <label class="formulario__etiqueta" for="especie-nombre">Nombre</label>
+          <input id="especie-nombre" name="nombre" class="formulario__campo" autocomplete="off" placeholder="Por ejemplo, orquídea">
+        </div>
+        <div class="formulario__grupo">
+          <label class="formulario__etiqueta" for="especie-cientifico">Nombre científico <span class="formulario__opcional">(opcional)</span></label>
+          <input id="especie-cientifico" name="nombreCientifico" class="formulario__campo nueva-especie__cientifico" autocomplete="off" placeholder="Por ejemplo, Phalaenopsis">
+        </div>
+      </div>
+      <fieldset class="nueva-especie__rangos">
+        <legend class="rotulo">Rango óptimo</legend>
+        <p class="formulario__ayuda">La barra muestra dónde queda el rango dentro de los límites físicos del sensor.</p>
+        <div id="rangos-especie" class="nueva-especie__lista"></div>
+      </fieldset>
+      <div id="error-especie" class="tarjeta-error" role="alert" hidden></div>
+      <div class="acciones">
+        <button type="submit" class="boton-primario">Agregar especie</button>
+        <button id="cancelar-especie" type="button" class="boton-secundario">Cancelar</button>
+      </div>
+    </form>
+    <p id="exito-especie" class="mensaje-exito especies__exito" role="status" hidden></p>
+
     <div id="catalogo" class="catalogo"></div>
   </main>
 
   <main id="pantalla-acceso" class="pantalla acceso" hidden>
-    <p class="ceja">Mis materas, sus sensores y su historial</p>
-    <h1 class="titulo titulo--grande">Ingrese a su cuenta</h1>
-    <p class="bajada bajada--angosta">Para diagnosticar, ver el catálogo de especies, crear sus materas con su sensor y ver sus mediciones en vivo necesita una cuenta.</p>
-    <div class="acceso__formularios">
-      <form id="form-ingresar" class="tarjeta formulario" novalidate>
-        <h2 class="formulario__titulo">Ingresar</h2>
+    <section class="acceso__intro" aria-labelledby="acceso-titulo">
+      <!-- Solo adorno: una matera contenta. El dibujo de cada matera de verdad lo decide la API (dibujo-planta.js). -->
+      <div class="acceso__ilustracion" aria-hidden="true">
+        <svg viewBox="-8 4 116 106">
+          <g class="acceso__planta">
+            <path d="M50 33 L50 19" stroke="var(--cara)" stroke-width="1.1"/>
+            <circle cx="50" cy="15" r="3.4" fill="var(--petalo)" stroke="var(--cara)" stroke-width="0.8"/>
+            <circle cx="53.8" cy="17.8" r="3.4" fill="var(--petalo)" stroke="var(--cara)" stroke-width="0.8"/>
+            <circle cx="52.4" cy="22.2" r="3.4" fill="var(--petalo)" stroke="var(--cara)" stroke-width="0.8"/>
+            <circle cx="47.6" cy="22.2" r="3.4" fill="var(--petalo)" stroke="var(--cara)" stroke-width="0.8"/>
+            <circle cx="46.2" cy="17.8" r="3.4" fill="var(--petalo)" stroke="var(--cara)" stroke-width="0.8"/>
+            <circle cx="50" cy="19" r="2.4" fill="var(--centro-flor)" stroke="var(--cara)" stroke-width="0.8"/>
+            <ellipse cx="40" cy="26" rx="6.5" ry="13" transform="rotate(-28 40 26)" fill="var(--hoja-sana)" stroke="var(--cara)" stroke-width="1.1"/>
+            <ellipse cx="60" cy="26" rx="6.5" ry="13" transform="rotate(28 60 26)" fill="var(--hoja-sana)" stroke="var(--cara)" stroke-width="1.1"/>
+            <ellipse cx="50" cy="52" rx="21" ry="20" fill="var(--hoja-sana)" stroke="var(--cara)" stroke-width="1.3"/>
+            <g transform="translate(50 53)" fill="none" stroke="var(--cara)" stroke-width="1.8" stroke-linecap="round">
+              <path d="M-10 -1 q3.5 -4.5 7 0 M3 -1 q3.5 -4.5 7 0"/><path d="M-8 6 q8 8 16 0"/>
+              <circle cx="-13" cy="6" r="3" fill="var(--mejilla)" stroke="none"/><circle cx="13" cy="6" r="3" fill="var(--mejilla)" stroke="none"/>
+            </g>
+          </g>
+          <rect x="25" y="70" width="50" height="9" rx="2" fill="var(--maceta)" stroke="var(--maceta-borde)" stroke-width="1.2"/>
+          <path d="M29 79 L71 79 L66 106 L34 106 Z" fill="var(--maceta)" stroke="var(--maceta-borde)" stroke-width="1.2"/>
+        </svg>
+      </div>
+      <div class="acceso__textos">
+        <p class="ceja">Matera inteligente</p>
+        <h1 id="acceso-titulo" class="titulo titulo--grande">Sus plantas, cuidadas en vivo</h1>
+        <p class="bajada bajada--sin-margen">Para ver sus materas, diagnosticar, consultar las especies y jugar necesita una cuenta.</p>
+      </div>
+    </section>
+
+    <ul class="acceso__ventajas">
+      <li class="acceso__ventaja">
+        <span class="acceso__icono" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 13h13l-1.6 7.5H7.1z"/><path d="M12 13V8.5"/><path d="M12 9.2c0-2.6-2-4.4-4.8-4.4 0 2.6 2 4.4 4.8 4.4z"/><path d="M12 8.4c0-2.3 1.8-3.9 4.3-3.9 0 2.3-1.8 3.9-4.3 3.9z"/></svg></span>
+        <span><strong>Mis materas.</strong> Cada sensor manda sus lecturas y la API dice cómo está la planta.</span>
+      </li>
+      <li class="acceso__ventaja">
+        <span class="acceso__icono" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v16h16"/><path d="M7.5 15l3.4-4 3 2.6L19 7.5"/></svg></span>
+        <span><strong>Historial.</strong> Las mediciones de cada matera, con el estado que tuvo en su momento.</span>
+      </li>
+      <li class="acceso__ventaja">
+        <span class="acceso__icono" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.6l2.6 5.2 5.7.8-4.1 4 1 5.7L12 16.6l-5.2 2.7 1-5.7-4.1-4 5.7-.8z"/></svg></span>
+        <span><strong>Juego.</strong> Su matera crece, se alegra o se marchita según cómo la cuide, y suma puntos.</span>
+      </li>
+    </ul>
+
+    <section class="tarjeta acceso__tarjeta" aria-label="Ingresar o crear cuenta">
+      <div class="acceso__selector" role="tablist" aria-label="Ingresar o crear cuenta">
+        <button id="pestana-ingresar" type="button" class="acceso__pestana" role="tab" aria-selected="true" aria-controls="form-ingresar">Ingresar</button>
+        <button id="pestana-registrar" type="button" class="acceso__pestana" role="tab" aria-selected="false" aria-controls="form-registrar" tabindex="-1">Crear cuenta</button>
+      </div>
+      <form id="form-ingresar" class="formulario acceso__formulario" role="tabpanel" aria-labelledby="pestana-ingresar" novalidate>
+        <h2 class="formulario__titulo">Ingrese a su cuenta</h2>
         <label class="formulario__etiqueta" for="ingresar-correo">Correo</label>
         <input id="ingresar-correo" name="correo" class="formulario__campo" type="email" autocomplete="username">
         <label class="formulario__etiqueta" for="ingresar-contrasena">Contraseña</label>
-        <input id="ingresar-contrasena" name="contrasena" class="formulario__campo" type="password" autocomplete="current-password">
+        <div class="campo-clave">
+          <input id="ingresar-contrasena" name="contrasena" class="formulario__campo" type="password" autocomplete="current-password">
+          <button type="button" class="campo-clave__boton" data-mostrar-clave="ingresar-contrasena" aria-pressed="false">Mostrar</button>
+        </div>
         <div id="error-ingresar" class="tarjeta-error" role="alert" hidden></div>
-        <button type="submit" class="boton-primario">Ingresar</button>
+        <button type="submit" class="boton-primario acceso__enviar">Ingresar</button>
+        <p class="acceso__cambiar">¿Todavía no tiene cuenta? <button type="button" class="enlace" data-acceso-ir="registrar">Créela aquí</button></p>
       </form>
-      <form id="form-registrar" class="tarjeta formulario" novalidate>
-        <h2 class="formulario__titulo">Crear cuenta</h2>
+      <form id="form-registrar" class="formulario acceso__formulario" role="tabpanel" aria-labelledby="pestana-registrar" novalidate hidden>
+        <h2 class="formulario__titulo">Cree su cuenta</h2>
         <label class="formulario__etiqueta" for="registrar-nombre">Nombre</label>
         <input id="registrar-nombre" name="nombre" class="formulario__campo" autocomplete="name">
         <label class="formulario__etiqueta" for="registrar-correo">Correo</label>
         <input id="registrar-correo" name="correo" class="formulario__campo" type="email" autocomplete="email">
         <label class="formulario__etiqueta" for="registrar-contrasena">Contraseña</label>
-        <input id="registrar-contrasena" name="contrasena" class="formulario__campo" type="password" autocomplete="new-password">
+        <div class="campo-clave">
+          <input id="registrar-contrasena" name="contrasena" class="formulario__campo" type="password" autocomplete="new-password">
+          <button type="button" class="campo-clave__boton" data-mostrar-clave="registrar-contrasena" aria-pressed="false">Mostrar</button>
+        </div>
         <div id="error-registrar" class="tarjeta-error" role="alert" hidden></div>
-        <button type="submit" class="boton-secundario boton-secundario--lleno">Crear cuenta</button>
+        <button type="submit" class="boton-primario acceso__enviar">Crear cuenta</button>
+        <p class="acceso__cambiar">¿Ya tiene cuenta? <button type="button" class="enlace" data-acceso-ir="ingresar">Ingrese</button></p>
       </form>
-    </div>
+    </section>
   </main>
 
   <main id="pantalla-cuenta" class="pantalla cuenta" hidden>
-    <h1 class="titulo">Mi cuenta</h1>
-    <p class="bajada">Los datos y el rol los entrega la API en cada visita a esta pantalla.</p>
-    <div class="tarjeta cuenta__tarjeta">
-      <div id="datos-cuenta" class="resumen__filas"></div>
-      <div id="error-cuenta" class="tarjeta-error" role="alert" hidden></div>
-      <div class="acciones cuenta__acciones">
-        <button id="cerrar-sesion" type="button" class="boton-secundario">Cerrar sesión</button>
+    <header class="encabezado">
+      <div class="encabezado__textos">
+        <h1 class="titulo">Mi cuenta</h1>
+        <p class="bajada bajada--sin-margen">Sus datos los entrega la API en cada visita a esta pantalla. La apariencia se guarda en este equipo.</p>
       </div>
-    </div>
-    <section class="tarjeta cuenta__tarjeta cuenta__juego" aria-labelledby="cuenta-juego-titulo">
-      <h2 id="cuenta-juego-titulo" class="formulario__titulo">Tabla de posiciones</h2>
-      <p id="jugador-estado" class="formulario__ayuda"></p>
-      <form id="form-jugador" class="cuenta__jugador" novalidate>
-        <div class="formulario__grupo">
-          <label class="formulario__etiqueta" for="jugador-apodo">Apodo de jugador</label>
-          <input id="jugador-apodo" name="apodo" class="formulario__campo" autocomplete="nickname" spellcheck="false">
+    </header>
+    <section class="tarjeta perfil" aria-label="Sus datos">
+      <span id="perfil-avatar" class="perfil__avatar" aria-hidden="true"></span>
+      <div id="datos-cuenta" class="perfil__datos"></div>
+      <button id="cerrar-sesion" type="button" class="boton-secundario perfil__salir">
+        <svg class="boton__icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M10 16l-4-4 4-4"/><path d="M6 12h10"/></svg>
+        Cerrar sesión
+      </button>
+      <div id="error-cuenta" class="tarjeta-error perfil__error" role="alert" hidden></div>
+    </section>
+    <div class="cuenta__columnas">
+      <section class="tarjeta cuenta__tarjeta cuenta__juego" aria-labelledby="cuenta-juego-titulo">
+        <div class="cuenta__cabecera">
+          <span class="cuenta__icono cuenta__icono--juego" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4"/><path d="M12 13v3M9 20h6M10 16h4v4h-4z"/></svg></span>
+          <h2 id="cuenta-juego-titulo" class="formulario__titulo">Tabla de posiciones</h2>
+          <span id="jugador-insignia" class="pastilla pastilla--inactiva" hidden></span>
         </div>
-        <button id="jugador-guardar" type="submit" class="boton-primario">Participar</button>
-      </form>
-      <p class="formulario__ayuda">En la tabla solo se ve el apodo, nunca su nombre ni su correo. La API revisa que sirva y que nadie más lo use.</p>
-      <div id="error-jugador" class="tarjeta-error" role="alert" hidden></div>
-      <p id="exito-jugador" class="mensaje-exito" role="status" hidden></p>
-      <div class="acciones">
-        <button id="jugador-salir" type="button" class="boton-secundario" hidden>Dejar de participar</button>
-      </div>
-    </section>
-    <section class="tarjeta cuenta__tarjeta cuenta__apariencia" aria-labelledby="cuenta-apariencia-titulo">
-      <h2 id="cuenta-apariencia-titulo" class="formulario__titulo">Apariencia</h2>
-      <p class="formulario__ayuda">Profesional es sobrio; Juego es de Tamagotchi, con más color y la planta en grande. Automático usa Juego en el celular y Profesional en pantallas anchas.</p>
-      <div class="apariencia__opciones" data-apariencia-lugar="cuenta"></div>
-    </section>
+        <p id="jugador-estado" class="formulario__ayuda"></p>
+        <form id="form-jugador" class="cuenta__jugador" novalidate>
+          <div class="formulario__grupo">
+            <label class="formulario__etiqueta" for="jugador-apodo">Apodo de jugador</label>
+            <input id="jugador-apodo" name="apodo" class="formulario__campo" autocomplete="nickname" spellcheck="false">
+          </div>
+          <button id="jugador-guardar" type="submit" class="boton-primario">Participar</button>
+        </form>
+        <p class="formulario__ayuda">En la tabla solo se ve el apodo, nunca su nombre ni su correo. La API revisa que sirva y que nadie más lo use.</p>
+        <div id="error-jugador" class="tarjeta-error" role="alert" hidden></div>
+        <p id="exito-jugador" class="mensaje-exito" role="status" hidden></p>
+        <div class="acciones">
+          <button id="jugador-salir" type="button" class="boton-contorno boton-contorno--peligro" hidden>Dejar de participar</button>
+        </div>
+      </section>
+      <section class="tarjeta cuenta__tarjeta cuenta__apariencia" aria-labelledby="cuenta-apariencia-titulo">
+        <div class="cuenta__cabecera">
+          <span class="cuenta__icono" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 0 0 0 18c1 0 1.6-.7 1.6-1.5 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.5 1.6-1.5H16a5 5 0 0 0 5-5C21 6.5 17 3 12 3z"/><circle cx="7.5" cy="11.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="10" cy="7.6" r="1.2" fill="currentColor" stroke="none"/><circle cx="14.6" cy="7.6" r="1.2" fill="currentColor" stroke="none"/></svg></span>
+          <h2 id="cuenta-apariencia-titulo" class="formulario__titulo">Apariencia</h2>
+        </div>
+        <p class="formulario__ayuda">Profesional es sobrio; Juego es de Tamagotchi, con más color y la planta en grande. Automático usa Juego en el celular y Profesional en pantallas anchas.</p>
+        <div class="apariencia__opciones" data-apariencia-lugar="cuenta"></div>
+      </section>
+    </div>
   </main>
 
   <main id="pantalla-materas" class="pantalla" hidden>
@@ -254,26 +370,49 @@
   </main>
 
   <main id="pantalla-historial" class="pantalla historial" hidden>
-    <section>
-      <h1 class="titulo">Historial de mediciones</h1>
+    <header class="encabezado">
+      <div class="encabezado__textos">
+        <h1 class="titulo">Historial de mediciones</h1>
+        <p id="historial-bajada" class="bajada bajada--sin-margen bajada--angosta"></p>
+        <p id="historial-consulta" class="consulta"></p>
+        <a class="boton-primario historial__ir" href="#materas">Ir a Mis materas</a>
+      </div>
       <div class="historial__selector">
-        <label class="formulario__etiqueta" for="historial-planta">Planta</label>
+        <label class="formulario__etiqueta" for="historial-planta">Matera</label>
         <select id="historial-planta" class="selector"></select>
       </div>
-      <p id="historial-bajada" class="bajada bajada--historial"></p>
-      <p id="historial-consulta" class="consulta consulta--historial"></p>
-      <div id="error-historial" class="tarjeta-error" role="alert" hidden></div>
-      <div class="tarjeta grafica">
-        <div id="leyenda" class="leyenda"></div>
-        <svg id="grafica" class="grafica__svg" viewBox="0 0 640 200" preserveAspectRatio="none" aria-hidden="true"></svg>
-      </div>
-      <div id="registros" class="registros"></div>
+    </header>
+    <div id="error-historial" class="tarjeta-error historial__error" role="alert" hidden></div>
+
+    <section class="cifras" aria-labelledby="historial-resumen-titulo">
+      <h2 id="historial-resumen-titulo" class="solo-lectores">Resumen</h2>
+      <div id="resumen-filas" class="cifras__lista"></div>
     </section>
-    <aside class="tarjeta resumen">
-      <p class="rotulo">Resumen</p>
-      <div id="resumen-filas" class="resumen__filas"></div>
-      <p class="resumen__nota">Cada estado es el que calculó la API en el momento de la medición. Si después cambian los rangos de la especie, el pasado no se recalcula.</p>
-    </aside>
+
+    <section class="tarjeta grafica" aria-labelledby="historial-grafica-titulo">
+      <div class="grafica__cabecera">
+        <h2 id="historial-grafica-titulo" class="rotulo">Tendencia</h2>
+        <div id="leyenda" class="leyenda"></div>
+      </div>
+      <div class="grafica__marco">
+        <svg id="grafica" class="grafica__svg" viewBox="0 0 640 200" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <p id="grafica-vacia" class="grafica__vacia" hidden>Sin mediciones todavía.</p>
+      </div>
+      <div class="grafica__eje" aria-hidden="true">
+        <span id="grafica-desde"></span>
+        <span id="grafica-hasta"></span>
+      </div>
+      <p class="grafica__nota">Cada línea usa su propia escala: el rango óptimo de la especie, con margen.</p>
+    </section>
+
+    <section class="tarjeta historial__lista" aria-labelledby="historial-registros-titulo">
+      <h2 id="historial-registros-titulo" class="rotulo">Mediciones</h2>
+      <div class="registros__titulos" aria-hidden="true">
+        <span>Fecha</span><span>Lecturas</span><span>Origen</span><span>Estado</span>
+      </div>
+      <ol id="registros" class="registros"></ol>
+      <p class="historial__nota">Cada estado es el que calculó la API en el momento de la medición. Si después cambian los rangos de la especie, el pasado no se recalcula.</p>
+    </section>
   </main>
 
   <main id="pantalla-juego" class="pantalla juego" hidden>
@@ -298,6 +437,8 @@
       <section class="tarjeta juego__panel" aria-labelledby="juego-movimientos-titulo">
         <h2 id="juego-movimientos-titulo" class="rotulo">Últimos movimientos</h2>
         <ol id="juego-movimientos" class="juego__lista juego__movimientos"></ol>
+        <!-- Solo en el celular: con más de 10 movimientos, la lista se corta y este botón la abre. -->
+        <button id="juego-ver-mas" type="button" class="boton-contorno juego__ver-mas" aria-controls="juego-movimientos" aria-expanded="false" hidden>Ver más</button>
       </section>
       <div class="juego__lado">
         <section class="tarjeta juego__panel" aria-labelledby="juego-tabla-titulo">
@@ -314,43 +455,51 @@
   </main>
 
   <main id="pantalla-admin" class="pantalla admin" hidden>
-    <p class="ceja">Solo para administradores</p>
-    <h1 class="titulo">Administración</h1>
-    <p class="bajada bajada--angosta">Los permisos los revisa la API: a quien no sea administrador, cada una de estas acciones le responde 403. Si una acción no se permite, aquí se muestra el error que respondió.</p>
-    <section class="tarjeta admin__usuarios">
-      <p class="rotulo">Cuentas</p>
-      <div id="error-admin" class="tarjeta-error" role="alert" hidden></div>
-      <div class="tabla__contenedor">
-        <table class="tabla">
-          <thead>
-            <tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Plantas</th><th>Acciones</th></tr>
-          </thead>
-          <tbody id="filas-usuarios"></tbody>
-        </table>
+    <header class="encabezado">
+      <div class="encabezado__textos">
+        <p class="ceja">Solo para administradores</p>
+        <h1 class="titulo">Administración</h1>
+        <p class="bajada bajada--sin-margen bajada--angosta">Los permisos los revisa la API: a quien no sea administrador, cada una de estas acciones le responde 403. Si una acción no se permite, aquí se muestra el error que respondió.</p>
       </div>
+      <a class="boton-secundario" href="#especies" data-abrir-especie>
+        <svg class="boton__icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19c0-8.2 5.2-14 14-14 0 8.8-5.8 14-14 14z"/><path d="M5 19l8.5-8.5"/></svg>
+        Agregar especie
+      </a>
+    </header>
+
+    <section class="cifras" aria-labelledby="admin-cifras-titulo">
+      <h2 id="admin-cifras-titulo" class="solo-lectores">Resumen de las cuentas</h2>
+      <div id="admin-cifras" class="cifras__lista"></div>
     </section>
-    <form id="form-especie" class="tarjeta formulario admin__especie" novalidate>
-      <h2 class="formulario__titulo">Agregar una especie</h2>
-      <p class="formulario__ayuda">Un mínimo y un máximo por cada parámetro que se mide. Desde ese momento aparece en Especies y se puede usar en Mis materas.</p>
-      <div class="formulario__fila">
-        <div class="formulario__grupo">
-          <label class="formulario__etiqueta" for="especie-nombre">Nombre</label>
-          <input id="especie-nombre" name="nombre" class="formulario__campo" autocomplete="off">
-        </div>
-        <div class="formulario__grupo">
-          <label class="formulario__etiqueta" for="especie-cientifico">Nombre científico (opcional)</label>
-          <input id="especie-cientifico" name="nombreCientifico" class="formulario__campo" autocomplete="off">
-        </div>
-      </div>
-      <div id="rangos-especie" class="admin__rangos"></div>
-      <div id="error-especie" class="tarjeta-error" role="alert" hidden></div>
-      <p id="exito-especie" class="mensaje-exito" role="status" hidden></p>
-      <button type="submit" class="boton-primario">Agregar especie</button>
-    </form>
+
+    <section class="tarjeta admin__usuarios" aria-labelledby="admin-cuentas-titulo">
+      <h2 id="admin-cuentas-titulo" class="rotulo">Cuentas</h2>
+      <div id="error-admin" class="tarjeta-error" role="alert" hidden></div>
+      <table class="tabla tabla--cuentas">
+        <thead>
+          <tr><th scope="col">Cuenta</th><th scope="col">Rol</th><th scope="col">Estado</th><th scope="col">Plantas</th><th scope="col"><span class="solo-lectores">Acciones</span></th></tr>
+        </thead>
+        <tbody id="filas-usuarios"></tbody>
+      </table>
+    </section>
   </main>
 
-  <dialog id="dialogo-participar" class="dialogo" aria-labelledby="participar-titulo">
+  <dialog id="dialogo-participar" class="dialogo participar" aria-labelledby="participar-titulo">
     <form id="form-participar" class="dialogo__cuerpo" novalidate>
+      <!-- Solo adorno: un podio con las tres medallas de la tabla. -->
+      <div class="participar__podio" aria-hidden="true">
+        <svg viewBox="0 0 200 92">
+          <rect x="22" y="50" width="52" height="42" rx="6" class="participar__escalon"/>
+          <rect x="74" y="34" width="52" height="58" rx="6" class="participar__escalon participar__escalon--alto"/>
+          <rect x="126" y="60" width="52" height="32" rx="6" class="participar__escalon"/>
+          <circle cx="48" cy="34" r="13" fill="var(--plata)" stroke="var(--medalla-tinta)" stroke-width="1.5"/>
+          <circle cx="100" cy="17" r="15" fill="var(--oro)" stroke="var(--medalla-tinta)" stroke-width="1.5"/>
+          <circle cx="152" cy="44" r="12" fill="var(--bronce)" stroke="var(--medalla-tinta)" stroke-width="1.5"/>
+          <text x="48" y="39" text-anchor="middle" font-size="14" font-weight="800" fill="var(--medalla-tinta)">2</text>
+          <text x="100" y="23" text-anchor="middle" font-size="16" font-weight="800" fill="var(--medalla-tinta)">1</text>
+          <text x="152" y="49" text-anchor="middle" font-size="13" font-weight="800" fill="var(--medalla-tinta)">3</text>
+        </svg>
+      </div>
       <p class="ceja">Juego</p>
       <h2 id="participar-titulo" class="formulario__titulo">¿Quiere aparecer en la tabla de posiciones?</h2>
       <p class="formulario__ayuda">Sus materas suman y restan puntos con cada lectura, participe o no. En la tabla se compite con un apodo de jugador, nunca con su nombre ni su correo. Puede cambiar de opinión cuando quiera en Mi cuenta.</p>
@@ -360,15 +509,33 @@
         <p class="formulario__ayuda">Es el nombre con el que lo ven los demás jugadores. La API revisa que sirva y que nadie más lo use.</p>
       </div>
       <div id="error-participar" class="tarjeta-error" role="alert" hidden></div>
-      <div id="participar-acciones-pregunta" class="acciones">
+      <div id="participar-acciones-pregunta" class="acciones dialogo__acciones">
         <button id="participar-si" type="button" class="boton-primario">Sí, quiero participar</button>
         <button id="participar-no" type="button" class="boton-secundario">No, gracias</button>
       </div>
-      <div id="participar-acciones-apodo" class="acciones" hidden>
+      <div id="participar-acciones-apodo" class="acciones dialogo__acciones" hidden>
         <button id="participar-enviar" type="submit" class="boton-primario">Entrar a la tabla</button>
         <button id="participar-volver" type="button" class="boton-secundario">Volver</button>
       </div>
       <button id="participar-despues" type="button" class="enlace dialogo__despues">Decidir después</button>
+    </form>
+  </dialog>
+
+  <!-- Eliminar una cuenta no tiene vuelta atrás: se pide escribir su correo (admin.js). -->
+  <dialog id="dialogo-eliminar" class="dialogo eliminar" aria-labelledby="eliminar-titulo" aria-describedby="eliminar-texto">
+    <form id="form-eliminar" class="dialogo__cuerpo" novalidate>
+      <p class="ceja eliminar__ceja">Administración</p>
+      <h2 id="eliminar-titulo" class="formulario__titulo">¿Eliminar la cuenta?</h2>
+      <p id="eliminar-texto" class="formulario__ayuda"></p>
+      <div class="dialogo__apodo">
+        <label class="formulario__etiqueta" for="eliminar-correo">Escriba el correo de la cuenta para confirmar</label>
+        <input id="eliminar-correo" name="correo" class="formulario__campo" type="email" autocomplete="off" spellcheck="false">
+      </div>
+      <div id="error-eliminar" class="tarjeta-error" role="alert" hidden></div>
+      <div class="acciones dialogo__acciones">
+        <button id="eliminar-confirmar" type="submit" class="boton-secundario boton-secundario--peligro">Eliminar la cuenta</button>
+        <button id="eliminar-cancelar" type="button" class="boton-secundario">Cancelar</button>
+      </div>
     </form>
   </dialog>
 

@@ -19,6 +19,8 @@ const HORA = new Intl.DateTimeFormat("es-CO", { hour: "2-digit", minute: "2-digi
 const DIA_Y_HORA = new Intl.DateTimeFormat("es-CO", {
   day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
 });
+// En el celular, la pantalla Juego muestra estos movimientos y un «Ver más» para el resto (css/estilos.css).
+const MOVIMIENTOS_CORTOS = 10;
 
 const PERMISOS = {
   concedido: "Cuando una matera pasa a CRÍTICO o se marchita, el navegador le avisa con una notificación.",
@@ -43,6 +45,7 @@ export function crearJuego(contexto) {
   let generacion = 0; // cambia al cerrar la sesión: una respuesta de la sesión anterior se descarta
   let enCurso = null;
   let otraVez = false;
+  let todosLosMovimientos = false; // en el celular se ven los primeros MOVIMIENTOS_CORTOS hasta «Ver más»
 
   const avisos = crearAvisos({
     raiz: $("avisos"),
@@ -57,6 +60,10 @@ export function crearJuego(contexto) {
     if (mensaje.tipo === "medicion" || mensaje.tipo === "reconectado") refrescar();
   });
   $("activar-notificaciones").addEventListener("click", () => avisos.pedirPermiso());
+  $("juego-ver-mas").addEventListener("click", () => {
+    todosLosMovimientos = !todosLosMovimientos;
+    pintarVerMas();
+  });
 
   // Si llega un mensaje mientras otra consulta está en curso, al terminar se consulta otra vez: así lo
   // último que se pinta salió después del mensaje.
@@ -196,6 +203,17 @@ export function crearJuego(contexto) {
     $("juego-movimientos").replaceChildren(...(movimientos.length
       ? movimientos.map(filaMovimiento)
       : sinDatos("Todavía no llega ninguna lectura de sus sensores.", "Consultando sus movimientos…")));
+    pintarVerMas();
+  }
+
+  // El botón solo aparece si hay más de MOVIMIENTOS_CORTOS; en el PC lo esconde el CSS y la lista va entera.
+  function pintarVerMas() {
+    const cuantos = puntaje?.movimientos?.length ?? 0;
+    const boton = $("juego-ver-mas");
+    boton.hidden = cuantos <= MOVIMIENTOS_CORTOS;
+    $("juego-movimientos").classList.toggle("juego__movimientos--cortos", !todosLosMovimientos);
+    boton.textContent = todosLosMovimientos ? "Ver menos" : `Ver más (${cuantos - MOVIMIENTOS_CORTOS})`;
+    boton.setAttribute("aria-expanded", String(todosLosMovimientos));
   }
 
   function filaMatera({ planta, puntos: valor }) {
@@ -303,6 +321,7 @@ export function crearJuego(contexto) {
       error = null;
       consultado = null;
       otraVez = false;
+      todosLosMovimientos = false;
       avisos.reiniciar();
       dialogo.reiniciar();
       pintarCabecera();
