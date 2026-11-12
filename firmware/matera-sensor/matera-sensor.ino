@@ -24,6 +24,8 @@
 //                      sensor a la matera o la borraron), vuelve a ESPERANDO_MATERA.
 // BOOT 5 s olvida la red y los servidores, pero conserva la clave; BOOT 15 s, ademas, crea una clave nueva.
 // La placa no decide ninguna regla: el estado, lo que necesita y las recomendaciones los calcula la API.
+// Si un admin le pone a la matera un estado de prueba desde la app, la respuesta 201 lo trae en "prueba" y
+// la pantalla lo muestra en vez de lo real, hasta que vuelva a llegar null.
 // Las rutas estan en api_matera.h, los sensores en sensores.h y lo que guarda la placa en memoria.h.
 
 #include <WiFi.h>
@@ -107,6 +109,10 @@ bool hayEstado = false;
 EstadoMatera estadoMatera;
 Lectura ultimaLectura;
 String problema;  // lo que falla ahora; vacio si nada
+
+// ---- la orden «prueba» del monitor serie: dibuja un estado de prueba sin la API ----
+bool hayPruebaDeConsola = false;
+PruebaMatera pruebaDeConsola;
 
 // ---- utilidades ----
 
@@ -275,17 +281,67 @@ void revisarBoot() {
   else if (duracion >= BOOT_RED_MS) olvidarRed(false);
 }
 
-// Ordenes por el monitor serie, para probar el modo de conexion sin apretar BOOT ni olvidar la red.
+// «prueba <cara> <condicion> <etapa> <dormida> [necesidad]» dibuja ese estado de prueba sin la API, en
+// cualquier etapa, para ver cada combinacion en la pantalla. «prueba fin» vuelve a la pantalla de la etapa.
+void ordenPrueba(String argumentos) {
+  const char *uso = "Consola: prueba <SALUDABLE|EN_RIESGO|CRITICO> <SANA|DECAIDA|MARCHITA> "
+                    "<SEMILLA|BROTE|PLANTA|FLORECIDA> <si|no> [SED|EXCESO_AGUA|FRIO|CALOR|POCA_LUZ|MUCHA_LUZ], "
+                    "o «prueba fin».";
+  argumentos.trim();
+  argumentos.toUpperCase();
+  if (argumentos == "FIN") {
+    Serial.println(hayPruebaDeConsola ? "Consola: se quita la prueba; la pantalla vuelve a la etapa."
+                                      : "Consola: no había una prueba de la consola.");
+    hayPruebaDeConsola = false;
+    return;
+  }
+  String partes[6];
+  int cuantas = 0;
+  while (argumentos.length() > 0 && cuantas < 6) {
+    const int espacio = argumentos.indexOf(' ');
+    partes[cuantas++] = espacio < 0 ? argumentos : argumentos.substring(0, espacio);
+    argumentos = espacio < 0 ? String() : argumentos.substring(espacio + 1);
+    argumentos.trim();
+  }
+  const bool caraValida = partes[0] == "SALUDABLE" || partes[0] == "EN_RIESGO" || partes[0] == "CRITICO";
+  const bool condicionValida = partes[1] == "SANA" || partes[1] == "DECAIDA" || partes[1] == "MARCHITA";
+  const bool etapaValida =
+      partes[2] == "SEMILLA" || partes[2] == "BROTE" || partes[2] == "PLANTA" || partes[2] == "FLORECIDA";
+  const bool dormidaValida = partes[3] == "SI" || partes[3] == "NO";
+  const bool sinNecesidad = partes[4].length() == 0 || partes[4] == "-" || partes[4] == "NULL";
+  const bool necesidadValida = sinNecesidad || textoNecesidad(partes[4]).length() > 0;
+  if (cuantas < 4 || cuantas > 5 || argumentos.length() > 0 || !caraValida || !condicionValida || !etapaValida ||
+      !dormidaValida || !necesidadValida) {
+    Serial.println(uso);
+    return;
+  }
+  PruebaMatera prueba;
+  prueba.activa = true;
+  prueba.cara = partes[0];
+  prueba.condicion = partes[1];
+  prueba.etapa = partes[2];
+  prueba.dormida = partes[3] == "SI";
+  prueba.necesidad = sinNecesidad ? String() : partes[4];
+  pruebaDeConsola = prueba;
+  hayPruebaDeConsola = true;
+  Serial.printf("Consola: la pantalla muestra la prueba %s, sin la API. «prueba fin» la quita.\n",
+                resumenPrueba(prueba).c_str());
+}
+
+// Ordenes por el monitor serie, para probar el modo de conexion sin apretar BOOT ni olvidar la red, y la
+// pantalla del estado de prueba sin la API.
 void revisarConsola() {
   static String linea;
   while (Serial.available() > 0) {
     const char c = (char)Serial.read();
     if (c != '\n' && c != '\r') {
-      if (linea.length() < 32) linea += c;
+      if (linea.length() < 96) linea += c;
       continue;
     }
     linea.trim();
-    if (linea == "conexion") {
+    if (linea == "prueba" || linea.startsWith("prueba ")) {
+      ordenPrueba(linea.substring(6));
+    } else if (linea == "conexion") {
       if (redPropiaAbierta()) {
         Serial.println("Consola: el modo de conexión ya está abierto.");
       } else {
@@ -304,7 +360,7 @@ void revisarConsola() {
     } else if (linea == "memoria") {
       redPropiaImprimirRecursos("ahora");
     } else if (linea.length() > 0) {
-      Serial.println("Consola: las órdenes son «conexion», «cerrar» y «memoria».");
+      Serial.println("Consola: las órdenes son «conexion», «cerrar», «memoria» y «prueba».");
     }
     linea = "";
   }
@@ -544,13 +600,15 @@ void pasoConectada() {
   switch (envio) {
     case Envio::ACEPTADA:
       respondio();
+      avisarCambioDePrueba(hayEstado ? estadoMatera.prueba : PruebaMatera(), nuevo.prueba);
       estadoMatera = nuevo;
       ultimaLectura = lectura;
       hayEstado = true;
       problema = "";
-      Serial.printf("Lectura %.1f %% · %d lux · %.1f °C -> 201: «%s» está %s%s%s\n", lectura.humedad, lectura.luz,
+      Serial.printf("Lectura %.1f %% · %d lux · %.1f °C -> 201: «%s» está %s%s%s%s\n", lectura.humedad, lectura.luz,
                     lectura.temperatura, nuevo.apodo.c_str(), nuevo.estado.c_str(),
-                    nuevo.necesidad.length() > 0 ? ", necesita " : "", nuevo.necesidad.c_str());
+                    nuevo.necesidad.length() > 0 ? ", necesita " : "", nuevo.necesidad.c_str(),
+                    nuevo.prueba.activa ? " (la pantalla muestra la prueba)" : "");
       proximaAccion = millis() + INTERVALO_MS;
       return;
     case Envio::TOKEN_VENCIDO:
@@ -608,8 +666,57 @@ String textoAire(const Lectura &lectura) {
   return temperatura + "°C " + String((int)lroundf(lectura.humedad)) + "%";
 }
 
+// La condicion del estado de prueba, con su tilde.
+String textoCondicion(const String &condicion) {
+  if (condicion == "DECAIDA") return "DECAÍDA";
+  return condicion;  // SANA, MARCHITA
+}
+
+// Para el monitor serie: «FLORECIDA, MARCHITA, cara CRITICO, necesita EXCESO_AGUA» o «SEMILLA, SANA, cara
+// SALUDABLE, dormida».
+String resumenPrueba(const PruebaMatera &prueba) {
+  String texto = prueba.etapa + ", " + prueba.condicion + ", cara " + prueba.cara;
+  if (prueba.dormida) texto += ", dormida";
+  if (prueba.necesidad.length() > 0) texto += ", necesita " + prueba.necesidad;
+  return texto;
+}
+
+// Dice en el monitor serie cuando llega un estado de prueba (o cambia) y cuando se quita.
+void avisarCambioDePrueba(const PruebaMatera &antes, const PruebaMatera &ahora) {
+  if (ahora.activa) {
+    const String resumen = resumenPrueba(ahora);
+    if (!antes.activa || resumenPrueba(antes) != resumen) {
+      Serial.printf("Estado de prueba: %s. La pantalla lo muestra en vez de lo real.\n", resumen.c_str());
+    }
+  } else if (antes.activa) {
+    Serial.println("Se quitó el estado de prueba: la pantalla vuelve a lo real.");
+  }
+}
+
+// El estado de prueba en vez de lo real: la carita de prueba.cara (o dormida), la etapa, la condicion y abajo
+// el globo de su necesidad o el estado de la cara. Lo que falla ahora (`problema`) va antes que todo eso.
+// Devuelve si la pantalla parpadea: con la cara CRITICO, salvo que duerma.
+bool dibujarPrueba(const PruebaMatera &prueba, const String &problema) {
+  String etapaEnMinusculas = prueba.etapa;
+  etapaEnMinusculas.toLowerCase();
+  String linea;
+  bool globo = false;
+  if (problema.length() > 0) {
+    linea = problema;
+  } else if (prueba.dormida) {
+    linea = "zzz... dormida";  // la letra no tiene «…»: va en la chica, 70 puntos
+  } else {
+    const String necesita = textoNecesidad(prueba.necesidad);
+    globo = necesita.length() > 0;
+    linea = globo ? necesita : textoEstado(prueba.cara);
+  }
+  const Cara cara = prueba.dormida ? Cara::DORMIDA : caraDe(prueba.cara);
+  pantallaPrueba(cara, etapaEnMinusculas, textoCondicion(prueba.condicion), linea, globo);
+  return !prueba.dormida && prueba.cara == "CRITICO";
+}
+
 void actualizarPantalla() {
-  const bool parpadea = etapa == Etapa::CONECTADA && hayEstado && estadoMatera.estado == "CRITICO";
+  bool parpadea = false;
   // Lo que se esta haciendo con BOOT, o un aviso de unos segundos, va antes que la etapa.
   const unsigned long apretado = bootApretado ? millis() - bootDesde : 0;
   if (apretado >= BOOT_CUENTA_MS) {
@@ -623,6 +730,11 @@ void actualizarPantalla() {
     return;
   }
   hayMensaje = false;
+  // La orden «prueba» del monitor serie tapa la etapa, incluido el QR, hasta «prueba fin».
+  if (hayPruebaDeConsola) {
+    pantallaParpadeo(dibujarPrueba(pruebaDeConsola, ""));
+    return;
+  }
   // Con la red propia abierta para la app, el QR.
   if (redPropiaAbierta() && esperandoApp) {
     pantallaRedPropia(redPropiaNombre(), redPropiaClave());
@@ -645,11 +757,14 @@ void actualizarPantalla() {
     case Etapa::CONECTADA:
       if (!hayEstado) {
         pantallaConectada(codigo, problema.length() > 0 ? problema : String("tomando la primera lectura..."));
+      } else if (estadoMatera.prueba.activa) {
+        parpadea = dibujarPrueba(estadoMatera.prueba, problema);
       } else {
         const String necesita = textoNecesidad(estadoMatera.necesidad);
         const bool globo = problema.length() == 0 && necesita.length() > 0;
         const String linea = problema.length() > 0 ? problema : (globo ? necesita : textoAire(ultimaLectura));
         pantallaMatera(caraDe(estadoMatera.estado), estadoMatera.apodo, textoEstado(estadoMatera.estado), linea, globo);
+        parpadea = estadoMatera.estado == "CRITICO";
       }
       break;
   }
@@ -737,6 +852,7 @@ void setup() {
   Serial.printf("Matera inteligente · sensor %s · MAC %s\n", codigo.c_str(), textoMac.c_str());
   autopruebaIdentidad();
   autopruebaJson();
+  autopruebaApi();
 
   pantallaIniciar();
   pantallaBienvenida(codigo);

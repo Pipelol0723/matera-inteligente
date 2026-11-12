@@ -73,6 +73,50 @@ Canje apiCanjear(const String &base, const String &codigo, const String &clave, 
   return Canje::OTRA_RESPUESTA;
 }
 
+void apiLeerEstado(const String &json, EstadoMatera &estado) {
+  estado = EstadoMatera();
+  jsonTexto(json, "planta.apodo", estado.apodo);
+  jsonTexto(json, "diagnostico.estado", estado.estado);
+  jsonTexto(json, "necesidad", estado.necesidad);  // null o ausente: sin globo
+  PruebaMatera &prueba = estado.prueba;
+  prueba.activa = jsonHayObjeto(json, "prueba");  // null o ausente: sin prueba
+  if (!prueba.activa) return;
+  jsonTexto(json, "prueba.etapa", prueba.etapa);
+  jsonTexto(json, "prueba.condicion", prueba.condicion);
+  jsonTexto(json, "prueba.cara", prueba.cara);
+  jsonBooleano(json, "prueba.dormida", prueba.dormida);
+  jsonTexto(json, "prueba.necesidad", prueba.necesidad);
+}
+
+bool autopruebaApi() {
+  // Con prueba: la pantalla usa la prueba, pero el estado y la necesidad reales tambien se leen.
+  const String conPrueba =
+      "{\"planta\": {\"id\": 7, \"apodo\": \"sala\"}, \"diagnostico\": {\"estado\": \"SALUDABLE\"}, \"necesidad\": null,"
+      " \"prueba\": {\"etapa\": \"FLORECIDA\", \"condicion\": \"MARCHITA\", \"cara\": \"CRITICO\", \"dormida\": false,"
+      " \"necesidad\": \"EXCESO_AGUA\"}}";
+  EstadoMatera estado;
+  apiLeerEstado(conPrueba, estado);
+  const PruebaMatera &prueba = estado.prueba;
+  bool bien = estado.apodo == "sala" && estado.estado == "SALUDABLE" && estado.necesidad.length() == 0 &&
+              prueba.activa && prueba.etapa == "FLORECIDA" && prueba.condicion == "MARCHITA" && prueba.cara == "CRITICO" &&
+              !prueba.dormida && prueba.necesidad == "EXCESO_AGUA";
+
+  // Dormida y sin necesidad.
+  apiLeerEstado("{\"diagnostico\": {\"estado\": \"CRITICO\"}, \"necesidad\": \"SED\", \"prueba\": {\"etapa\": \"SEMILLA\","
+                " \"condicion\": \"SANA\", \"cara\": \"SALUDABLE\", \"dormida\": true, \"necesidad\": null}}",
+                estado);
+  bien = bien && estado.necesidad == "SED" && prueba.activa && prueba.dormida && prueba.necesidad.length() == 0;
+
+  // "prueba": null, y una respuesta de un backend de antes, sin el campo: sin prueba.
+  apiLeerEstado("{\"diagnostico\": {\"estado\": \"EN_RIESGO\"}, \"necesidad\": \"FRIO\", \"prueba\": null}", estado);
+  bien = bien && estado.estado == "EN_RIESGO" && estado.necesidad == "FRIO" && !prueba.activa;
+  apiLeerEstado("{\"diagnostico\": {\"estado\": \"EN_RIESGO\"}, \"necesidad\": null}", estado);
+  bien = bien && estado.estado == "EN_RIESGO" && !prueba.activa && prueba.etapa.length() == 0;
+
+  Serial.printf("Autoprueba: estado de prueba en la respuesta 201 -> %s\n", bien ? "bien" : "FALLA");
+  return bien;
+}
+
 Envio apiEnviarLectura(const String &base, const String &codigo, const String &token, const String &momento,
                        const Lectura &lectura, EstadoMatera &estado, RespuestaApi &respuesta) {
   const String cuerpo = String("{\"dispositivo\":") + jsonComillas(codigo) + ",\"momento\":" + jsonComillas(momento) +
@@ -81,10 +125,7 @@ Envio apiEnviarLectura(const String &base, const String &codigo, const String &t
   const String texto = enviar(base + "/dispositivos/" + codigo + "/lecturas", cuerpo, token, respuesta);
   if (respuesta.http <= 0) return Envio::SIN_RESPUESTA;
   if (respuesta.http == 201 && respuesta.json) {
-    estado = EstadoMatera();
-    jsonTexto(texto, "planta.apodo", estado.apodo);
-    jsonTexto(texto, "diagnostico.estado", estado.estado);
-    jsonTexto(texto, "necesidad", estado.necesidad);  // null o ausente: sin globo
+    apiLeerEstado(texto, estado);
     return Envio::ACEPTADA;
   }
   if (respuesta.http == 401 && respuesta.error == "CREDENCIAL_DISPOSITIVO_INVALIDA") return Envio::TOKEN_VENCIDO;

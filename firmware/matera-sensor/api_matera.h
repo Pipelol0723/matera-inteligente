@@ -7,9 +7,12 @@
 //        POST {base}/dispositivos/{codigo}/lecturas
 //        Authorization: Bearer <JWT>
 //        {"dispositivo":"MT-5500-BA","momento":"2026-10-22T15:04:05Z","lecturas":{"humedad":53.0,"luz":1500,"temperatura":25.5}}
-//        -> 201 {"planta":{"apodo":...},"momento":...,"diagnostico":{"estado":...},"necesidad":"SED"|null}
+//        -> 201 {"planta":{"apodo":...},"momento":...,"diagnostico":{"estado":...},"necesidad":"SED"|null,
+//                "prueba":null|{"etapa":"SEMILLA",...}}
 //           · 401 CREDENCIAL_DISPOSITIVO_INVALIDA si el token vencio o lo reemplazo otro canje
-// La placa no decide nada: el estado, la necesidad y las recomendaciones los calcula el backend.
+// La placa no decide nada: el estado, la necesidad y las recomendaciones los calcula el backend. Si un admin
+// le puso a la matera un estado de prueba, la respuesta lo trae en "prueba" y la pantalla lo muestra en vez
+// de lo real; "diagnostico.estado" y "necesidad" siguen siendo los reales.
 #pragma once
 
 #include <Arduino.h>
@@ -43,12 +46,30 @@ bool apiProbarServidor(const String &base, const String &codigo, RespuestaApi &r
 
 Canje apiCanjear(const String &base, const String &codigo, const String &clave, String &token, RespuestaApi &respuesta);
 
+// El estado de prueba que un admin le pone a su matera desde la app: el campo "prueba" de la respuesta 201.
+// "prueba": null, o sin el campo (un backend de antes), es «sin prueba».
+struct PruebaMatera {
+  bool activa = false;  // "prueba" es un objeto
+  String etapa;         // SEMILLA, BROTE, PLANTA o FLORECIDA
+  String condicion;     // SANA, DECAIDA o MARCHITA
+  String cara;          // SALUDABLE, EN_RIESGO o CRITICO
+  bool dormida = false;
+  String necesidad;     // como EstadoMatera::necesidad; vacia si es null
+};
+
 // Lo que la placa muestra de la respuesta 201.
 struct EstadoMatera {
   String apodo;      // planta.apodo
   String estado;     // diagnostico.estado: SALUDABLE, EN_RIESGO o CRITICO
   String necesidad;  // SED, EXCESO_AGUA, FRIO, CALOR, POCA_LUZ, MUCHA_LUZ; vacia si es null o no vino
+  PruebaMatera prueba;
 };
+
+// Lee el cuerpo de una respuesta 201 de la lectura.
+void apiLeerEstado(const String &json, EstadoMatera &estado);
+
+// Revisa apiLeerEstado con respuestas de ejemplo (con prueba, con "prueba": null y sin el campo).
+bool autopruebaApi();
 
 enum class Envio {
   ACEPTADA,         // 201

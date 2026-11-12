@@ -43,6 +43,16 @@ class Lector {
 
   void avanzar() { pos_++; }
 
+  // Si sigue la palabra `palabra` entera (true, false), la salta. «trueish» no es «true».
+  bool saltarPalabra(const char *palabra) {
+    espacios();
+    const size_t n = strlen(palabra);
+    if (pos_ + n > largo_ || strncmp(texto_ + pos_, palabra, n) != 0) return false;
+    if (pos_ + n < largo_ && isalnum((uint8_t)texto_[pos_ + n])) return false;
+    pos_ += n;
+    return true;
+  }
+
   bool alFinal() {
     espacios();
     return pos_ >= largo_;
@@ -205,6 +215,25 @@ bool jsonTexto(const String &json, const char *ruta, String &valor) {
   return true;
 }
 
+bool jsonHayObjeto(const String &json, const char *ruta) {
+  Lector lector(json);
+  return lector.ir(ruta) && lector.sigue('{');
+}
+
+bool jsonBooleano(const String &json, const char *ruta, bool &valor) {
+  Lector lector(json);
+  if (!lector.ir(ruta)) return false;
+  if (lector.saltarPalabra("true")) {
+    valor = true;
+    return true;
+  }
+  if (lector.saltarPalabra("false")) {
+    valor = false;
+    return true;
+  }
+  return false;
+}
+
 int jsonTextos(const String &json, const char *ruta, String destino[], int maximo) {
   Lector lector(json);
   if (!lector.ir(ruta) || !lector.sigue('[')) return -1;
@@ -263,6 +292,17 @@ bool autopruebaJson() {
   String nada;
   bien = bien && !jsonTexto("{\"planta\":{},\"necesidad\":null}", "necesidad", nada);
   bien = bien && !jsonTexto("{\"planta\":{\"necesidad\":\"SED\"}}", "necesidad", nada);
+
+  // El estado de prueba: un objeto con un booleano y un null adentro; null o sin el campo, no hay objeto.
+  const String conPrueba =
+      "{\"necesidad\": \"SED\", \"prueba\": {\"cara\": \"CRITICO\", \"dormida\": true, \"necesidad\": null}}";
+  bool dormida = false;
+  bien = bien && jsonHayObjeto(conPrueba, "prueba") && jsonBooleano(conPrueba, "prueba.dormida", dormida) && dormida &&
+         jsonTexto(conPrueba, "prueba.cara", nada) && nada == "CRITICO" && !jsonTexto(conPrueba, "prueba.necesidad", nada);
+  bien = bien && !jsonHayObjeto("{\"prueba\": null}", "prueba") && !jsonHayObjeto("{\"planta\": {}}", "prueba") &&
+         !jsonHayObjeto("{\"planta\": {\"prueba\": {}}}", "prueba");
+  bien = bien && jsonBooleano("{\"a\": false}", "a", dormida) && !dormida && !jsonBooleano("{\"a\": \"true\"}", "a", dormida) &&
+         !jsonBooleano("{\"a\": null}", "a", dormida) && !jsonBooleano("{\"a\": 1}", "a", dormida);
 
   // Lo que manda la app a POST /configurar.
   String servidores[MAX_PRUEBA];

@@ -88,6 +88,13 @@ void pie(const String &texto) {
   centrado(CHICA, 61, texto.substring(corte + 1));
 }
 
+// Una «z» de `lado` puntos, con la esquina de arriba a la izquierda en (x, y).
+void dibujarZ(int x, int y, int lado) {
+  oled.drawHLine(x, y, lado + 1);
+  oled.drawLine(x + lado, y, x, y + lado);
+  oled.drawHLine(x, y + lado, lado + 1);
+}
+
 // Las caritas de la prueba de pantalla (radio 27), escaladas al radio `r`.
 void dibujarCara(int cx, int cy, int r, Cara cara) {
   auto e = [r](int v) { return (v * r + 13) / 27; };
@@ -113,6 +120,17 @@ void dibujarCara(int cx, int cy, int r, Cara cara) {
       oled.drawCircle(cx, cy + e(20), e(11), U8G2_DRAW_UPPER_LEFT | U8G2_DRAW_UPPER_RIGHT);
       oled.drawCircle(cx, cy + e(20), e(10), U8G2_DRAW_UPPER_LEFT | U8G2_DRAW_UPPER_RIGHT);
       break;
+    case Cara::DORMIDA:
+      // Los ojos cerrados son dos rayitas del grosor de las bocas; la boca, una «o» chica. Las dos «z» van
+      // arriba a la derecha, sobre el circulo y a 2 puntos de el (con r = 25, de x = 37 a x = 50, y de y = 0
+      // a y = 7): la chica cerca de la cara y la grande mas arriba, lejos de la columna de texto (x = 57).
+      oled.drawBox(cx - e(10) - e(4), cy - e(7), 2 * e(4) + 1, 2);
+      oled.drawBox(cx + e(10) - e(4), cy - e(7), 2 * e(4) + 1, 2);
+      oled.drawCircle(cx, cy + e(12), e(4));
+      oled.drawCircle(cx, cy + e(12), e(4) - 1);
+      dibujarZ(cx + e(11), cy - e(31), e(4));
+      dibujarZ(cx + e(18), cy - e(35), e(6));
+      break;
   }
 }
 
@@ -128,6 +146,20 @@ void dibujarGlobo(int x, int y, int ancho, int alto, const String &texto) {
   oled.setFont(CHICA);
   const String linea = ajustar(texto, ancho - 4);
   oled.drawUTF8(x + (ancho - oled.getUTF8Width(linea.c_str())) / 2, medio + 3, linea.c_str());
+}
+
+// La columna de la derecha de pantallaMatera y pantallaPrueba, a la derecha de la carita.
+const int COLUMNA = 57;
+const int ANCHO_COLUMNA = ANCHO - COLUMNA;  // 71 puntos
+
+// La linea de abajo de la columna: el globo, o una linea en letra normal (o chica, si no cabe).
+void lineaDeAbajo(const String &linea, bool globo) {
+  if (globo) {
+    dibujarGlobo(55, 40, ANCHO - 55, 19, linea);
+  } else {
+    oled.setFont(LETRA);
+    escribir(oled.getUTF8Width(linea.c_str()) > ANCHO_COLUMNA ? CHICA : LETRA, COLUMNA, 52, linea, ANCHO_COLUMNA);
+  }
 }
 
 // El QR se dibuja dentro de esp_qrcode_generate, que llama a esta funcion con los modulos ya calculados.
@@ -214,16 +246,21 @@ void pantallaConectada(const String &codigo, const String &detalle) {
 void pantallaMatera(Cara cara, const String &apodo, const String &estado, const String &linea, bool globo) {
   if (!empezar("matera|" + String((int)cara) + "|" + apodo + "|" + estado + "|" + linea + "|" + String(globo))) return;
   dibujarCara(27, 32, 25, cara);  // ocupa de x = 2 a x = 52
-  const int x = 57;
-  const int ancho = ANCHO - x;  // 71 puntos
-  escribir(LETRA, x, 14, apodo, ancho);
-  escribir(NEGRITA, x, 33, estado, ancho);
-  if (globo) {
-    dibujarGlobo(55, 40, ANCHO - 55, 19, linea);
-  } else {
-    oled.setFont(LETRA);
-    escribir(oled.getUTF8Width(linea.c_str()) > ancho ? CHICA : LETRA, x, 52, linea, ancho);
-  }
+  escribir(LETRA, COLUMNA, 14, apodo, ANCHO_COLUMNA);
+  escribir(NEGRITA, COLUMNA, 33, estado, ANCHO_COLUMNA);
+  lineaDeAbajo(linea, globo);
+  terminar();
+}
+
+void pantallaPrueba(Cara cara, const String &etapa, const String &condicion, const String &linea, bool globo) {
+  if (!empezar("prueba|" + String((int)cara) + "|" + etapa + "|" + condicion + "|" + linea + "|" + String(globo))) return;
+  dibujarCara(27, 32, 25, cara);
+  // «prueba·florecida» no cabe en 71 puntos ni con la letra chica (80): van en dos lineas, «prueba» chica
+  // arriba y la etapa en letra normal (florecida: 54 puntos).
+  escribir(CHICA, COLUMNA, 7, "prueba", ANCHO_COLUMNA);
+  escribir(LETRA, COLUMNA, 19, etapa, ANCHO_COLUMNA);
+  escribir(NEGRITA, COLUMNA, 33, condicion, ANCHO_COLUMNA);  // MARCHITA: 56 puntos
+  lineaDeAbajo(linea, globo);
   terminar();
 }
 

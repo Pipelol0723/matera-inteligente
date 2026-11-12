@@ -22,7 +22,7 @@ Al arrancar, la placa imprime su código, su MAC y su huella, y revisa estos vec
 | SHA-256 de `abc` | `ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad` |
 | base64url de los bytes 0 a 31 | `AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8` |
 
-También revisa el lector de JSON con una respuesta 201 de ejemplo.
+También revisa el lector de JSON con una respuesta 201 de ejemplo, y cómo lee el campo `prueba` (con prueba, dormida, `"prueba": null` y sin el campo): `Autoprueba: estado de prueba en la respuesta 201 -> bien`.
 
 ## Etapas y pantallas
 
@@ -32,7 +32,7 @@ También revisa el lector de JSON con una respuesta 201 de ejemplo.
 | `conectando` | «Conectando a «red»...» y el motivo, si la red lo rechaza. | Se une al WiFi. Si no entra en 60 s, o la red rechaza la clave dos veces, abre su red otra vez. |
 | `buscando-servidor` | «Conectada a «red»», «buscando el servidor...» y la dirección que prueba. | Prueba cada dirección, empezando por la que respondió la última vez, primero **sin la clave**: el canje con el cuerpo `{}` tiene que dar el 400 en JSON de la API, con su campo `error`. Solo entonces canjea allí con la clave, y cualquier respuesta JSON de ese canje, incluido un 401, dice que ese es el servidor. Así la clave nunca va a una dirección equivocada (la lista de la app puede traer IPs de adaptadores virtuales). |
 | `esperando-matera` | «Agrégame en la app» y el código grande. | Reintenta el canje cada 5 s mientras la API responda 401: la matera todavía no existe. Con 403 `CUENTA_DESACTIVADA` dice «cuenta en pausa». |
-| `conectada` | La carita a la izquierda; a la derecha el apodo, el estado y la temperatura y la humedad, o el globo de lo que necesita. | Manda una lectura cada `INTERVALO_MS` (15 s). Si el token deja de servir, vuelve a canjear; si la clave ya no sirve (le cambiaron el sensor a la matera, o la borraron), vuelve a `esperando-matera`. |
+| `conectada` | La carita a la izquierda; a la derecha el apodo, el estado y la temperatura y la humedad, o el globo de lo que necesita. Si un admin le puso un estado de prueba, la prueba en vez de lo real (ver abajo). | Manda una lectura cada `INTERVALO_MS` (15 s). Si el token deja de servir, vuelve a canjear; si la clave ya no sirve (le cambiaron el sensor a la matera, o la borraron), vuelve a `esperando-matera`. |
 
 En `conectada` todo sale de la respuesta 201 de la lectura: el apodo de `planta.apodo`, el estado de `diagnostico.estado` y el globo del campo `necesidad`. La placa no decide ninguna regla.
 
@@ -53,6 +53,29 @@ En `conectada` todo sale de la respuesta 201 de la lectura: el apodo de `planta.
 | `null`, o no viene | sin globo: la temperatura y la humedad, por ejemplo `24,5°C 53%` |
 
 Si algo falla mientras está conectada (la API no responde, el DHT11 no contesta, falta la hora), esa línea lo dice. Después de 3 envíos seguidos sin respuesta, vuelve a buscar el servidor.
+
+### El estado de prueba
+
+Un admin le puede poner a su matera un **estado de prueba** desde la app, para mostrar cómo se ve cada etapa del juego sin esperar. La respuesta 201 de cada lectura lo trae en el campo `prueba`:
+
+```json
+"prueba": null
+"prueba": {"etapa": "FLORECIDA", "condicion": "MARCHITA", "cara": "CRITICO", "dormida": false, "necesidad": "EXCESO_AGUA"}
+```
+
+`diagnostico.estado` y `necesidad` siguen siendo los reales (el monitor serie los imprime), pero mientras `prueba` no sea `null` **la pantalla muestra la prueba en vez de lo real**. Cuando el admin toca «Volver a lo normal», la respuesta siguiente trae `"prueba": null` y la pantalla vuelve a lo real con esa lectura, a los 15 s como mucho. Una respuesta sin el campo (un backend de antes) también es «sin prueba».
+
+| Parte | Con prueba |
+|---|---|
+| Carita | La de `prueba.cara`: `SALUDABLE` feliz, `EN_RIESGO` preocupada, `CRITICO` triste. Si `dormida` es `true`, la carita dormida: los ojos cerrados (dos rayitas), una «o» chica de boca y dos «z» arriba a la derecha, fuera del círculo. |
+| Arriba, en lugar del apodo | «prueba» en letra chica y, debajo, la etapa en minúsculas: `semilla`, `brote`, `planta` o `florecida`. Van en dos líneas porque «prueba·florecida» no cabe en los 71 puntos de la columna ni con la letra chica (ocupa 80). |
+| En negrita | La condición: SANA, DECAÍDA o MARCHITA. |
+| Abajo | El globo de `prueba.necesidad`, con los textos de la tabla de arriba. Sin necesidad, el estado de la cara: SALUDABLE, EN RIESGO o CRÍTICO. Si duerme, «zzz... dormida» en letra chica y sin globo (la letra no tiene «…»). Si algo falla (la API no responde...), esa línea lo dice, como siempre. |
+| Parpadeo | Con la cara `CRITICO`, salvo que duerma. El estado real ya no cuenta. |
+
+El monitor serie dice cuándo llega una prueba o cambia (`Estado de prueba: FLORECIDA, MARCHITA, cara CRITICO, necesita EXCESO_AGUA. La pantalla lo muestra en vez de lo real.`) y cuándo se quita (`Se quitó el estado de prueba: la pantalla vuelve a lo real.`). Cada lectura sigue imprimiendo el estado real, con «(la pantalla muestra la prueba)» al final.
+
+La placa no decide nada del juego: no revisa ni combina los valores, solo los dibuja. Un valor que no conoce sale tal cual (una cara desconocida, preocupada; una necesidad desconocida, sin globo). Para ver cada combinación sin la API está la orden `prueba` del monitor serie (abajo).
 
 ## La red propia
 
@@ -219,13 +242,15 @@ Mientras se mantiene, la pantalla muestra los segundos y una barra con la marca 
 
 ## Órdenes por el monitor serie
 
-Para probar el modo de conexión sin apretar BOOT ni olvidar la red, se escribe en el monitor serie (115 200 baudios, con salto de línea al final):
+Para probar el modo de conexión sin apretar BOOT ni olvidar la red, y la pantalla del estado de prueba sin la API, se escribe en el monitor serie (115 200 baudios, con salto de línea al final):
 
 | Orden | Qué hace |
 |---|---|
 | `conexion` | Abre el modo de conexión (red propia y Bluetooth) sin olvidar la red, como cuando el servidor no responde. Se cierra solo a los 10 minutos sin uso, como siempre. |
 | `cerrar` | Lo cierra, si la placa tiene una red guardada. |
 | `memoria` | Imprime el flash que usa el programa y la RAM libre. |
+| `prueba <cara> <condicion> <etapa> <dormida> [necesidad]` | Solo para probar: dibuja ese estado de prueba sin la API, en cualquier etapa (tapa también el QR), con su parpadeo. `cara` es `SALUDABLE`, `EN_RIESGO` o `CRITICO`; `condicion`, `SANA`, `DECAIDA` o `MARCHITA`; `etapa`, `SEMILLA`, `BROTE`, `PLANTA` o `FLORECIDA`; `dormida`, `si` o `no`; `necesidad`, una de la tabla del globo, o nada (o `-`). Acepta minúsculas. Por ejemplo `prueba CRITICO MARCHITA FLORECIDA no EXCESO_AGUA` o `prueba saludable sana semilla si`. Si algo no existe, imprime el uso. |
+| `prueba fin` | Quita la prueba de la consola: la pantalla vuelve a la etapa. Reiniciar la placa también la quita. |
 
 ## Lo que manda a la API
 
@@ -248,6 +273,13 @@ Las mismas dos rutas del simulador (`simulador/simulador_esp32.py`):
    Authorization: Bearer <el token del canje>
 
    {"dispositivo":"MT-7518-JP","momento":"2026-10-22T15:04:05Z","lecturas":{"humedad":53.0,"luz":1500,"temperatura":25.5}}
+   ```
+
+   La respuesta 201 trae lo que muestra la pantalla: el apodo, el estado real, lo que necesita y, si un admin le puso uno, el estado de prueba (sección «El estado de prueba»).
+
+   ```json
+   {"planta": {"id": 7, "apodo": "sala", ...}, "momento": "...", "diagnostico": {"estado": "SALUDABLE", ...},
+    "necesidad": null, "prueba": null}
    ```
 
 **Humedad:** el DHT11 mide la del aire, y para la demo se manda esa, y se avisa en la presentación. **Luz:** el módulo LDR solo dice si hay luz o no, así que se mandan 1500 lux con luz y 50 sin luz.
@@ -326,7 +358,7 @@ Los archivos del programa:
 | `api_local.*` | El contrato de la API local: `info`, `configurar`, `estado` y `cerrar`, sus validaciones y las redes que ve la placa. Lo usan los dos adaptadores. |
 | `red_propia.*` | El modo de conexión: la red propia, su DNS y el adaptador HTTP de la API local. Enciende y apaga el Bluetooth. |
 | `bluetooth.*` | El adaptador Bluetooth LE de la API local (NimBLE): la clave, los intentos, los pedidos y las respuestas en trozos. |
-| `api_matera.*` | El canje y las lecturas. |
+| `api_matera.*` | El canje, las lecturas y lo que se lee de la respuesta 201, con el estado de prueba. |
 | `sensores.*` | El DHT11 y el LDR. |
 | `pantalla.*` | Las pantallas, la carita, el globo, el QR y el parpadeo. |
 | `lector_json.*` | El lector de JSON mínimo. |
@@ -352,7 +384,7 @@ El backend tiene que escuchar en la red, no solo en el PC: se arranca con `MATER
 
 ## Qué dice la placa
 
-El monitor serie va a **115 200 baudios**: el código, la MAC y la huella al arrancar, la autoprueba, cada cambio de etapa (`[conectando] ...`), cada lectura con la respuesta de la API (`201: «sala» está SALUDABLE`) y los errores con su código. Al arrancar y al abrir y cerrar el modo de conexión imprime la memoria (`Memoria, modo de conexión abierto (...): programa ... de 3145728 bytes (40 %); RAM libre ... bytes (mínima ..., bloque mayor ...)`). Con el Bluetooth encendido imprime cada conexión, cada pedido con su código (`Bluetooth: «info» -> 200 ...`) y cada clave equivocada (nunca la clave).
+El monitor serie va a **115 200 baudios**: el código, la MAC y la huella al arrancar, la autoprueba, cada cambio de etapa (`[conectando] ...`), cada lectura con la respuesta de la API (`201: «sala» está SALUDABLE`), cuándo llega y cuándo se quita un estado de prueba, y los errores con su código. Al arrancar y al abrir y cerrar el modo de conexión imprime la memoria (`Memoria, modo de conexión abierto (...): programa ... de 3145728 bytes (40 %); RAM libre ... bytes (mínima ..., bloque mayor ...)`). Con el Bluetooth encendido imprime cada conexión, cada pedido con su código (`Bluetooth: «info» -> 200 ...`) y cada clave equivocada (nunca la clave).
 
 | LED | Significa |
 |---|---|

@@ -7,7 +7,8 @@
 
 #include <Arduino.h>
 
-enum class Cara : uint8_t { FELIZ, PREOCUPADA, TRISTE };
+// DORMIDA: los ojos cerrados y unas «z», para el estado de prueba de una matera dormida.
+enum class Cara : uint8_t { FELIZ, PREOCUPADA, TRISTE, DORMIDA };
 
 // Busca la pantalla en 0x3C (y 0x3D). Devuelve false si no responde.
 bool pantallaIniciar();
@@ -30,6 +31,10 @@ void pantallaConectada(const String &codigo, const String &detalle);
 // La carita a la izquierda; a la derecha el apodo, el estado y una linea: la temperatura y la humedad, un
 // aviso, o el globo con lo que necesita (`globo` = true).
 void pantallaMatera(Cara cara, const String &apodo, const String &estado, const String &linea, bool globo);
+
+// El estado de prueba que puso un admin: como pantallaMatera, pero arriba dice «prueba» en letra chica y
+// debajo la etapa («florecida»), en lugar del apodo; en negrita, la condicion.
+void pantallaPrueba(Cara cara, const String &etapa, const String &condicion, const String &linea, bool globo);
 
 // Un mensaje de tres lineas: un titulo, una linea en negrita y un pie chico.
 void pantallaAviso(const String &titulo, const String &destacado, const String &pie);
