@@ -481,10 +481,21 @@ def test_el_tiempo_marchita_no_hace_crecer():
     juego = Juego(minutos_por_dia=2)
     sala = juego.matera(ANA, "sala")
 
-    juego.leer(sala, *[R] * 30, cada=CADA_5_S)
+    juego.leer(sala, *[C] * 30, cada=CADA_5_S)
     mascota = juego.mascota(ANA, sala)
 
     assert (mascota.horas_cuidada, mascota.etapa, mascota.condicion) == (0, EtapaCrecimiento.SEMILLA, Condicion.MARCHITA)
+    assert mascota.puntos == -300
+
+
+def test_siempre_en_riesgo_queda_decaida_y_crece():
+    juego = Juego(minutos_por_dia=2)
+    sala = juego.matera(ANA, "sala")
+
+    juego.leer(sala, *[R] * 30, cada=CADA_5_S)
+    mascota = juego.mascota(ANA, sala)
+
+    assert (mascota.horas_cuidada, mascota.etapa, mascota.condicion) == (30, EtapaCrecimiento.BROTE, Condicion.DECAIDA)
     assert mascota.puntos == -150
 
 
@@ -515,13 +526,13 @@ def test_avisa_al_pasar_a_critico_y_al_marchitarse():
     juego = Juego()
     sala = juego.matera(ANA, "sala")
     avisos = []
-    for estado in (S, S, C, C, C, C, C, C):
+    for estado in (S, S, C, C, C, C, C, C, C):
         juego.leer(sala, estado)
         avisos.append(juego.mascota(ANA, sala).aviso)
         juego.reloj.avanzar(timedelta(minutes=1))
 
-    # Al octavo, el promedio de la ventana llega a -5: se marchita.
-    assert avisos == [None, None, Aviso.PASO_A_CRITICO, None, None, None, None, Aviso.SE_MARCHITO]
+    # Al octavo, el promedio de la ventana llega a -5 y sigue decaida; al noveno baja de -5: se marchita.
+    assert avisos == [None, None, Aviso.PASO_A_CRITICO, None, None, None, None, None, Aviso.SE_MARCHITO]
 
 
 # --- Puertos de entrada del juego ---

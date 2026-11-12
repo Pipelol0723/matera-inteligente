@@ -171,22 +171,33 @@ def test_el_ritmo_tiene_que_ser_creciente(ritmo):
         RitmoCrecimiento(*ritmo)
 
 
-def test_solo_cuentan_las_horas_con_promedio_mayor_que_menos_5():
+def test_solo_cuentan_las_horas_con_promedio_de_menos_5_o_mas():
     horas = {
         0: tramo(S),  # 10
         1: tramo(S, R, R),  # 0: decaida, cuenta
         2: tramo(S, C, C),  # -3,3: decaida, cuenta
-        3: tramo(R),  # -5: marchita, no cuenta
+        3: tramo(R),  # -5: decaida, cuenta
         4: tramo(C, S, C),  # -3,3: cuenta
         5: tramo(C),  # -10: no cuenta
         6: tramo(R, R, C, S),  # -2,5: cuenta
+        7: tramo(R, C),  # -7,5: marchita, no cuenta
     }
 
-    assert armar(ResumenCuidado(horas, Tramo())).horas_cuidada == 5
+    assert armar(ResumenCuidado(horas, Tramo())).horas_cuidada == 6
+
+
+def test_siempre_en_riesgo_queda_decaida_y_sigue_creciendo():
+    en_riesgo = {numero: tramo(R) for numero in range(200)}
+
+    mascota = armar(ResumenCuidado(en_riesgo, tramo(R)))
+
+    assert mascota.condicion is Condicion.DECAIDA
+    assert mascota.horas_cuidada == 200
+    assert mascota.etapa is not EtapaCrecimiento.SEMILLA
 
 
 def test_el_tiempo_marchita_no_hace_crecer():
-    marchitas = {numero: tramo(R) for numero in range(200)}
+    marchitas = {numero: tramo(C) for numero in range(200)}
 
     mascota = armar(ResumenCuidado(marchitas, Tramo()))
 
@@ -214,8 +225,10 @@ def test_sin_lecturas_es_una_semilla_dormida_sin_cara():
         ((S, C), Condicion.DECAIDA),  # 0: no es mayor que 0
         ((S, C, C), Condicion.DECAIDA),  # -3,3
         ((S, C, C, R, R), Condicion.DECAIDA),  # -4
-        ((R,), Condicion.MARCHITA),  # -5: igual a -5 ya es marchita
-        ((S, C, C, C), Condicion.MARCHITA),  # -5
+        ((R,), Condicion.DECAIDA),  # -5: siempre en riesgo queda decaida
+        ((S, C, C, C), Condicion.DECAIDA),  # -5
+        ((S, C, C, C, C), Condicion.MARCHITA),  # -6: menos de -5 ya es marchita
+        ((R, C), Condicion.MARCHITA),  # -7,5
         ((C,), Condicion.MARCHITA),
     ],
 )
@@ -299,7 +312,7 @@ def test_la_primera_lectura_critica_tambien_avisa():
 
 
 def test_avisa_al_marchitarse():
-    resumen = resumen_con((S, C, C, C), anterior=C)  # sin la ultima: -3,3; con ella: -5
+    resumen = resumen_con((S, C, C, C, C), anterior=C)  # sin la ultima: -5; con ella: -6
 
     assert CuidadoDeMascota(REAL).aviso(resumen) is Aviso.SE_MARCHITO
 
@@ -311,7 +324,7 @@ def test_no_avisa_si_ya_estaba_marchita():
 
 
 def test_si_pasan_las_dos_cosas_gana_se_marchito():
-    resumen = resumen_con((C, C, S, C), anterior=S)  # sin la ultima: -3,3; con ella: -5
+    resumen = resumen_con((C, C, C, S, C), anterior=S)  # sin la ultima: -5; con ella: -6
 
     assert CuidadoDeMascota(REAL).aviso(resumen) is Aviso.SE_MARCHITO
 

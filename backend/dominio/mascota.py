@@ -165,6 +165,10 @@ class Tramo:
         """suma / cantidad > umbral, sin dividir. Solo tiene sentido si el tramo tiene lecturas."""
         return self.suma > umbral * self.cantidad
 
+    def promedio_al_menos(self, umbral: int) -> bool:
+        """suma / cantidad >= umbral, sin dividir. Solo tiene sentido si el tramo tiene lecturas."""
+        return self.suma >= umbral * self.cantidad
+
     def sin(self, puntos: int) -> "Tramo":
         """El mismo tramo sin una de sus lecturas: como estaba antes de que llegara."""
         return Tramo(self.cantidad - 1, self.suma - puntos)
@@ -225,7 +229,8 @@ class CuidadoDeMascota:
 
     # La condicion mira las lecturas de las ultimas horas de juego, no solo la ultima.
     HORAS_DE_LA_CONDICION = 6
-    # Promedio mayor que UMBRAL_SANA: sana. Igual o menor que UMBRAL_MARCHITA: marchita. En medio: decaida.
+    # Promedio mayor que UMBRAL_SANA: sana. Menor que UMBRAL_MARCHITA: marchita. En medio, con los dos
+    # umbrales incluidos, decaida: una matera que esta siempre EN_RIESGO (-5) queda decaida y sigue creciendo.
     UMBRAL_SANA = 0
     UMBRAL_MARCHITA = -5
     MINUTOS_PARA_DORMIR = 30
@@ -273,7 +278,7 @@ class CuidadoDeMascota:
         """Sin lecturas en el tramo queda sana: no hay evidencia de descuido."""
         if tramo.vacio or tramo.promedio_mayor_que(self.UMBRAL_SANA):
             return Condicion.SANA
-        if tramo.promedio_mayor_que(self.UMBRAL_MARCHITA):
+        if tramo.promedio_al_menos(self.UMBRAL_MARCHITA):
             return Condicion.DECAIDA
         return Condicion.MARCHITA
 
