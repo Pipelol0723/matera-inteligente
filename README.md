@@ -48,6 +48,11 @@ frontend/            HTML, CSS y JavaScript estáticos, servidos aparte
   js/participacion.js  la pregunta de participar en la tabla de posiciones
   js/avisos.js       los avisos del juego: notificación del navegador o aviso dentro de la página
   js/conectar-sensor.js  el asistente «Conectar sensor»: lleva una placa nueva a su WiFi y a su matera
+  js/canal-placa.js  el puerto CanalPlaca: lo que el asistente le pide a la placa (info, configurar, estado, cerrar)
+  js/canal-red-placa.js     su adaptador por la red propia de la placa (HTTP en 192.168.4.1)
+  js/canal-bluetooth.js     el contrato Bluetooth LE: pedidos en pedazos de 20 bytes y respuestas en trozos
+  js/canal-bluetooth-web.js su adaptador por Web Bluetooth (Chrome o Edge)
+  js/canales-placa.js       qué canales ofrece el asistente: el punto de composición del lado del cliente
   js/historial.js    historial de una planta
   js/admin.js        administración de cuentas y especies
   js/formularios.js  errores de la API en los formularios
@@ -457,21 +462,37 @@ Sirve para mostrar en la demo cada estado de la matera Tamagotchi sin esperar a 
 
 ## Conectar una matera
 
-Desde el corte 3, una placa nueva se conecta sin tocar `config.h` ni volver a subir el programa. La placa saca su código de la MAC (`MT-0000-XX`, como siempre), crea su propia clave y abre una red WiFi con un QR en su pantalla. La app se une a esa red, le entrega el WiFi y la dirección del servidor, y crea la matera con el código y la huella de esa clave. Todo lo de la placa (etapas, pantallas, API local en `192.168.4.1`, botón BOOT y cómo compilar) está en [firmware/README.md](firmware/README.md).
+Desde el corte 3, una placa nueva se conecta sin tocar `config.h` ni volver a subir el programa. La placa saca su código de la MAC (`MT-0000-XX`, como siempre), crea su propia clave, abre una red WiFi con un QR en su pantalla y se anuncia por Bluetooth. La app le entrega el WiFi y la dirección del servidor por Bluetooth o uniéndose a esa red, y crea la matera con el código y la huella de esa clave. Todo lo de la placa (etapas, pantallas, API local en `192.168.4.1`, Bluetooth LE, botón BOOT y cómo compilar) está en [firmware/README.md](firmware/README.md).
 
 Antes de empezar:
 - El backend tiene que escuchar en la red, con `MATERA_HOST=0.0.0.0` y el puerto 5000 abierto en el firewall (ver [Mediciones de un ESP32](#mediciones-de-un-esp32-en-la-red)).
 - La placa y el PC van en el mismo WiFi, de 2,4 GHz y con salida a internet (la placa toma la hora por NTP).
 
 **El recorrido del asistente.** «Agregar matera» pide apodo y especie y abre el asistente «Conectar sensor» (`js/conectar-sensor.js`); «Cambiar sensor», en una tarjeta, abre el mismo asistente y conserva el historial. Son seis pasos:
-1. **Preparar.** Mientras el equipo sigue en su WiFi, la app pide `GET /red` y anota a qué direcciones mandará la placa sus lecturas. Si la lista viene vacía (el backend escucha solo en `127.0.0.1`), muestra el aviso de la API y no sigue.
-2. **Unirse a la placa.** La pantalla de la matera muestra un QR con su red (`Matera-` y el código, por ejemplo `Matera-5500BA`) y una clave WPA2 de 8 caracteres, nueva cada vez. Se escanea con la cámara del celular, o en el PC se elige esa red y se escribe la clave. La app encuentra la placa sola en `http://192.168.4.1` (`GET /info`: el código, la huella de su clave y las redes que ve).
-3. **Elegir el WiFi.** La red y su clave van directo a la placa (`POST /configurar`), con las direcciones del paso 1. La app sigue sus etapas con `GET /estado`: `conectando`, `buscando-servidor` y `esperando-matera`. La placa prueba cada dirección primero sin la clave, y solo se la manda a la que responde como la API.
-4. **Volver a su red.** La placa apaga su red (`POST /cerrar`) y la app espera a que la API vuelva a responder.
+1. **Preparar.** Mientras el equipo sigue en su WiFi, la app pide `GET /red` y anota a qué direcciones mandará la placa sus lecturas (como máximo 4). Si la lista viene vacía (el backend escucha solo en `127.0.0.1`), muestra el aviso de la API y no sigue. Después se elige el camino: **por Bluetooth** (el recomendado: el equipo no deja su WiFi) o **por la red de la placa**. Bluetooth solo se ofrece si el navegador tiene Web Bluetooth: Chrome o Edge, con el front en `localhost` o con HTTPS. Si no, el asistente dice por qué y ofrece solo la red de la placa.
+2. **Encontrar la placa** (por Bluetooth) **o unirse a ella** (por su red). La pantalla de la matera muestra un QR con su red (`Matera-` y el código, por ejemplo `Matera-5500BA`) y una clave WPA2 de 8 caracteres, nueva cada vez.
+   - Por Bluetooth se escribe esa clave en la app, el navegador muestra la lista de placas cercanas y se elige la que se llama como la red. La app pide `info` con la clave.
+   - Por la red de la placa, se escanea el QR con la cámara del celular, o en el PC se elige esa red y se escribe la clave. La app encuentra la placa sola en `http://192.168.4.1` (`GET /info`).
+   - En los dos casos la placa responde su código, la huella de su clave y las redes que ve.
+3. **Elegir el WiFi.** La red y su clave van directo a la placa (`configurar`), con las direcciones del paso 1. La app sigue sus etapas con `estado`: `conectando`, `buscando-servidor` y `esperando-matera`. La placa prueba cada dirección primero sin la clave, y solo se la manda a la que responde como la API.
+4. **Volver a su red** (o, por Bluetooth, **cerrar la conexión**). La placa apaga su red y su Bluetooth (`cerrar`). Con la red de la placa, la app espera a que la API vuelva a responder.
 5. **Crear la matera** (`POST /plantas`) o **cambiar el sensor** (`PUT /plantas/{id}/sensor`), con el código y la huella. La respuesta no trae clave: la clave nunca sale de la placa, salvo hacia la API en el canje.
 6. **Primera lectura.** La placa canjea su clave cada 5 s hasta que la API reconoce la matera, y manda su primera lectura. La app la espera y muestra su estado. La pantalla de la placa pasa de «Agrégame en la app» a la carita.
 
-El avance se guarda en `sessionStorage`, porque al cambiar de red la página puede recargarse; la clave del WiFi nunca se guarda. El código, la huella y las etapas los decide la placa, y el estado lo calcula la API: el asistente solo los muestra. La secuencia completa está en [`secuencia-conexion-placa`](docs/diagramas/README.md#secuencia-de-la-conexión-de-una-placa). Para probarlo sin la placa, se abre el front con `?placa=http://127.0.0.1:8099` y se pone ahí un doble de la API local de la placa; solo se acepta una dirección de este mismo equipo o de la red de la placa (192.168.4.x), para que un enlace con `?placa=` no pueda llevarse la clave del WiFi a otro equipo.
+**Dos caminos, un puerto.** Es puertos y adaptadores también del lado del cliente. El asistente solo conoce el puerto `CanalPlaca` (`js/canal-placa.js`), con las cuatro operaciones de la API local de la placa: `info`, `configurar`, `estado` y `cerrar`. Cada adaptador lo hereda y lo traduce a su transporte:
+- `RedDeLaPlaca` (`js/canal-red-placa.js`): HTTP en `192.168.4.1`.
+- `BluetoothWeb` (`js/canal-bluetooth-web.js`): Web Bluetooth. El contrato común de Bluetooth está en `CanalBluetooth` (`js/canal-bluetooth.js`): cada pedido se escribe en pedazos de 20 bytes, sin escrituras largas; la respuesta llega en trozos con 3 bytes de cabecera y se junta antes de leer el UTF-8; las notificaciones se activan antes del primer pedido, y mientras la clave sirve se pide `estado` cada 45 s para que la placa no corte la conexión.
+
+`js/canales-placa.js` es el punto de composición, como `main.py` en el backend: dice qué adaptadores se ofrecen y en qué orden. El asistente no importa ninguno. Cada canal declara si deja la red (mientras tanto no hay API) y si pide la clave de la pantalla, y el asistente solo mira eso. Así, `BluetoothNativo` (la app Android con Capacitor) hereda de `CanalBluetooth`, pone su transporte y se agrega a esa lista, sin tocar el asistente.
+
+**Si un camino falla.** Los errores de la placa llegan con su código, igual por los dos caminos:
+- `401 CLAVE_INCORRECTA` dice cuántos intentos quedan, y se corrige la clave sin volver a la lista de placas.
+- `429 DEMASIADOS_INTENTOS` (5 claves equivocadas) bloquea la placa 60 s: el botón espera con la cuenta atrás.
+- Si la placa corta la conexión (2 minutos sin pedidos, o un corte), el siguiente pedido se reconecta solo a la misma placa.
+- Cerrar la lista de placas sin elegir no es un error: se puede volver a buscar.
+- Con el Bluetooth apagado o caído, el asistente lo dice y ofrece **seguir por la red de la placa**. Se conserva lo ya escrito: el apodo, la clave de la pantalla (que es la misma de la red) y la red y la clave del WiFi. Desde la red de la placa también se puede pasar a Bluetooth.
+
+El avance se guarda en `sessionStorage`, porque al cambiar de red la página puede recargarse. Se guardan el paso y el camino, nunca la clave del WiFi ni la de la pantalla: si la página se recarga por Bluetooth, se vuelve a escribir la clave. El código, la huella y las etapas los decide la placa, y el estado lo calcula la API: el asistente solo los muestra. La secuencia completa está en [`secuencia-conexion-placa`](docs/diagramas/README.md#secuencia-de-la-conexión-de-una-placa). Para probarlo sin la placa, se abre el front con `?placa=http://127.0.0.1:8099` y se pone ahí un doble de la API local de la placa; solo se acepta una dirección de este mismo equipo o de la red de la placa (192.168.4.x), para que un enlace con `?placa=` no pueda llevarse la clave del WiFi a otro equipo.
 
 **Abrir el front desde el celular.** Hace falta si el asistente se usa desde un celular, o para mostrar la app en él:
 1. Arrancar el backend con `MATERA_HOST=0.0.0.0`. Así, además de escuchar en la red, acepta el front desde `http://<IP del PC>:5500` en CORS y en el WebSocket (el puerto sale de `MATERA_PUERTO_FRONT`).
@@ -488,7 +509,9 @@ El avance se guarda en `sessionStorage`, porque al cambiar de red la página pue
 Por la red local el front va en http, así que el celular no muestra notificaciones del navegador: los avisos del juego aparecen dentro de la página y el celular vibra.
 
 **Límites conocidos.**
-- **El celular que hace de hotspot no puede unirse a la red de la placa.** El asistente se usa desde el PC (con el front en `localhost`, la app sigue alcanzando la API al cambiar de red) o desde el celular de otra persona.
+- **El celular que hace de hotspot no puede unirse a la red de la placa.** Por Bluetooth sí funciona, si el navegador lo permite. Si no, el asistente se usa desde el PC (con el front en `localhost`, la app sigue alcanzando la API al cambiar de red) o desde el celular de otra persona.
+- **Web Bluetooth necesita HTTPS o `localhost`.** Con el front abierto desde el celular por `http://<IP del PC>:5500`, el navegador no lo ofrece y queda la red de la placa. En Windows, el Bluetooth de Chrome a veces no conecta: el asistente reintenta y, si sigue fallando, ofrece la red de la placa.
+- **El enlace Bluetooth no va cifrado**, igual que la red propia con su clave de 8 caracteres (ver «Seguridad» en el README del firmware).
 - **Apagar los datos móviles** mientras el celular está en la red de la placa: con ellos encendidos, Android puede mandar las peticiones por los datos y no llegar a `192.168.4.1`.
 - **Chrome puede pedir permiso para buscar dispositivos de la red local.** Hay que elegir Permitir; el asistente lo recuerda en sus pistas.
 - La red de la placa acepta un solo equipo a la vez, y no tiene internet: es normal.
