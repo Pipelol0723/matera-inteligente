@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="css/componentes.css">
   <link rel="stylesheet" href="css/armazon.css">
   <link rel="stylesheet" href="css/estilos.css">
+  <link rel="stylesheet" href="css/diagnostico.css">
   <link rel="stylesheet" href="css/modo-prueba.css">
   <!-- Clásico y sin defer: pone el estilo y el tema en <html> antes de pintar (ver js/apariencia.js). -->
   <script src="js/apariencia.js"></script>
@@ -83,63 +84,60 @@
     </div>
   </header>
 
+  <!-- Diagnóstico (corte 3): sin valores escritos a mano. Se elige una matera y se ve su Tamagotchi, su
+       última lectura real y lo que la API decide de ella (js/diagnostico.js). -->
   <main id="pantalla-diagnostico" class="pantalla diagnostico">
-    <section class="columna">
-      <div class="tarjeta">
-        <label class="rotulo" for="especie">Especie</label>
-        <select id="especie" class="selector" disabled>
-          <option>Cargando especies…</option>
-        </select>
-        <p id="cientifico" class="cientifico"></p>
-      </div>
+    <div class="diagnostico__encabezado">
+      <p class="ceja">Sus materas en vivo</p>
+      <h1 class="titulo">Diagnóstico</h1>
+      <p id="diagnostico-bajada" class="bajada bajada--sin-margen bajada--angosta">Cargando sus materas…</p>
+      <p id="diagnostico-consulta" class="consulta"></p>
+    </div>
+    <div id="error-diagnostico" class="tarjeta-error diagnostico__error" role="alert" hidden></div>
+    <p id="diagnostico-aviso" class="diagnostico__aviso" role="status" hidden></p>
 
-      <div class="tarjeta mediciones">
-        <div class="mediciones__cabecera">
-          <p class="rotulo">Mediciones</p>
-          <span class="nota">entrada manual</span>
-        </div>
-        <div id="campos" class="campos"></div>
-        <div id="escenarios" class="escenarios" aria-label="Valores de ejemplo"></div>
-      </div>
-    </section>
+    <div id="diagnostico-menu" class="diagnostico__menu" role="tablist" aria-label="Sus materas" hidden></div>
 
-    <section class="columna">
-      <div class="tarjeta terrario">
-        <div class="terrario__dial">
-          <svg id="anillos" class="terrario__anillos" viewBox="0 0 340 340" aria-hidden="true"></svg>
-          <div id="pulso" class="terrario__pulso"></div>
-          <div class="terrario__centro" aria-live="polite">
-            <p id="estado-global" class="terrario__estado">Sin datos</p>
-            <p id="estado-especie" class="terrario__especie"></p>
+    <div id="diagnostico-panel" class="diagnostico__panel" role="tabpanel" hidden>
+      <article class="tarjeta diagnostico__matera">
+        <div id="diagnostico-mascota" class="diagnostico__mascota"></div>
+        <div class="diagnostico__datos">
+          <div class="diagnostico__nombres">
+            <h2 id="diagnostico-apodo" class="diagnostico__apodo"></h2>
+            <p id="diagnostico-especie" class="diagnostico__especie"></p>
           </div>
+          <div id="diagnostico-juego" class="diagnostico__juego"></div>
         </div>
-        <div id="lecturas" class="lecturas"></div>
-      </div>
-    </section>
-
-    <section class="columna">
-      <div id="error" class="tarjeta-error" role="alert" hidden>
-        <p id="error-codigo" class="tarjeta-error__codigo"></p>
-        <p id="error-mensaje" class="tarjeta-error__mensaje"></p>
-        <p id="error-detalle" class="tarjeta-error__detalle"></p>
-      </div>
-
-      <div class="tarjeta">
-        <p class="rotulo">Qué hacer ahora</p>
-        <div id="recomendaciones" class="recomendaciones"></div>
-      </div>
-
-      <div class="tarjeta tarjeta--punteada">
-        <p class="rotulo">Errores de la API</p>
-        <p class="pruebas__texto">Cada botón envía a propósito una petición inválida.</p>
-        <div id="pruebas" class="pruebas">
-          <button type="button" class="prueba" data-prueba="especie-inexistente">Especie inexistente</button>
-          <button type="button" class="prueba" data-prueba="humedad-vacia">Humedad vacía</button>
-          <button type="button" class="prueba" data-prueba="luz-no-numerica">Luz no numérica</button>
-          <button type="button" class="prueba" data-prueba="humedad-imposible">Humedad de 150 %</button>
-          <button type="button" class="prueba" data-prueba="sin-conexion">Sin conexión con la API</button>
+        <p id="diagnostico-nota" class="diagnostico__nota"></p>
+        <div class="diagnostico__acciones">
+          <button id="diagnostico-historial" type="button" class="boton-contorno">Ver su historial</button>
         </div>
+      </article>
+
+      <div class="diagnostico__resultado">
+        <section id="diagnostico-estado" class="tarjeta diagnostico__estado" aria-labelledby="diagnostico-estado-titulo">
+          <h2 id="diagnostico-estado-titulo" class="rotulo">Diagnóstico de la última lectura</h2>
+          <div class="diagnostico__veredicto">
+            <span class="diagnostico__veredicto-punto" aria-hidden="true"></span>
+            <p id="diagnostico-veredicto" class="diagnostico__veredicto-texto" aria-live="polite"></p>
+          </div>
+          <p id="diagnostico-detalle" class="diagnostico__detalle"></p>
+          <div id="error-diagnostico-api" class="tarjeta-error" role="alert" hidden></div>
+          <div id="diagnostico-lecturas" class="diagnostico__lecturas"></div>
+        </section>
+
+        <section id="diagnostico-consejos" class="tarjeta diagnostico__consejos" aria-labelledby="diagnostico-consejos-titulo">
+          <h2 id="diagnostico-consejos-titulo" class="rotulo">Qué hacer ahora</h2>
+          <ol id="diagnostico-recomendaciones" class="diagnostico__recomendaciones"></ol>
+        </section>
       </div>
+    </div>
+
+    <section id="diagnostico-vacio" class="tarjeta diagnostico__vacio" aria-labelledby="diagnostico-vacio-titulo" hidden>
+      <div id="diagnostico-vacio-dibujo" class="diagnostico__vacio-dibujo"></div>
+      <h2 id="diagnostico-vacio-titulo" class="diagnostico__vacio-titulo">Todavía no tiene materas</h2>
+      <p class="diagnostico__vacio-texto">Agregue la primera en Mis materas: el asistente conecta su placa a su WiFi y a su cuenta. Apenas llegue su primera lectura, aquí verá su diagnóstico.</p>
+      <a class="boton-primario" href="#materas">Ir a Mis materas</a>
     </section>
   </main>
 

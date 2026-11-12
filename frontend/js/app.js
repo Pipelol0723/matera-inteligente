@@ -76,6 +76,7 @@ contexto.juego = crearJuego(contexto);
 const diagnostico = crearPantallaDiagnostico(contexto);
 const especies = crearPantallaEspecies(contexto);
 const pantallas = {
+  diagnostico,
   acceso: crearPantallaAcceso(contexto),
   cuenta: crearPantallaCuenta(contexto),
   materas: crearPantallaMateras(contexto),
@@ -129,6 +130,7 @@ function pintarSesion() {
     tiempoReal.conectar();
   } else {
     tiempoReal.desconectar();
+    diagnostico.reiniciar();
     pantallas.materas.reiniciar();
     pantallas.historial.reiniciar();
     pantallas.cuenta.reiniciar();

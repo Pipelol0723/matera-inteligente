@@ -1,0 +1,753 @@
+/* Diagnóstico (corte 3): el menú de materas, la matera Tamagotchi elegida, su última lectura y lo que la API
+   decide de ella (js/diagnostico.js). Solo usa las variables de variables.css, así sirve en los dos estilos y
+   los cuatro temas. En Profesional manda el diagnóstico; en Juego, la matera Tamagotchi va en grande, en su
+   «pantallita» del color de su condición. Los colores de cada estado los pone el JavaScript con las mismas
+   variables (--estado, --estado-fondo, --consejo y --consejo-fondo). */
+
+.diagnostico__encabezado {
+  margin-bottom: 20px;
+}
+
+.diagnostico__error {
+  margin-bottom: 16px;
+}
+
+.diagnostico__aviso {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border: var(--borde-ancho) solid var(--borde-acento);
+  border-radius: var(--radio-m);
+  background: var(--acento-suave);
+  font-size: 0.9rem;
+  text-wrap: pretty;
+}
+
+/* ---- el menú de materas: una ficha por matera ---- */
+
+/* En el celular, una fila que se desplaza de lado y llega hasta los bordes de la pantalla. */
+.diagnostico__menu {
+  display: flex;
+  gap: 10px;
+  margin: 0 calc(-1 * var(--margen-lateral)) 14px;
+  padding: 4px var(--margen-lateral) 12px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-padding-inline: var(--margen-lateral);
+  scrollbar-width: none; /* la ficha cortada en el borde ya dice que hay más */
+}
+
+.diagnostico__menu::-webkit-scrollbar {
+  display: none;
+}
+
+.diagnostico__ficha {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 260px;
+  min-height: 54px;
+  padding: 5px 16px 5px 5px;
+  border: var(--borde-ancho) solid var(--borde);
+  border-radius: var(--radio-pildora);
+  background: var(--superficie);
+  box-shadow: var(--sombra-tarjeta);
+  font: inherit;
+  line-height: 1.2;
+  text-align: left;
+  color: var(--tinta);
+  cursor: pointer;
+  transition: border-color var(--movimiento), background-color var(--movimiento), color var(--movimiento),
+    transform 0.08s ease;
+}
+
+.diagnostico__ficha:hover {
+  border-color: var(--borde-acento);
+}
+
+.diagnostico__ficha[aria-selected="true"] {
+  border-color: var(--acento);
+  background: var(--acento-suave);
+  box-shadow: inset 0 0 0 1px var(--acento);
+}
+
+/* El dibujo pequeño, recortado en un círculo con el fondo de su condición. El lienzo es más ancho que el
+   círculo: se centra la planta y se deja ver la maceta. */
+.diagnostico__ficha-dibujo {
+  position: relative;
+  flex: none;
+  width: 42px;
+  height: 42px;
+  overflow: hidden;
+  border: 1px solid var(--borde-suave);
+  border-radius: 50%;
+  background: var(--pantallita);
+}
+
+.diagnostico__ficha-dibujo svg {
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  width: 60px;
+  max-width: none;
+  transform: translateX(-50%);
+}
+
+.diagnostico__ficha-dibujo.planta--sana {
+  background: var(--pantallita-sana);
+}
+
+.diagnostico__ficha-dibujo.planta--decaida {
+  background: var(--pantallita-decaida);
+}
+
+.diagnostico__ficha-dibujo.planta--marchita {
+  background: var(--pantallita-marchita);
+}
+
+.diagnostico__ficha-dibujo.planta--dormida {
+  background: var(--pantallita-dormida);
+}
+
+.diagnostico__ficha-nombres {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.diagnostico__ficha-apodo {
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diagnostico__ficha-especie {
+  font-size: 0.76rem;
+  white-space: nowrap;
+  color: var(--tenue);
+}
+
+/* El color de la última medición, como en Mis materas (el estado lo manda la API). */
+.diagnostico__ficha-punto {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 2px var(--superficie);
+}
+
+/* ---- el panel de la matera elegida ---- */
+
+.diagnostico__panel {
+  display: grid;
+  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+
+/* La matera Tamagotchi y sus datos. */
+.diagnostico__matera {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.diagnostico__mascota {
+  border-radius: var(--radio-m);
+}
+
+.diagnostico__mascota--nueva {
+  animation: destello 1.8s ease-out;
+}
+
+.diagnostico__planta {
+  width: 100%;
+  padding: 8px 20% 2px;
+  border: 1px solid var(--borde-suave);
+  border-radius: var(--radio-m);
+  background: var(--pantallita);
+}
+
+.diagnostico__planta.planta--sana {
+  background: var(--pantallita-sana);
+}
+
+.diagnostico__planta.planta--decaida {
+  background: var(--pantallita-decaida);
+}
+
+.diagnostico__planta.planta--marchita {
+  background: var(--pantallita-marchita);
+}
+
+/* De noche: unas estrellas sobre el cielo (en Profesional, --estrella es transparente). */
+.diagnostico__planta.planta--dormida {
+  background:
+    radial-gradient(1.6px 1.6px at 14% 22%, var(--estrella) 98%, transparent),
+    radial-gradient(1.2px 1.2px at 30% 10%, var(--estrella) 98%, transparent),
+    radial-gradient(1.8px 1.8px at 78% 18%, var(--estrella) 98%, transparent),
+    radial-gradient(1.2px 1.2px at 88% 40%, var(--estrella) 98%, transparent),
+    radial-gradient(1.4px 1.4px at 8% 52%, var(--estrella) 98%, transparent),
+    radial-gradient(1.2px 1.2px at 64% 6%, var(--estrella) 98%, transparent),
+    var(--pantallita-dormida);
+}
+
+.diagnostico__datos {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.diagnostico__apodo {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: var(--titulo-peso);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.diagnostico__especie {
+  margin: 2px 0 0;
+  font-size: 0.88rem;
+  color: var(--tenue);
+}
+
+.diagnostico__cientifico {
+  font-style: italic;
+}
+
+.diagnostico__juego {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.diagnostico__puntos {
+  margin: 0;
+  font-family: var(--fuente-titulo);
+  font-size: 1.6rem;
+  font-weight: var(--titulo-peso);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.diagnostico__puntos-unidad {
+  font-family: var(--fuente-texto);
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--tenue);
+}
+
+.diagnostico__etapa {
+  margin: 4px 0 2px;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.diagnostico__cuidado {
+  margin: 0;
+  font-size: 0.8rem;
+  text-wrap: pretty;
+  color: var(--tenue);
+}
+
+.diagnostico__nota {
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--borde-suave);
+  font-size: 0.8rem;
+  text-wrap: pretty;
+  color: var(--tenue);
+}
+
+.diagnostico__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ---- el diagnóstico de la última lectura ---- */
+
+.diagnostico__resultado {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.diagnostico__estado {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.diagnostico__estado .rotulo,
+.diagnostico__consejos .rotulo {
+  margin: 0;
+}
+
+.diagnostico__estado--nuevo {
+  animation: destello 1.8s ease-out;
+}
+
+/* El estado global que respondió la API, con su color y un pulso suave. */
+.diagnostico__veredicto {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.diagnostico__veredicto-punto {
+  position: relative;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--estado, var(--sin-estado));
+}
+
+.diagnostico__veredicto-punto::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: var(--estado, var(--sin-estado));
+  opacity: 0;
+  animation: diagnostico-pulso 2.6s ease-out infinite;
+}
+
+.diagnostico__estado[data-estado=""] .diagnostico__veredicto-punto::after {
+  animation: none;
+}
+
+.diagnostico__veredicto-texto {
+  margin: 0;
+  font-family: var(--fuente-titulo);
+  font-size: 2rem;
+  font-weight: var(--titulo-peso);
+  letter-spacing: var(--titulo-espaciado);
+  line-height: 1.1;
+  color: var(--estado, var(--sin-estado));
+}
+
+.diagnostico__detalle {
+  margin: 0;
+  font-size: 0.86rem;
+  text-wrap: pretty;
+  color: var(--tenue);
+}
+
+@keyframes diagnostico-pulso {
+  0% {
+    opacity: 0.45;
+    transform: scale(0.6);
+  }
+  80%,
+  100% {
+    opacity: 0;
+    transform: scale(1.3);
+  }
+}
+
+/* Una fila por parámetro: el valor leído, su escala, su estado y su rango óptimo según la API. La banda es ese
+   rango y la marca, el valor: solo ubican los números en la escala. La fila se acomoda al ancho que tiene
+   (una consulta de contenedor), que cambia con el estilo y con la pantalla. */
+.diagnostico__lecturas {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  container-type: inline-size;
+}
+
+.diagnostico__lectura {
+  display: grid;
+  /* Columnas fijas, para que los valores y las escalas de las filas queden alineados. */
+  grid-template-columns: 8.5rem 8.5rem minmax(60px, 1fr) 5.5rem;
+  grid-template-areas:
+    "nombre valor pista estado"
+    ". rango rango .";
+  align-items: center;
+  gap: 2px 16px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: var(--borde-ancho) solid var(--borde-suave);
+  border-radius: var(--radio-m);
+  background: var(--superficie-suave);
+}
+
+.diagnostico__lectura-nombre {
+  grid-area: nombre;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tenue);
+}
+
+.diagnostico__lectura-muestra {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.diagnostico__lectura-valor {
+  grid-area: valor;
+  margin: 0;
+  font-family: var(--fuente-titulo);
+  font-size: 1.45rem;
+  font-weight: var(--titulo-peso);
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.diagnostico__lectura-estado {
+  grid-area: estado;
+  justify-self: end;
+}
+
+/* Angosta (el celular): el nombre y el estado arriba; el valor y su escala debajo. */
+@container (max-width: 520px) {
+  .diagnostico__lectura {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "nombre nombre estado"
+      "valor pista pista"
+      "rango rango rango";
+    gap: 6px 14px;
+  }
+}
+
+.diagnostico__pista {
+  grid-area: pista;
+  position: relative;
+  height: 8px;
+  margin: 4px 0;
+  border-radius: var(--radio-pildora);
+  background: var(--superficie);
+  box-shadow: inset 0 0 0 1px var(--borde);
+}
+
+.diagnostico__banda {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--radio-pildora);
+  background: var(--saludable-fondo);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--saludable) 35%, transparent);
+}
+
+.diagnostico__marca {
+  position: absolute;
+  top: -5px;
+  width: 4px;
+  height: 18px;
+  border-radius: 2px;
+  box-shadow: 0 0 0 2px var(--superficie-suave);
+  transform: translateX(-2px);
+}
+
+.diagnostico__lectura-rango {
+  grid-area: rango;
+  margin: 0;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--tenue);
+}
+
+/* Qué hacer ahora: las recomendaciones de la API, numeradas, del color de su estado global. */
+.diagnostico__consejos {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.diagnostico__recomendaciones {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: consejo;
+}
+
+.diagnostico__consejo {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radio-m);
+  background: var(--consejo-fondo, var(--superficie-suave));
+  font-size: 0.92rem;
+  text-wrap: pretty;
+  counter-increment: consejo;
+}
+
+.diagnostico__consejo::before {
+  content: counter(consejo);
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-top: -2px;
+  border-radius: 50%;
+  background: var(--superficie);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--consejo, var(--tenue));
+}
+
+.diagnostico__recomendaciones--vacia .diagnostico__consejo::before {
+  content: "\2713";
+}
+
+/* ---- sin materas ---- */
+
+.diagnostico__vacio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-width: 560px;
+  margin: 8px auto 0;
+  padding: 32px 24px;
+  text-align: center;
+}
+
+.diagnostico__vacio-dibujo {
+  width: 140px;
+}
+
+.diagnostico__vacio-titulo {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: var(--titulo-peso);
+  line-height: 1.2;
+}
+
+.diagnostico__vacio-texto {
+  margin: 0;
+  text-wrap: pretty;
+  color: var(--tenue);
+}
+
+/* El enlace con forma de botón: sin subrayado y sin el color de los enlaces al pasar por encima. */
+.diagnostico__vacio .boton-primario,
+.diagnostico__vacio .boton-primario:hover {
+  margin-top: 6px;
+  text-decoration: none;
+  color: var(--sobre-acento);
+}
+
+/* ---- estilo Juego: la matera Tamagotchi al frente ---- */
+
+:root[data-estilo="juego"] .diagnostico__ficha {
+  min-height: 58px;
+}
+
+:root[data-estilo="juego"] .diagnostico__ficha[aria-selected="true"] {
+  border-color: var(--acento);
+  background: var(--acento);
+  box-shadow: var(--sombra-boton);
+  color: var(--sobre-acento);
+}
+
+:root[data-estilo="juego"] .diagnostico__ficha[aria-selected="true"] .diagnostico__ficha-especie {
+  color: inherit;
+}
+
+:root[data-estilo="juego"] .diagnostico__ficha:active:not([aria-selected="true"]) {
+  transform: translateY(1px) scale(0.98);
+}
+
+:root[data-estilo="juego"] .diagnostico__ficha-dibujo {
+  width: 46px;
+  height: 46px;
+  border-width: var(--borde-ancho);
+}
+
+:root[data-estilo="juego"] .diagnostico__ficha-dibujo svg {
+  width: 66px;
+}
+
+:root[data-estilo="juego"] .diagnostico__panel {
+  grid-template-columns: minmax(0, 430px) minmax(0, 1fr);
+}
+
+:root[data-estilo="juego"] .diagnostico__matera {
+  gap: 14px;
+  padding: 14px 14px 20px;
+  text-align: center;
+}
+
+:root[data-estilo="juego"] .diagnostico__planta {
+  padding: 14px 16% 4px;
+  border-width: var(--borde-ancho);
+  border-radius: calc(var(--radio-l) - 4px);
+  background: radial-gradient(34% 7% at 50% 95%, var(--sombra-color-fuerte), transparent 70%), var(--pantallita);
+}
+
+:root[data-estilo="juego"] .diagnostico__planta.planta--sana {
+  background: radial-gradient(34% 7% at 50% 95%, var(--sombra-color-fuerte), transparent 70%), var(--pantallita-sana);
+}
+
+:root[data-estilo="juego"] .diagnostico__planta.planta--decaida {
+  background: radial-gradient(34% 7% at 50% 95%, var(--sombra-color-fuerte), transparent 70%), var(--pantallita-decaida);
+}
+
+:root[data-estilo="juego"] .diagnostico__planta.planta--marchita {
+  background: radial-gradient(34% 7% at 50% 95%, var(--sombra-color-fuerte), transparent 70%), var(--pantallita-marchita);
+}
+
+:root[data-estilo="juego"] .diagnostico__planta.planta--dormida {
+  background:
+    radial-gradient(1.6px 1.6px at 14% 22%, var(--estrella) 98%, transparent),
+    radial-gradient(1.2px 1.2px at 30% 10%, var(--estrella) 98%, transparent),
+    radial-gradient(1.8px 1.8px at 78% 18%, var(--estrella) 98%, transparent),
+    radial-gradient(1.2px 1.2px at 88% 40%, var(--estrella) 98%, transparent),
+    radial-gradient(1.4px 1.4px at 8% 52%, var(--estrella) 98%, transparent),
+    radial-gradient(1.2px 1.2px at 64% 6%, var(--estrella) 98%, transparent),
+    var(--pantallita-dormida);
+}
+
+/* La planta feliz da un saltito de vez en cuando (la animación es la de Mis materas, en estilos.css). */
+:root[data-estilo="juego"] .diagnostico__planta.planta--feliz svg {
+  animation: brinco 3.6s ease-in-out infinite;
+}
+
+:root[data-estilo="juego"] .diagnostico__apodo {
+  font-size: 1.7rem;
+}
+
+:root[data-estilo="juego"] .diagnostico__juego {
+  align-items: center;
+  gap: 6px;
+}
+
+:root[data-estilo="juego"] .diagnostico__puntos {
+  font-size: 2.3rem;
+}
+
+:root[data-estilo="juego"] .diagnostico__etapa {
+  margin: 0;
+  padding: 4px 12px;
+  border: var(--borde-ancho) solid var(--borde-acento);
+  border-radius: var(--radio-pildora);
+  background: var(--acento-suave);
+  font-size: 0.84rem;
+  color: var(--acento-texto);
+}
+
+:root[data-estilo="juego"] .diagnostico__acciones {
+  justify-content: center;
+}
+
+/* El estado global, en una franja del color de su estado. */
+:root[data-estilo="juego"] .diagnostico__veredicto {
+  padding: 12px 16px;
+  border: var(--borde-ancho) solid color-mix(in srgb, var(--estado, var(--sin-estado)) 35%, transparent);
+  border-radius: var(--radio-l);
+  background: var(--estado-fondo, var(--sin-estado-fondo));
+}
+
+:root[data-estilo="juego"] .diagnostico__veredicto-texto {
+  font-size: 2.2rem;
+}
+
+:root[data-estilo="juego"] .diagnostico__lectura {
+  background: var(--superficie);
+}
+
+:root[data-estilo="juego"] .diagnostico__pista {
+  height: 10px;
+  background: var(--superficie-suave);
+}
+
+:root[data-estilo="juego"] .diagnostico__marca {
+  width: 6px;
+  height: 20px;
+  border-radius: 3px;
+  box-shadow: 0 0 0 2px var(--superficie);
+  transform: translateX(-3px);
+}
+
+/* ---- pantallas más angostas ---- */
+
+/* Desde la tableta, las fichas caben en filas: no hace falta desplazarlas de lado. */
+@media (min-width: 760px) {
+  .diagnostico__menu {
+    flex-wrap: wrap;
+    margin-inline: 0;
+    padding-inline: 0;
+    overflow: visible;
+  }
+}
+
+/* En una sola columna: en Profesional, el dibujo va al lado de sus datos, como en Mis materas; en Juego,
+   la matera sigue al frente, pero sin pasar de un ancho cómodo. */
+@media (max-width: 899.98px) {
+  .diagnostico__panel,
+  :root[data-estilo="juego"] .diagnostico__panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :root[data-estilo="juego"] .diagnostico__mascota {
+    width: 100%;
+    max-width: 440px;
+    margin-inline: auto;
+  }
+
+  :root:not([data-estilo="juego"]) .diagnostico__matera {
+    display: grid;
+    grid-template-columns: 116px minmax(0, 1fr);
+    align-items: center;
+    gap: 12px 14px;
+  }
+
+  :root:not([data-estilo="juego"]) .diagnostico__planta {
+    padding: 6px 4px 0;
+  }
+
+  :root:not([data-estilo="juego"]) .diagnostico__nota,
+  :root:not([data-estilo="juego"]) .diagnostico__acciones {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 759.98px) {
+  .diagnostico__veredicto-texto {
+    font-size: 1.7rem;
+  }
+
+  :root[data-estilo="juego"] .diagnostico__veredicto-texto {
+    font-size: 1.9rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .diagnostico__mascota--nueva,
+  .diagnostico__estado--nuevo,
+  .diagnostico__veredicto-punto::after,
+  :root[data-estilo="juego"] .diagnostico__planta.planta--feliz svg {
+    animation: none;
+  }
+
+  .diagnostico__ficha {
+    transition: none;
+  }
+
+  :root[data-estilo="juego"] .diagnostico__ficha:active:not([aria-selected="true"]) {
+    transform: none;
+  }
+}

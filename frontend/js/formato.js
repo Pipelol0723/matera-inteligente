@@ -41,9 +41,6 @@ export function textoDetalle(detalle) {
   return pares.length ? `{ ${pares.join(", ")} }` : "{}";
 }
 
-// Valores de ejemplo legibles: enteros para cifras grandes, un decimal para el resto.
-export const redondear = (valor) => (Math.abs(valor) >= 1000 ? Math.round(valor) : Math.round(valor * 10) / 10);
-
 export function crear(tipo, { clase, texto, estilo } = {}, ...hijos) {
   const nodo = document.createElement(tipo);
   if (clase) nodo.className = clase;

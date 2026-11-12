@@ -2,8 +2,6 @@
 import { API_BASE } from "./config.js";
 import { sesion } from "./sesion.js";
 
-// Dirección en la que no escucha ningún servidor: sirve para ver el error real de "sin conexión".
-const API_INALCANZABLE = "http://127.0.0.1:5999/api/v1";
 // Una petición que no termina en este tiempo se da por perdida. Sin esto, una conexión colgada
 // (el hotspot del celular, por ejemplo) dejaba la consulta periódica esperando para siempre.
 const TIEMPO_MAXIMO_MS = 15000;
@@ -96,10 +94,6 @@ async function privada(ruta, opciones = {}, base = API_BASE) {
   }
 }
 
-function enviarDiagnostico(base, datos, signal) {
-  return privada("/diagnosticos", { ...conJson("POST", datos), signal }, base);
-}
-
 // ---- corte 1: desde la fase 2 también exigen sesión ----
 
 export function obtenerParametros() {
@@ -110,12 +104,9 @@ export function obtenerEspecies() {
   return privada("/especies");
 }
 
+// La validación del corte 1 (R1). Diagnóstico le manda la última lectura real de la matera elegida.
 export function pedirDiagnostico(datos, { signal } = {}) {
-  return enviarDiagnostico(API_BASE, datos, signal);
-}
-
-export function pedirDiagnosticoSinConexion(datos, { signal } = {}) {
-  return enviarDiagnostico(API_INALCANZABLE, datos, signal);
+  return privada("/diagnosticos", { ...conJson("POST", datos), signal });
 }
 
 // ---- cuenta ----
