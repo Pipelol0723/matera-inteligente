@@ -1,0 +1,654 @@
+/* El asistente «Conectar sensor» (js/conectar-sensor.js), dentro de Mis materas. Usa las variables de
+   variables.css y los componentes de componentes.css, así sirve en los dos estilos y los cuatro temas.
+   Va después de estilos.css. */
+
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.asistente {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-5);
+  margin-bottom: 22px;
+  padding: var(--esp-6);
+  border-color: var(--borde-acento);
+}
+
+/* ---- cabecera: el ícono, el título, la matera y el canal ---- */
+
+.asistente__cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-3) var(--esp-4);
+}
+
+.asistente__icono {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radio-m);
+  background: var(--acento-suave);
+  color: var(--acento-texto);
+}
+
+.asistente__icono svg {
+  width: 26px;
+  height: 26px;
+}
+
+.asistente__titulos {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.asistente__titulo {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: var(--titulo-peso);
+  line-height: 1.2;
+}
+
+.asistente__matera {
+  margin: 2px 0 0;
+  font-size: 0.86rem;
+  overflow-wrap: anywhere;
+  color: var(--tenue);
+}
+
+/* El canal elegido: «Por Bluetooth» o «Por la red de la placa». */
+.asistente__canal {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px 5px 9px;
+  border: var(--borde-ancho) solid var(--borde-acento);
+  border-radius: var(--radio-pildora);
+  background: var(--superficie-suave);
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--acento-texto);
+}
+
+.asistente__canal svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ---- los seis pasos: un círculo por paso, unidos por una línea ---- */
+
+.asistente__pasos {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.asistente__paso {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 4px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  color: var(--tenue);
+}
+
+.asistente__paso + .asistente__paso::before {
+  content: "";
+  position: absolute;
+  top: 13px;
+  right: calc(50% + 20px);
+  left: calc(-50% + 20px);
+  height: 2px;
+  border-radius: 2px;
+  background: var(--borde);
+}
+
+.asistente__paso.asistente__paso--hecho::before,
+.asistente__paso.asistente__paso--actual::before {
+  background: var(--acento);
+}
+
+.asistente__paso-numero {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--borde);
+  border-radius: 50%;
+  background: var(--superficie);
+  font-size: 0.78rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  color: var(--tenue);
+  transition: background-color var(--movimiento), border-color var(--movimiento), box-shadow var(--movimiento);
+}
+
+.asistente__paso--hecho .asistente__paso-numero {
+  border-color: var(--acento);
+  background: var(--acento);
+  color: var(--sobre-acento);
+}
+
+.asistente__paso--actual {
+  font-weight: 700;
+  color: var(--tinta);
+}
+
+.asistente__paso--actual .asistente__paso-numero {
+  border-color: var(--acento);
+  color: var(--acento-texto);
+  box-shadow: 0 0 0 4px var(--acento-suave);
+}
+
+.asistente__paso-texto {
+  max-width: 100%;
+  text-wrap: balance;
+}
+
+/* ---- el contenido de cada paso ---- */
+
+.asistente__cuerpo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 720px;
+}
+
+.asistente__cuerpo > * {
+  max-width: 100%;
+}
+
+.asistente__cuerpo > .tarjeta-error,
+.asistente__cuerpo > .mensaje-exito,
+.asistente__cuerpo > .formulario__fila {
+  align-self: stretch;
+}
+
+.asistente__contador {
+  margin: 0 0 -6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--acento-texto);
+}
+
+.asistente__subtitulo {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: var(--titulo-peso);
+  line-height: 1.25;
+}
+
+.asistente__subtitulo:focus {
+  outline: none;
+}
+
+.asistente__texto {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+.asistente__texto--tenue {
+  font-size: 0.88rem;
+  color: var(--tenue);
+}
+
+.asistente__estado {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--tenue);
+}
+
+.asistente__girando {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--borde-acento);
+  border-top-color: var(--acento);
+  border-radius: 50%;
+  animation: girar 0.9s linear infinite;
+}
+
+.asistente__pistas {
+  align-self: stretch;
+  padding: 12px 16px;
+  border: var(--borde-ancho) dashed var(--borde-acento);
+  border-radius: var(--radio-m);
+  background: var(--superficie-suave);
+  font-size: 0.88rem;
+}
+
+.asistente__pistas-titulo {
+  margin: 0 0 4px;
+  font-weight: 650;
+}
+
+.asistente__pistas ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.asistente__pistas li + li {
+  margin-top: 4px;
+}
+
+.asistente__pistas .asistente__fila {
+  margin-top: 10px;
+}
+
+.asistente__aviso {
+  align-self: stretch;
+  padding: 14px 16px;
+}
+
+.asistente__aviso .tarjeta-error__mensaje {
+  margin: 0;
+}
+
+.asistente__resultado {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: 6px;
+}
+
+.asistente__servidores {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.asistente__servidores code {
+  font-family: var(--mono);
+  font-size: 0.84rem;
+  overflow-wrap: anywhere;
+}
+
+/* ---- elegir el canal: una tarjeta por cada uno que sirve aquí ---- */
+
+.asistente__canales {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-self: stretch;
+  margin-top: 10px;
+}
+
+.asistente__canales-titulo {
+  margin: 0;
+  font-weight: 700;
+}
+
+.asistente__canales-lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
+  gap: 14px;
+}
+
+.canal-opcion {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+  padding: 18px 16px 16px;
+  border: var(--borde-ancho) solid var(--borde);
+  border-radius: var(--radio-l);
+  background: var(--superficie-suave);
+  font: inherit;
+  text-align: left;
+  color: var(--tinta);
+  cursor: pointer;
+  transition: border-color var(--movimiento), box-shadow var(--movimiento), transform 0.08s ease;
+}
+
+.canal-opcion:hover {
+  border-color: var(--acento);
+}
+
+.canal-opcion--recomendada {
+  border-color: var(--borde-acento);
+  box-shadow: inset 0 0 0 1px var(--borde-acento);
+}
+
+.canal-opcion--recomendada:hover {
+  box-shadow: inset 0 0 0 1px var(--acento);
+}
+
+.canal-opcion__icono {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--acento-suave);
+  color: var(--acento-texto);
+}
+
+.canal-opcion__icono svg {
+  width: 22px;
+  height: 22px;
+}
+
+.canal-opcion__textos {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.canal-opcion__nombre {
+  font-family: var(--fuente-titulo);
+  font-size: 1.05rem;
+  font-weight: var(--titulo-peso);
+  letter-spacing: var(--titulo-espaciado);
+  line-height: 1.2;
+}
+
+.canal-opcion__descripcion {
+  font-size: 0.85rem;
+  color: var(--tenue);
+  text-wrap: pretty;
+}
+
+.canal-opcion__marca {
+  position: absolute;
+  top: -10px;
+  right: 14px;
+  padding: 2px 10px;
+  border-radius: var(--radio-pildora);
+  background: var(--acento);
+  font-size: 0.66rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sobre-acento);
+}
+
+/* Si un canal falla: «Seguir por …» con el otro, sin perder lo escrito. */
+.asistente__otro-canal {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: 10px;
+  padding: 12px 16px;
+  border: var(--borde-ancho) solid var(--borde-acento);
+  border-radius: var(--radio-m);
+  background: var(--acento-suave);
+}
+
+.asistente__otro-canal-texto {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-wrap: pretty;
+}
+
+/* ---- formularios: la clave de la pantalla y el WiFi ---- */
+
+.asistente__formulario {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  align-self: stretch;
+  gap: 8px;
+}
+
+.asistente__formulario > .formulario__campo,
+.asistente__formulario > .tarjeta-error {
+  align-self: stretch;
+  max-width: 460px;
+}
+
+.asistente__formulario > .formulario__ayuda {
+  max-width: 460px;
+}
+
+/* La clave de la pantalla: 8 letras y números, grandes y separados para copiarlos sin error. */
+.asistente__formulario > .asistente__clave {
+  max-width: 240px;
+  font-family: var(--mono);
+  font-size: 1.3rem;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-align: center;
+}
+
+.asistente__formulario .boton-primario {
+  margin-top: 6px;
+}
+
+.asistente__redes {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: 6px;
+  min-width: 0;
+  max-width: 460px;
+  margin: 0 0 6px;
+  padding: 0;
+  border: 0;
+}
+
+.asistente__redes legend {
+  margin: 0 0 6px;
+  padding: 0;
+}
+
+.asistente__red {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: var(--borde-ancho) solid var(--borde);
+  border-radius: var(--radio-m);
+  background: var(--superficie-suave);
+  cursor: pointer;
+}
+
+.asistente__red:has(input:checked) {
+  border-color: var(--acento);
+  box-shadow: inset 0 0 0 1px var(--acento);
+}
+
+.asistente__red input,
+.asistente__ver input {
+  flex: none;
+  margin: 0;
+  accent-color: var(--acento);
+}
+
+.asistente__red-nombre {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.asistente__red-nota {
+  flex: none;
+  font-size: 0.76rem;
+  color: var(--tenue);
+}
+
+.asistente__ver {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.asistente__fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.asistente__lectura {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.asistente__lectura:empty {
+  display: none;
+}
+
+.asistente__pie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--borde-suave);
+}
+
+.asistente__pie:empty {
+  display: none;
+}
+
+/* La señal de cada red que ve la placa: solo dibujo. */
+.senal {
+  display: inline-flex;
+  flex: none;
+  align-items: flex-end;
+  gap: 2px;
+  width: 22px;
+  height: 14px;
+}
+
+.senal__barra {
+  flex: 1;
+  border-radius: 1px;
+  background: var(--borde);
+}
+
+.senal__barra--llena {
+  background: var(--acento);
+}
+
+/* ---- estilo Juego: el ícono y el paso actual como botones de juguete, líneas gruesas ---- */
+
+:root[data-estilo="juego"] .asistente__icono {
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radio-l);
+  background: var(--acento);
+  color: var(--sobre-acento);
+  box-shadow: var(--sombra-boton);
+}
+
+:root[data-estilo="juego"] .asistente__icono svg {
+  width: 30px;
+  height: 30px;
+}
+
+:root[data-estilo="juego"] .asistente__canal {
+  background: var(--acento-suave);
+}
+
+:root[data-estilo="juego"] .asistente__paso-numero {
+  width: 34px;
+  height: 34px;
+  border-width: 3px;
+  font-size: 0.88rem;
+}
+
+:root[data-estilo="juego"] .asistente__paso + .asistente__paso::before {
+  top: 15px;
+  right: calc(50% + 22px);
+  left: calc(-50% + 22px);
+  height: 4px;
+}
+
+:root[data-estilo="juego"] .asistente__paso--actual .asistente__paso-numero {
+  background: var(--acento);
+  color: var(--sobre-acento);
+  box-shadow: var(--sombra-boton), 0 0 0 5px var(--acento-suave);
+  transform: translateY(-2px);
+}
+
+:root[data-estilo="juego"] .asistente__subtitulo {
+  font-size: 1.3rem;
+}
+
+:root[data-estilo="juego"] .canal-opcion {
+  background: var(--superficie);
+  box-shadow: var(--sombra-tarjeta);
+}
+
+:root[data-estilo="juego"] .canal-opcion:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+
+:root[data-estilo="juego"] .canal-opcion__icono {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radio-m);
+}
+
+:root[data-estilo="juego"] .asistente__formulario > .asistente__clave {
+  font-size: 1.45rem;
+}
+
+/* ---- pantallas angostas ---- */
+
+@media (max-width: 759.98px) {
+  .asistente {
+    gap: var(--esp-4);
+    padding: 18px 16px;
+  }
+
+  /* Con seis pasos no caben los nombres: quedan los círculos, y el paso actual se lee en «Paso 3 de 6» y
+     en el título del paso. */
+  .asistente__paso-texto {
+    display: none;
+  }
+
+  .asistente__subtitulo {
+    font-size: 1.1rem;
+  }
+
+  :root[data-estilo="juego"] .asistente__subtitulo {
+    font-size: 1.2rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .asistente__girando {
+    animation-duration: 3s;
+  }
+
+  .asistente__paso-numero,
+  .canal-opcion {
+    transition: none;
+  }
+
+  :root[data-estilo="juego"] .asistente__paso--actual .asistente__paso-numero,
+  :root[data-estilo="juego"] .canal-opcion:active {
+    transform: none;
+  }
+}
