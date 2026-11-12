@@ -1,13 +1,23 @@
-%% Modelo entidad-relacion del corte 2 (implementado en backend/datos/esquema.sql): una sola base SQLite.
+%% Modelo entidad-relacion del corte 2 y del corte 3 (implementado en backend/datos/esquema.sql): una sola base SQLite.
 %% Desde la fase 2 los tokens son JWT: SESION y SENSOR guardan el id del token (el reclamo jti), no el token ni su huella.
 %% Las lineas punteadas llegan a PARAMETRO, que sigue en el codigo y no es una tabla.
+%% Corte 3 (version 4 del esquema): el juego solo agrega las seis tablas marcadas "corte 3"; las de antes no cambian.
+%% CUIDADO_POR_HORA y HORAS_POR_TRAMO tambien llevan usuario_id (FK a USUARIO, en cascada): esas dos lineas no se
+%% dibujan para que el diagrama se lea; las de PLANTA si.
 erDiagram
+    USUARIO ||--o| PUNTAJE_TOTAL : "suma"
+    USUARIO ||--o| JUGADOR : "responde si participa"
     USUARIO ||--o{ SESION : "abre"
     USUARIO ||--o{ PLANTA : "es dueño de"
+    USUARIO ||--o{ MOVIMIENTO_PUNTAJE : "gana o pierde puntos"
+    ESPECIE ||--o| RITMO_CRECIMIENTO : "crece a su ritmo"
     ESPECIE ||--o{ PLANTA : "es la especie de"
     ESPECIE ||--|{ RANGO_OPTIMO : "uno por parámetro"
     PLANTA ||--o| SENSOR : "nace con"
     PLANTA ||--o{ MEDICION : "acumula"
+    PLANTA |o--o{ MOVIMIENTO_PUNTAJE : "uno por lectura aceptada"
+    PLANTA ||--o{ CUIDADO_POR_HORA : "una fila por hora de juego"
+    PLANTA ||--o{ HORAS_POR_TRAMO : "sus horas, contadas"
     MEDICION ||--|{ LECTURA : "una por parámetro"
     PARAMETRO ||..o{ RANGO_OPTIMO : "se mide con"
     PARAMETRO ||..o{ LECTURA : "de"
@@ -46,7 +56,7 @@ erDiagram
     SENSOR {
         string codigo PK "MT-0000-XX"
         int planta_id FK "único"
-        string hash_clave "SHA-256 de la clave"
+        string hash_clave "SHA-256 de la clave (desde el corte 3, puede llegar hecha desde la placa)"
         string vinculado_en
         string token_id "id (jti) del JWT vigente, NULL hasta el primer canje"
     }
@@ -68,4 +78,42 @@ erDiagram
         string unidad
         float minimo_fisico
         float maximo_fisico
+    }
+    MOVIMIENTO_PUNTAJE {
+        int id PK "orden de guardado · corte 3"
+        int usuario_id FK
+        int planta_id FK "NULL si se borró la planta (SET NULL)"
+        string momento "hora del servidor, en UTC"
+        int momento_us "el mismo momento en microsegundos"
+        string estado "SALUDABLE, EN_RIESGO o CRITICO"
+        int puntos "+10, -5 o -10"
+    }
+    CUIDADO_POR_HORA {
+        int planta_id PK, FK "corte 3"
+        int hora_juego PK "RelojDeJuego.numero_de_hora, al llegar"
+        int usuario_id FK
+        int cantidad "lecturas en esa hora"
+        int suma "sus puntos"
+    }
+    HORAS_POR_TRAMO {
+        int planta_id PK, FK "corte 3"
+        int cantidad PK "lecturas de la hora"
+        int suma PK "puntos de la hora"
+        int usuario_id FK
+        int horas "cuántas horas terminaron así"
+    }
+    PUNTAJE_TOTAL {
+        int usuario_id PK, FK "corte 3"
+        int puntos "con los de sus materas borradas"
+    }
+    JUGADOR {
+        int usuario_id PK, FK "corte 3"
+        string estado "SIN_DECIDIR, PARTICIPA o NO_PARTICIPA"
+        string apodo UK "solo si participa; NOCASE"
+    }
+    RITMO_CRECIMIENTO {
+        string especie PK, FK "corte 3"
+        int dias_brote
+        int dias_planta
+        int dias_florecida
     }

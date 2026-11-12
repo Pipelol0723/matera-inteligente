@@ -5,16 +5,17 @@ La fuente de cada diagrama es su archivo `.mmd` (Mermaid). El `.svg` y el `.png`
 Hay diagramas de dos momentos:
 
 - **Corte 1**: el sistema entregado, en el tag `corte-1` (commit `8c37f83`). Estos diagramas quedan como registro del antes y no se actualizan.
-- **Corte 2**: el sistema actual, con usuarios, administración, sensores, historial y tiempo real. Se ajustaron al código tres veces:
+- **Cortes 2 y 3**: el sistema actual, con usuarios, administración, sensores, historial, tiempo real, el juego y la conexión de la placa. Los que llevan `-corte2` en el nombre lo conservan, pero también muestran el corte 3. Se ajustaron al código cuatro veces:
   - El 12 de octubre de 2026, con las cuentas, las plantas y los sensores.
   - El 18 de octubre, cuando la matera pasó a nacer con su sensor, se quitó la medición a mano y se agregó el WebSocket.
   - El 26 de octubre, con la fase 2 hexagonal: los puertos de entrada, los puertos de salida pequeños, los JWT, el canje de la clave del dispositivo y la tabla de referencia en la base o en CSV.
+  - El 12 de noviembre, con el corte 3: la matera Tamagotchi, el puntaje y la tabla de posiciones, y la placa que se conecta sola con la huella de su clave.
 
   Corresponden uno a uno con el repositorio.
 
 ## Índice
 
-| Diagrama | Corte 1: entregado | Corte 2: código actual |
+| Diagrama | Corte 1: entregado | Código actual (cortes 2 y 3) |
 |---|---|---|
 | [Vista hexagonal](#vista-hexagonal) | no existía | [`hexagonal`](hexagonal.png) |
 | [Casos de uso](#casos-de-uso) | [`casos-de-uso-corte1`](casos-de-uso-corte1.png) | [`casos-de-uso-corte2`](casos-de-uso-corte2.png) |
@@ -23,20 +24,24 @@ Hay diagramas de dos momentos:
 | [Clases: puertos e implementaciones](#puertos-e-implementaciones) | [`clases-puertos-corte1`](clases-puertos-corte1.png) | [`clases-puertos`](clases-puertos.png) |
 | [Clases: diagnóstico, plantas y dispositivos](#presentación-y-aplicación-diagnóstico-plantas-y-dispositivos) | [`clases-aplicacion-corte1`](clases-aplicacion-corte1.png) | [`clases-aplicacion`](clases-aplicacion.png) |
 | [Clases: cuentas y administración](#presentación-y-aplicación-cuentas-y-administración) | no existía | [`clases-cuentas`](clases-cuentas.png) |
+| [Clases: el juego](#clases-del-juego) | no existía | [`clases-juego`](clases-juego.png) |
 | [Entidad-relación](#entidad-relación) | [`entidad-relacion-corte1`](entidad-relacion-corte1.png) | [`entidad-relacion-corte2`](entidad-relacion-corte2.png) |
 | [Secuencia: un diagnóstico](#secuencia-de-un-diagnóstico) | [`secuencia-diagnostico`](secuencia-diagnostico.png) | igual, con el repositorio de especies que elija la configuración |
 | [Secuencia: lectura de un dispositivo](#secuencia-de-una-lectura-del-dispositivo) | no existía | [`secuencia-medicion-sensor`](secuencia-medicion-sensor.png) |
 | [Secuencia: tiempo real](#secuencia-del-tiempo-real) | no existía | [`secuencia-tiempo-real`](secuencia-tiempo-real.png) |
 | [Secuencia: login y «mis plantas»](#secuencia-de-login-y-mis-plantas) | no existía | [`secuencia-login`](secuencia-login.png) |
 | [Secuencia: el admin agrega una especie](#secuencia-del-admin-que-agrega-una-especie) | no existía | [`secuencia-admin-especie`](secuencia-admin-especie.png) |
+| [Secuencia: una lectura suma puntos](#secuencia-del-puntaje) | no existía | [`secuencia-puntaje`](secuencia-puntaje.png) |
+| [Secuencia: la placa se conecta sola](#secuencia-de-la-conexión-de-una-placa) | no existía | [`secuencia-conexion-placa`](secuencia-conexion-placa.png) |
 
 Al final está además la [vista general](#vista-general-diagrama-de-clases-del-backend) de Roger: el backend completo en un solo diagrama de PlantUML.
 
-Los cuatro diagramas de clases del corte 2 no llevan sufijo porque muestran los dos cortes a la vez: **borde fino = corte 1, borde grueso = se agregó en el corte 2**, con la fase 2 incluida. Los `-corte1` muestran solo lo del corte 1.
+Los cinco diagramas de clases actuales no llevan sufijo porque muestran los tres cortes a la vez: **borde fino = corte 1, borde medio (2 px) = se agregó en el corte 2, con la fase 2 incluida, y borde grueso (4 px) = se agregó en el corte 3**. Los `-corte1` muestran solo lo del corte 1.
 
 ## Convenciones
 
 - **Clases y vista hexagonal:** el color indica la capa. Son los colores del diagrama de clases de Roger: morado para presentación, amarillo para aplicación, verde para dominio y azul para infraestructura.
+- **Lo nuevo del corte 3:** borde grueso (4 px) en las clases, la vista hexagonal y los casos de uso. En los diagramas de clases, el ancho del borde dice el corte: fino el 1, medio el 2 y grueso el 3. En paquetes y en el entidad-relación, Mermaid no deja marcar un archivo o una tabla: lo nuevo dice «corte 3» en su texto.
 - **Paquetes:** conservan los colores del diagrama entregado en el corte 1. En el del corte 2, los nodos nuevos son verdes y punteados.
 - **Casos de uso del corte 2:** gris es un caso del corte 1, verde uno nuevo y oscuro uno exclusivo del administrador.
 - **Nombres:** los de clases, atributos, métodos y archivos son los del código. Si el código cambia, se actualizan aquí (ver [Si cambia el código](#si-cambia-el-código)).
@@ -47,7 +52,7 @@ Los cuatro diagramas de clases del corte 2 no llevan sufijo porque muestran los 
 
 ![Vista hexagonal del backend](hexagonal.png)
 
-Fuente: [`hexagonal.mmd`](hexagonal.mmd). Fase 2.
+Fuente: [`hexagonal.mmd`](hexagonal.mmd). Fase 2, con el corte 3 en borde grueso.
 
 Es el backend dibujado como puertos y adaptadores, con los nombres reales de archivos y clases. Las carpetas no cambiaron. Esta es la equivalencia:
 
@@ -62,16 +67,18 @@ Es el backend dibujado como puertos y adaptadores, con los nombres reales de arc
   - Las rutas del front, el WebSocket y las rutas de los dispositivos.
   - Los comandos de consola (`crear_admin.py` y `exportar_especies_csv.py`) y las pruebas unitarias. No están en `presentacion/`, pero cumplen el mismo papel: llaman a un puerto de entrada, igual que una ruta.
 - **Al centro, el núcleo.**
-  - Los 21 puertos de entrada de `dominio/puertos_entrada.py`: uno por caso de uso, con su mismo nombre.
-  - Los casos de uso de `aplicacion/`: cada uno hereda su puerto.
-  - Las reglas del dominio.
-  - Los 18 puertos de salida de `dominio/puertos.py` y `dominio/puertos_usuarios.py`.
+  - Los 21 puertos de entrada de `dominio/puertos_entrada.py`: uno por caso de uso, con su mismo nombre. En el corte 3, `RegistrarPlanta` y `ReemplazarSensor` reciben una huella opcional.
+  - Los 5 puertos de entrada del juego, en `dominio/puertos_juego.py`, un archivo nuevo.
+  - Los casos de uso de `aplicacion/`: cada uno hereda su puerto. Los del juego están en `aplicacion/juego.py`.
+  - Las reglas del dominio, y las del juego en `dominio/juego.py` y `dominio/mascota.py`.
+  - Los 18 puertos de salida de `dominio/puertos.py` y `dominio/puertos_usuarios.py`, y los 3 del juego en `dominio/puertos_juego.py`.
 
-  `DiagnosticarPlantaDeUsuario` no tiene puerto de entrada, porque solo lo usa `RegistrarLectura` desde adentro.
-- **A la derecha, los adaptadores de salida:** SQLite, el CSV, los JWT y el resto (`seguridad.py`, `reloj.py` y `tiempo_real.py`).
+  `DiagnosticarPlantaDeUsuario` no tiene puerto de entrada, porque solo lo usa `RegistrarLectura` desde adentro. `PuntuarLectura` y `AvisarATodos` tampoco: no los llama nadie de afuera, sino que implementan el puerto de salida `NotificadorDiagnosticos`. Por eso la flecha punteada va de los casos de uso del juego a los puertos de salida.
+- **A la derecha, los adaptadores de salida:** SQLite (también el del juego, `sqlite/repositorio_juego.py`), el CSV, los JWT y el resto (`seguridad.py`, `reloj.py` y `tiempo_real.py`).
+- **`GET /red` no tiene flecha al núcleo.** No tiene ninguna regla de negocio: solo dice por qué direcciones alcanza una placa al servidor. `main.py` le pasa a `rutas_red.py` las funciones de `RedLocal` (`red_local.py`), que no implementa ningún puerto. Así presentación sigue sin importar infraestructura.
 - **Todas las flechas apuntan hacia el núcleo.** Las punteadas dicen «implementa»: la clase de afuera cumple una interfaz de adentro. El núcleo no conoce a ningún adaptador.
-- **Los adaptadores de entrada también usan un puerto de salida: `VerificadorTokens`.** El token se verifica en el borde. Así el caso de uso recibe la identidad y nunca el token.
-- **`main.py` es el único que conoce las dos mitades.** Elige el adaptador de cada puerto. Por ejemplo, con `MATERA_TABLA_REFERENCIA` elige SQLite o CSV para la tabla de especies.
+- **Los adaptadores de entrada también usan un puerto de salida: `VerificadorTokens`.** El token se verifica en el borde. Así el caso de uso recibe la identidad y nunca el token. La flecha `verificar_usuario` sale de las rutas del front. Las del juego y el WebSocket hacen lo mismo, y lo dice su caja; `GET /red` también usa `Autenticacion.con_usuario`.
+- **`main.py` es el único que conoce las dos mitades.** Elige el adaptador de cada puerto. Por ejemplo, con `MATERA_TABLA_REFERENCIA` elige SQLite o CSV para la tabla de especies, y le pasa a `DiagnosticarPlantaDeUsuario` un `AvisarATodos([PuntuarLectura, NotificadorWebSocket])` como notificador.
 - Lo comprueba [`tests/dominio/test_arquitectura.py`](../../backend/tests/dominio/test_arquitectura.py):
   - El dominio y la aplicación no importan frameworks, persistencia ni otras capas.
   - Presentación no importa infraestructura.
@@ -91,7 +98,7 @@ Fuente: [`casos-de-uso-corte1.mmd`](casos-de-uso-corte1.mmd).
 - Hay un solo actor, anónimo, con dos casos: consultar las especies con sus rangos (RF5) y diagnosticar una planta (RF1 a RF4).
 - Las recomendaciones no son un caso aparte: vienen incluidas en cada diagnóstico.
 
-### Corte 2
+### Cortes 2 y 3
 
 ![Casos de uso del corte 2](casos-de-uso-corte2.png)
 
@@ -107,6 +114,10 @@ Fuente: [`casos-de-uso-corte2.mmd`](casos-de-uso-corte2.mmd).
 - **Solo el sensor escribe en el historial.** No hay medición a mano.
 - **Mis materas se actualiza sola:** cada 10 s vuelve a pedir sus datos, y además recibe cada medición por el WebSocket.
 - **La matera nace con su sensor.** «Crear una matera con su sensor» pide el código del dispositivo. «Cambiar el sensor de una matera» reemplaza a vincular y desvincular, y conserva el historial.
+- **Corte 3, en borde grueso:**
+  - «Reportar una lectura con su hora» también *incluye* «Sumar o restar puntos», que actualiza «Ver mis materas Tamagotchi y mis puntos».
+  - El usuario elige si participa en la tabla, con un apodo de jugador, y solo si participa ve la tabla de posiciones.
+  - «Conectar una placa con el asistente» es la forma de crear la matera o cambiarle el sensor sin tocar código. Queda «Conectar a mano» para el simulador y las placas de la fase 2.
 - **Casos exclusivos del administrador:**
   - «Administrar usuarios» agrupa listar, desactivar y reactivar, dar y quitar el rol de admin, y eliminar cuentas.
   - «Agregar especies» solo lo puede hacer el admin, y solo con la tabla de referencia en la base: con la copia en CSV, la API responde 409.
@@ -124,7 +135,7 @@ Fuente: [`paquetes.mmd`](paquetes.mmd).
 - Las flechas punteadas son `main.py`, que arma todas las capas, y las pruebas.
 - Ninguna flecha sale de `dominio/`.
 
-### Corte 2
+### Cortes 2 y 3
 
 ![Diagrama de paquetes del corte 2](paquetes-corte2.png)
 
@@ -143,10 +154,11 @@ Fuente: [`paquetes-corte2.mmd`](paquetes-corte2.mmd).
   - `exportar_especies_csv.py` la regenera a mano.
 - Junto a la base quedan su copia en CSV, salvo que se defina `MATERA_RUTA_CSV`, y el secreto con que se firman los JWT, salvo que se defina `MATERA_JWT_SECRETO`. Con la base por defecto, la copia es el `datos/especies.csv` del repositorio.
 - **`main.py` es la única raíz de composición.** Los comandos de consola piden sus piezas a `main.construir_consola()`.
+- **Corte 3:** cada caja dice en una línea «corte 3:» qué archivos agregó. En `dominio/` y `aplicacion/` el juego solo agrega archivos; la conexión cambia `puertos_entrada.py`, `resultados.py`, `plantas.py` y `sensores.py` (commit `9167a8f`). No hay dependencias nuevas entre capas. La flecha punteada del front a la ESP32 es el asistente, que le habla a la API local de la placa (`192.168.4.1`) solo mientras el equipo está en su red.
 
 ## Clases
 
-Son cuatro diagramas, porque en uno solo no se leían las más de 60 clases. Juntan el diagrama de clases que Roger armó en PlantUML (commits `3987f72` y `6c43769`) con el corte 2.
+Son cinco diagramas, porque en uno solo no se leían las más de 60 clases. El quinto, `clases-juego`, es el del corte 3. Juntan el diagrama de clases que Roger armó en PlantUML (commits `3987f72` y `6c43769`) con el corte 2.
 
 | Se tomó del diagrama de Roger | Se tomó del diseño o se corrigió contra el código |
 |---|---|
@@ -177,6 +189,7 @@ Fuentes: [`clases-dominio.mmd`](clases-dominio.mmd) (los dos cortes) y [`clases-
 - **`ReporteDeDispositivo`** es una lectura con la hora en que la tomó el dispositivo. Exige una hora con zona horaria y no acepta una hora adelantada en más de 2 minutos (`ADELANTO_MAXIMO`).
 - **`dominio/resultados.py`** reúne los datos que entran y salen de los puertos de entrada: `SolicitudDiagnostico`, `SesionIniciada`, `SensorVinculado`, `PlantaConEstado`, `TokenDispositivo` y otros.
 - Las dos notas de errores listan los de cada corte, y los de la fase 2 van con los del corte 2. Todos heredan de `ErrorDominio`.
+- **Corte 3:** aquí solo cambia `SensorVinculado.clave`, que puede ser `None` cuando la placa creó su clave y la app solo trajo la huella (commit `9167a8f`). El dominio del juego está en [su propio diagrama](#clases-del-juego).
 
 ### Puertos e implementaciones
 
@@ -185,7 +198,7 @@ Fuentes: [`clases-dominio.mmd`](clases-dominio.mmd) (los dos cortes) y [`clases-
 Fuentes: [`clases-puertos.mmd`](clases-puertos.mmd) y [`clases-puertos-corte1.mmd`](clases-puertos-corte1.mmd) ([imagen](clases-puertos-corte1.png)).
 
 - **Todas las flechas van de infraestructura hacia el dominio (RA5, DIP).** El dominio declara la interfaz, e infraestructura la implementa. Este diagrama solo tiene los puertos de salida: los de entrada están en los dos diagramas de aplicación.
-- **Hay 18 puertos de salida, con pocos métodos y nombres de negocio.** En el corte 1 había dos: `ConsultaRangos` y `CatalogoEspecies`.
+- **Hay 21 puertos de salida, con pocos métodos y nombres de negocio.** En el corte 1 había dos: `ConsultaRangos` y `CatalogoEspecies`. El corte 3 agrega tres, en borde grueso: `MovimientosPuntaje`, `RegistroJugadores` y `RitmosCrecimiento` (`dominio/puertos_juego.py`), con sus clases SQLite en `sqlite/repositorio_juego.py`.
   - La fase 2 partió los `Repositorio*` del corte 2. Por ejemplo, `RepositorioUsuarios` quedó como `ConsultaCuentas`, `RegistroCuentas` y `ListadoCuentas`.
   - Cada caso de uso pide solo lo que usa (ISP).
   - Las clases SQLite conservan sus nombres: `RepositorioUsuariosSqlite` implementa los tres.
@@ -202,9 +215,11 @@ Fuentes: [`clases-puertos.mmd`](clases-puertos.mmd) y [`clases-puertos-corte1.mm
   - `planta_con_token(codigo, token_id)` devuelve la planta solo si ese token es el vigente.
   - Un canje nuevo o un cambio de sensor deja sin efecto el token anterior.
 - **`TokensJwt` implementa `EmisorTokens` y `VerificadorTokens`.** Es el único archivo que importa PyJWT. El JWT lleva su alcance, «usuario» o «lecturas»: el token de un sensor no sirve en las rutas de usuario, ni al revés (403 `ALCANCE_INVALIDO`).
-- **`NotificadorDiagnosticos` es el puerto del tiempo real.** Lo implementa `NotificadorWebSocket`, que arma el mensaje y se lo pasa a `CanalesTiempoReal`, el registro de las conexiones abiertas de cada usuario. Cambiar el WebSocket por MQTT sería escribir otra implementación del puerto, sin tocar el caso de uso.
+- **`NotificadorDiagnosticos` es el puerto del aviso de cada medición.** Lo implementa `NotificadorWebSocket`, que arma el mensaje y se lo pasa a `CanalesTiempoReal`, el registro de las conexiones abiertas de cada usuario. Cambiar el WebSocket por MQTT sería escribir otra implementación del puerto, sin tocar el caso de uso.
+  - Desde el corte 3 lo implementan también dos clases de `aplicacion/`, en amarillo: `PuntuarLectura`, que guarda los puntos de cada lectura, y `AvisarATodos`, que reparte el aviso entre los dos. `main.py` conecta `AvisarATodos([PuntuarLectura, NotificadorWebSocket])`.
+  - `MovimientosPuntajeSqlite` recibe el `RelojDeJuego` vigente: con él pone cada lectura en su hora de juego al guardarla.
 - `Cifrador`, `GeneradorSecretos` y `Reloj` son puertos para que el dominio y la aplicación no importen `hashlib`, `secrets` ni la hora del sistema. En las pruebas, cada interfaz tiene un doble en memoria.
-- **`BaseDatos` abre una conexión por operación** y activa `PRAGMA foreign_keys`. Flask atiende cada petición en un hilo y `sqlite3` no deja usar una conexión desde otro hilo: con una sola conexión compartida, el servidor real fallaba aunque las pruebas con `test_client` pasaran.
+- **`BaseDatos` abre una conexión por operación** y activa `PRAGMA foreign_keys`. Flask atiende cada petición en un hilo y `sqlite3` no deja usar una conexión desde otro hilo: con una sola conexión compartida, el servidor real fallaba aunque las pruebas con `test_client` pasaran. Desde el corte 3, si otra conexión está escribiendo, espera hasta 30 s (`ESPERA_SI_ESTA_OCUPADA`) en vez de los 5 s de `sqlite3`.
 
 ### Presentación y aplicación: diagnóstico, plantas y dispositivos
 
@@ -219,11 +234,13 @@ Fuentes: [`clases-aplicacion.mmd`](clases-aplicacion.mmd) y [`clases-aplicacion-
   - `rutas_plantas` exige sesión con `Autenticacion.con_usuario`.
   - `rutas_dispositivos` no usa la sesión. Su decorador `_con_dispositivo` verifica el JWT del dispositivo con `VerificadorTokens.verificar_dispositivo` y le pasa a `RegistrarLectura` la `IdentidadDispositivo`.
 - **`RegistrarPlanta` y `ReemplazarSensor` devuelven un `SensorVinculado`,** la planta con el código y la clave. Es la única vez que la clave sale del backend.
+  - Desde el corte 3 reciben una `huella` opcional: la SHA-256 de la clave que creó la placa. Si llega, se guarda tal cual y `SensorVinculado.clave` es `None`. Sin huella, crean la clave como antes. `esquemas_usuarios` revisa que sean 64 caracteres hexadecimales en minúscula.
+  - `rutas_red` (borde grueso) responde `GET /red` con sesión. No tiene puerto de entrada: `main.py` le pasa las funciones de `RedLocal`.
 - **`CanjearClaveDispositivo` cambia esa clave por un `TokenDispositivo`,** que vence a las 24 horas.
 - **La reutilización del núcleo:**
   - `RegistrarLectura` pasa la lectura a `DiagnosticarPlantaDeUsuario`.
   - Ese caso de uso busca la planta, exige que sea del dueño y llama a `ServicioDiagnostico`, el mismo del corte 1, sin cambios.
-  - Después de guardar, avisa por el puerto `NotificadorDiagnosticos`. Si el aviso falla, la medición ya quedó guardada.
+  - Después de guardar, avisa por el puerto `NotificadorDiagnosticos`. Si el aviso falla, la medición ya quedó guardada. Desde el corte 3 ese aviso llega a `AvisarATodos` (ver [Clases del juego](#clases-del-juego)), y la respuesta 201 suma la `necesidad` para el globo de la placa.
 - **`tiempo_real` es la ruta del WebSocket.**
   - Verifica el JWT del primer mensaje con `VerificadorTokens.verificar_usuario`, y la sesión con `IdentificarUsuario`, el mismo caso de uso de las rutas HTTP.
   - Crea un `CanalWebSocket` por pestaña. Cada canal tiene su cola y su hilo emisor, y revisa la sesión antes de cada mensaje.
@@ -244,7 +261,7 @@ Fuente: [`clases-cuentas.mmd`](clases-cuentas.mmd). Solo existe en el corte 2.
 - **Siempre queda al menos un admin**, porque un admin no puede desactivarse, quitarse el rol ni eliminarse a sí mismo.
 - `crear_admin` es el script de consola que crea el primer administrador. No pasa por la API: pide `ConvertirEnAdministrador` a `main.construir_consola()`.
 
-Qué puertos usa cada caso de uso (en negrita, lo que ya existía en el corte 1). Cada uno hereda el puerto de entrada de su mismo nombre, salvo `DiagnosticarPlantaDeUsuario`:
+Qué puertos usa cada caso de uso (en negrita, lo que ya existía en el corte 1). Cada uno hereda el puerto de entrada de su mismo nombre, salvo `DiagnosticarPlantaDeUsuario`, `PuntuarLectura` y `AvisarATodos`:
 
 | Caso de uso | Archivo en `aplicacion/` | Depende de |
 |---|---|---|
@@ -270,6 +287,35 @@ Qué puertos usa cada caso de uso (en negrita, lo que ya existía en el corte 1)
 | `EliminarUsuario` | `administracion.py` | ConsultaCuentas, RegistroCuentas |
 | `AgregarEspecie` | `administracion.py` | **ConsultaRangos**, RegistroEspecies y el catálogo de parámetros |
 | `ConvertirEnAdministrador` | `administracion.py` | ConsultaCuentas, RegistroCuentas |
+| `PuntuarLectura` (implementa NotificadorDiagnosticos) | `juego.py` | MovimientosPuntaje, Reloj |
+| `AvisarATodos` (implementa NotificadorDiagnosticos) | `avisos.py` | los NotificadorDiagnosticos que le pasa `main.py`, en orden |
+| `ConsultarMascotas` | `juego.py` | ConsultaPlantas, HistorialMediciones, MovimientosPuntaje, RitmosCrecimiento, Reloj y la regla `CuidadoDeMascota` |
+| `ConsultarPuntaje` | `juego.py` | MovimientosPuntaje, ConsultaPlantas |
+| `ConsultarParticipacion` | `juego.py` | RegistroJugadores |
+| `ElegirParticipacion` | `juego.py` | RegistroJugadores |
+| `ConsultarTablaPosiciones` | `juego.py` | RegistroJugadores, MovimientosPuntaje, ConsultaCuentas |
+
+### Clases del juego
+
+![Clases del juego, corte 3](clases-juego.png)
+
+Fuente: [`clases-juego.mmd`](clases-juego.mmd). Solo existe desde el corte 3.
+
+- **Todo el juego está en archivos nuevos.** En el dominio: `juego.py`, `mascota.py`, `resultados_juego.py`, `puertos_juego.py` y `errores_juego.py`. En la aplicación: `juego.py` y `avisos.py`. En presentación: `rutas_juego.py`, `esquemas_juego.py` y `errores_juego.py`. Es la prueba de cambio del corte 3: `git show --name-status 1dac8d8 -- backend/dominio backend/aplicacion` solo lista archivos agregados.
+- **Va de arriba abajo:** las rutas, los puertos de entrada (prefijo `puertos_juego.`), los casos de uso que los heredan y, abajo, las reglas y los datos del dominio. Las clases SQLite de los puertos de salida están en [puertos e implementaciones](#puertos-e-implementaciones).
+- **Cómo se engancha.** `DiagnosticarPlantaDeUsuario` no cambió y no se dibuja: sigue avisando por un solo `NotificadorDiagnosticos`. Lo implementan `NotificadorWebSocket` (corte 2), `PuntuarLectura` y `AvisarATodos`. `main.py` conecta `AvisarATodos([PuntuarLectura, NotificadorWebSocket])`: primero los puntos y después el aviso en vivo. Si uno falla, el otro igual recibe el aviso.
+- **`ReglaDeCuidado`** dice cuánto vale cada lectura: `SALUDABLE` +10, `EN_RIESGO` −5 y `CRITICO` −10. Crea un `MovimientoPuntaje` con la hora del servidor. Es el único lugar que cambia si el profesor pide que `EN_RIESGO` no reste.
+- **`CuidadoDeMascota`** arma la `Mascota`, la matera Tamagotchi, con sus capas:
+  - la etapa, con `RitmoCrecimiento` y las horas de juego bien cuidada (promedio de −5 o más);
+  - la condición, con el `Tramo` de las 6 horas de juego que terminan en la última lectura (mayor que 0 sana, de 0 a −5 decaída, menor que −5 marchita);
+  - la cara y si duerme, con el último movimiento (30 minutos reales sin lecturas);
+  - el globo, con `necesidad_principal` (agua, temperatura y luz, en ese orden);
+  - el aviso, `SE_MARCHITO` o `PASO_A_CRITICO`.
+
+  `RelojDeJuego` solo cambia la escala (`MATERA_MINUTOS_POR_DIA_JUEGO`).
+- **`MovimientosPuntaje.resumen_de` solo agrupa y cuenta** (`ResumenCuidado`): cuántas horas terminaron con cada cantidad de lecturas y suma, y los dos últimos movimientos con sus ventanas. Qué hora fue bien cuidada lo decide el dominio.
+- **`Participacion.exigir_participacion()`** es la regla «quien no participa no ve la tabla» (`ParticipacionRequerida`, 403). `ApodoJugador` compara sin importar mayúsculas (`clave`). `ConsultarTablaPosiciones` vuelve a filtrar con las reglas del dominio aunque el adaptador traiga de más.
+- Los errores del juego heredan de `ErrorDominio`. `presentacion/errores_juego.py` los traduce a 400 `APODO_JUGADOR_INVALIDO`, 403 `PARTICIPACION_REQUERIDA` y 409 `APODO_JUGADOR_REPETIDO`.
 
 ## Entidad-relación
 
@@ -282,13 +328,13 @@ Fuente: [`entidad-relacion-corte1.mmd`](entidad-relacion-corte1.mmd).
 - Es el modelo **conceptual**: en el corte 1 no hay base de datos. Físicamente es un solo archivo, `datos/especies.csv`, con una fila por especie y dos columnas (`_min` y `_max`) por parámetro.
 - `PARAMETRO` no es una tabla sino las constantes de `dominio/parametros.py`.
 
-### Corte 2
+### Cortes 2 y 3
 
 ![Entidad-relación del corte 2](entidad-relacion-corte2.png)
 
 Fuente: [`entidad-relacion-corte2.mmd`](entidad-relacion-corte2.mmd).
 
-- **Todo va en un solo archivo SQLite, con ocho tablas.** Cada planta tiene su `usuario_id`, y el dominio (`Planta.exigir_dueno`) rechaza la planta de otro usuario.
+- **Todo va en un solo archivo SQLite, con catorce tablas: ocho del corte 2 y seis del corte 3.** Cada planta tiene su `usuario_id`, y el dominio (`Planta.exigir_dueno`) rechaza la planta de otro usuario.
 - **`ESPECIE` y `RANGO_OPTIMO` reemplazaron al CSV del corte 1.** `carga.sql` las llena con las mismas especies, rangos y fuentes. Desde la fase 2, `datos/especies.csv` es una copia de solo lectura de estas dos tablas.
 - **`PLANTA.especie` es una llave foránea real,** también cuando la tabla de referencia es el CSV. No se puede registrar una planta con una especie inexistente, ni borrar una especie que alguna planta use.
 - **`RANGO_OPTIMO` y `LECTURA` guardan una fila por parámetro**, así que agregar el pH no cambia el esquema.
@@ -298,6 +344,13 @@ Fuente: [`entidad-relacion-corte2.mmd`](entidad-relacion-corte2.mmd).
   - `SENSOR.hash_clave` es la huella SHA-256 de la clave.
   - `SESION.token_id` y `SENSOR.token_id` son el id (`jti`) del JWT, no el token. Si se cierra la sesión, o cambia el `token_id` del sensor, el token deja de servir aunque no haya vencido.
 - **`MEDICION.momento` es la hora en que el dispositivo tomó la lectura, guardada en UTC.** `MEDICION.origen` es el código del sensor que la envió. Las mediciones escritas a mano antes del 18 de octubre conservan `MANUAL`.
+- **El corte 3 (versión 4 del esquema) solo agrega tablas;** las de antes no cambian. Sus atributos dicen «corte 3»:
+  - `MOVIMIENTO_PUNTAJE`: un movimiento por lectura aceptada, con la hora del servidor y sus puntos. Al borrar la planta queda sin planta (`SET NULL`): sus puntos siguen siendo del dueño, pero no pasan a otra planta que reciba el mismo id.
+  - `CUIDADO_POR_HORA` y `HORAS_POR_TRAMO`: lo que suma cada hora de juego, y cuántas horas terminaron con cada cantidad de lecturas y suma. Se llevan al día al guardar cada movimiento, así el juego no recorre todo el historial. También llevan `usuario_id`; esas líneas no se dibujan para que se lea.
+  - `PUNTAJE_TOTAL`: el total de cada usuario, con los puntos de sus materas borradas.
+  - `JUGADOR`: si respondió la pregunta de la tabla y, si participa, su apodo, único sin importar mayúsculas (`NOCASE`).
+  - `RITMO_CRECIMIENTO`: los días de juego de cada etapa, aparte de la tabla de especies del corte 1. Una especie sin fila crece a 1/3/7.
+- **La conexión no cambia la base.** La huella de la clave que creó la placa va en la misma columna `SENSOR.hash_clave`.
 - El esquema real está en [`backend/datos/esquema.sql`](../../backend/datos/esquema.sql). Las bases anteriores se migran solas al arrancar el backend (`PRAGMA user_version`), y antes se deja una copia de respaldo al lado.
 - Borrar un usuario o una planta borra en cascada lo que depende de ellos. Las líneas punteadas llegan a `PARAMETRO`, que sigue en el código.
 
@@ -342,6 +395,7 @@ Fuente: [`secuencia-medicion-sensor.mmd`](secuencia-medicion-sensor.mmd). Corte 
 - **`ServicioDiagnostico` es el del corte 1, sin cambios.** `DiagnosticarPlantaDeUsuario` busca la planta, exige que sea del dueño (`Planta.exigir_dueno`) y la diagnostica. El resultado se guarda como `RegistroMedicion`, con la hora del dispositivo y el código del sensor como origen.
 - **Después de guardar, se avisa en vivo** por el puerto `NotificadorDiagnosticos`: la pantalla del dueño se actualiza sola (ver la secuencia siguiente). Si el aviso falla, el dispositivo igual recibe su 201.
 - Con MQTT solo cambiarían el primer participante y el adaptador que lo recibe. Desde `RegistrarLectura` en adelante, todo queda igual.
+- **Corte 3:** la clave del paso 1 puede haberla creado la placa (la API solo guardó su huella), el aviso llega a `AvisarATodos` (ver la [secuencia del puntaje](#secuencia-del-puntaje)) y la respuesta 201 suma la `necesidad`.
 
 ### Secuencia del tiempo real
 
@@ -359,6 +413,7 @@ Fuente: [`secuencia-tiempo-real.mmd`](secuencia-tiempo-real.mmd). Corte 2, desde
   - Así, una pestaña de una cuenta borrada nunca recibe las mediciones de la cuenta nueva que hereda su id (SQLite reutiliza el id más alto).
 - **Una pestaña lenta no traba al dispositivo.** El mensaje queda en la cola de la pestaña y lo manda su propio hilo. Si la cola se llena, se corta esa conexión.
 - **El WebSocket es un aviso, no la única vía.** Si la conexión se cae, el front reintenta y vuelve a pedir sus datos. Aunque no haya conexión, Mis materas consulta `GET /plantas` cada 10 s. La medición nunca se pierde: se guardó antes de avisar.
+- **Corte 3:** el aviso pasa por `AvisarATodos`, que primero guarda los puntos y después avisa al WebSocket. Con cada mensaje, `juego.js` vuelve a pedir `GET /juego/materas` y `GET /juego/puntaje`.
 
 ### Secuencia de login y «mis plantas»
 
@@ -389,6 +444,39 @@ Fuente: [`secuencia-admin-especie.mmd`](secuencia-admin-especie.mmd). Corte 2.
 - **El final depende de la tabla de referencia:**
   - Con `MATERA_TABLA_REFERENCIA=bd`, la especie se guarda en la base y aparece de inmediato en `GET /especies`, disponible para las plantas de cualquier usuario. Después, `RegistroEspeciesConCopiaCsv` reescribe la copia en CSV. Si eso falla, solo queda en el log: la especie ya está en la base, y `exportar_especies_csv.py` deja la copia al día.
   - Con `csv`, `EspeciesDeSoloLectura` rechaza la escritura y la respuesta es 409 `TABLA_SOLO_LECTURA`.
+
+### Secuencia del puntaje
+
+![Secuencia del puntaje](secuencia-puntaje.png)
+
+Fuente: [`secuencia-puntaje.mmd`](secuencia-puntaje.mmd). Corte 3.
+
+- **Empieza donde termina la lectura aceptada.** Los rechazos (401, 403 y 400) están en la [secuencia de una lectura](#secuencia-de-una-lectura-del-dispositivo): una lectura rechazada no llega aquí y no cuenta.
+- **`DiagnosticarPlantaDeUsuario` no cambió.** Guarda la medición y avisa por `NotificadorDiagnosticos`, que ahora es `AvisarATodos`.
+- **Primer suscriptor, el puntaje.** `PuntuarLectura` le pide a `ReglaDeCuidado` el movimiento, con la hora del servidor, y `MovimientosPuntajeSqlite` lo guarda en una transacción:
+  - el movimiento, solo si la planta sigue siendo de ese dueño;
+  - la lectura en su hora de juego (`cuidado_por_hora`), con el reloj vigente;
+  - la forma de esa hora en `horas_por_tramo`, y los puntos en `puntaje_total`.
+
+  Si la planta se borró mientras tanto, no se guarda nada: `AvisarATodos` lo registra en el log y sigue.
+- **Segundo suscriptor, el aviso en vivo.** `NotificadorWebSocket` manda la medición a las pestañas del dueño. Si falla, la lectura y los puntos ya están guardados.
+- **La placa recibe su 201 con la `necesidad`,** que sale de `necesidad_principal` (dominio), para dibujar su carita y su globo.
+- **El front pide `GET /juego/materas`** al llegar el mensaje y cada 10 s. `MovimientosPuntaje.resumen_de` solo cuenta, y `CuidadoDeMascota.armar` decide la etapa, la condición, la cara, si duerme, el globo y el aviso.
+
+### Secuencia de la conexión de una placa
+
+![Secuencia de la conexión de una placa](secuencia-conexion-placa.png)
+
+Fuente: [`secuencia-conexion-placa.mmd`](secuencia-conexion-placa.mmd). Corte 3. Los pasos son los del asistente `js/conectar-sensor.js`, y las etapas y la API local, las del firmware ([firmware/README.md](../../firmware/README.md)).
+
+- **1. Preparar.** Mientras el equipo sigue en su WiFi, la app pide `GET /red`: las direcciones por las que una placa alcanza el servidor, que da `RedLocal`. Con `MATERA_HOST=127.0.0.1` la lista viene vacía y el asistente no sigue.
+- **2. Unirse a la placa.** Sin red guardada, la placa abre `Matera-5500BA` con una clave WPA2 nueva y muestra el QR (hecho con `esp_qrcode_generate`). La app pregunta por `GET http://192.168.4.1/info` hasta encontrarla: el código (de la MAC), la huella de su clave y las redes que ve.
+- **3. Elegir el WiFi.** `POST /configurar` le lleva la red, su clave y las direcciones del servidor. La placa se une al WiFi sin cerrar su red, y la app sigue sus etapas con `GET /estado`. La placa prueba cada dirección primero sin la clave (el canje con `{}` tiene que dar el 400 en JSON de la API), y solo entonces canjea con la clave: el 401 dice que la matera todavía no existe.
+- **4. Volver a su red.** `POST /cerrar` apaga la red de la placa, y la app espera a que la API vuelva a responder.
+- **5. Crear la matera** con el código y la huella (o cambiarle el sensor). `RegistrarPlanta` guarda la huella tal cual, y la respuesta no trae clave.
+- **La placa, sola:** canjea su clave cada 5 s hasta que la API la reconoce, y manda sus lecturas con el JWT de alcance «lecturas», como en la fase 2. Con la respuesta 201 dibuja su carita.
+- **6. Primera lectura.** La app espera la primera medición de esa placa (`GET /plantas` cada 3 s, o el mensaje del WebSocket).
+- La clave del sensor nunca pasa por la app: solo la huella. Es el esquema de PKCE: primero se registra la huella y después se presenta el secreto.
 
 ---
 
@@ -426,6 +514,8 @@ La primera versión (commit `d00df35`) se apartaba del diseño aprobado en vario
 - **`RepositorioEspeciesCsv` volvió**, como copia de solo lectura elegida por configuración.
 - **`rutas` sí usa el decorador de autenticación,** como en la primera versión: Diagnóstico, Especies y Parámetros exigen el JWT de usuario (R7).
 
+**Pendiente también desde el corte 3 (noviembre de 2026):** no tiene el juego (`dominio/juego.py`, `mascota.py`, `puertos_juego.py`, `aplicacion/juego.py`, `avisos.py`, `rutas_juego.py` y `repositorio_juego.py`), ni `AvisarATodos` entre `DiagnosticarPlantaDeUsuario` y el WebSocket, ni la huella de la conexión ni `GET /red`.
+
 Puede haber más diferencias: para todo lo del 18 de octubre en adelante valen los diagramas por capa y la vista hexagonal. Solo `mqtt_listener` sigue de verdad sin código (MQTT es el escenario 5.1 del documento).
 
 **Nivel de detalle:** el corte 2 agregó unas 20 clases de caso de uso y varios repositorios SQLite; dibujar cada una por separado hacía el diagrama ilegible. Por eso, igual que el corte 1 solo mostraba `RepositorioEspeciesCsv` como único repositorio, aquí varias clases con el mismo patrón se agrupan en una sola caja (por ejemplo, `ListarUsuarios, CambiarEstadoUsuario, CambiarRol, EliminarUsuario, AgregarEspecie` comparten caja porque todas empiezan con `actor.exigir_admin()`). Para el detalle clase por clase, use los diagramas por capa de la sección anterior.
@@ -436,10 +526,12 @@ Fuente: [`clases-backend-general.puml`](clases-backend-general.puml) (PlantUML, 
 
 ## Si cambia el código
 
-Los diagramas del corte 2 y la vista hexagonal tienen que seguir correspondiendo uno a uno con el repositorio. Si se agrega, se renombra o se mueve un archivo, o cambia un import entre capas:
+Los diagramas actuales (cortes 2 y 3) y la vista hexagonal tienen que seguir correspondiendo uno a uno con el repositorio. Si se agrega, se renombra o se mueve un archivo, o cambia un import entre capas:
 
 1. Edite el `.mmd`.
 2. Pegue su contenido en <https://mermaid.live> y exporte el SVG y el PNG con el mismo nombre. También se puede exportar con `npx @mermaid-js/mermaid-cli -i paquetes-corte2.mmd -o paquetes-corte2.svg`.
 3. Revise la explicación de ese diagrama en este archivo.
+
+Los SVG y PNG de este corte se exportaron con Mermaid 11.4.1 en Edge sin ventana, con el tema `base` y `flowchart.wrappingWidth: 600`: los colores del tema están en el `<style>` de cada SVG. El PNG va a escala 2, y uno muy alto se toma por franjas, porque una sola captura salía con la mitad en blanco (le pasaba al `clases-aplicacion.png` anterior).
 
 Los del corte 1 (`-corte1`, `paquetes` y `secuencia-diagnostico`) son el registro de lo entregado en el tag `corte-1`: no se actualizan.

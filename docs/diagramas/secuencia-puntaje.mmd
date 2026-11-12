@@ -1,0 +1,66 @@
+%% Secuencia del corte 3 (implementada): una lectura aceptada del dispositivo suma o resta puntos.
+%% DiagnosticarPlantaDeUsuario no cambia: sigue avisando por un solo NotificadorDiagnosticos. main.py le entrega
+%% AvisarATodos([PuntuarLectura, NotificadorWebSocket]): primero se guardan los puntos y despues sale el aviso en vivo,
+%% asi el front no pide GET /juego antes de que esten guardados. Si un suscriptor falla, el otro igual recibe el aviso.
+%% Los rechazos de la lectura (401, 403, 400) estan en secuencia-medicion-sensor: una lectura rechazada no llega aqui.
+sequenceDiagram
+    autonumber
+    participant ESP as ESP32<br/>(o simulador_esp32.py)
+    participant RD as rutas_dispositivos.py<br/>(presentación)
+    participant RL as RegistrarLectura<br/>(aplicación)
+    participant DU as DiagnosticarPlantaDeUsuario<br/>(aplicación, sin cambios)
+    participant AT as AvisarATodos<br/>(aplicación, avisos.py)
+    participant PL as PuntuarLectura<br/>(aplicación, juego.py)
+    participant RC as ReglaDeCuidado<br/>(dominio, juego.py)
+    participant MP as MovimientosPuntajeSqlite<br/>(infraestructura, puerto<br/>MovimientosPuntaje)
+    participant BD as SQLite: movimiento_puntaje,<br/>cuidado_por_hora, horas_por_tramo<br/>y puntaje_total
+    participant NW as NotificadorWebSocket<br/>(infraestructura)
+    participant F as Front<br/>(tiempo-real.js y juego.js)
+    participant CM as rutas_juego.py y<br/>ConsultarMascotas<br/>(presentación y aplicación)
+
+    ESP ->> RD: POST /api/v1/dispositivos/{código}/lecturas<br/>Bearer JWT, {dispositivo, momento, lecturas}
+    RD ->> RL: ejecutar(identidad, reporte)
+    Note over RD,RL: el token, el sensor, la cuenta<br/>y la hora se revisan como en<br/>secuencia-medicion-sensor
+    RL ->> DU: ejecutar(planta.usuario_id, planta.id,<br/>medicion, origen = código, momento)
+    Note over DU: Planta.exigir_dueno,<br/>ServicioDiagnostico del corte 1<br/>y HistorialMediciones.agregar:<br/>la lectura ya quedó guardada
+    DU ->> AT: NotificadorDiagnosticos.publicar(<br/>dueño, planta, registro, diagnostico)
+
+    rect rgb(238, 248, 238)
+        Note over AT,BD: primer suscriptor: el puntaje
+        AT ->> PL: publicar(dueño, planta,<br/>registro, diagnostico)
+        PL ->> RC: movimiento(planta.usuario_id, planta.id,<br/>Reloj.ahora(), diagnostico.estado)
+        Note over PL,RC: la hora es la del servidor, no la de la placa
+        RC -->> PL: MovimientoPuntaje: SALUDABLE +10,<br/>EN_RIESGO −5, CRITICO −10
+        PL ->> MP: agregar(movimiento)
+        MP ->> BD: en una transacción: el movimiento, solo si la planta<br/>sigue siendo de ese dueño (mismo id y usuario_id)
+        MP ->> BD: suma la lectura a su hora de juego en cuidado_por_hora<br/>(RelojDeJuego.numero_de_hora con el reloj vigente)
+        MP ->> BD: mueve esa hora de su forma de antes a la nueva en horas_por_tramo<br/>y suma los puntos en puntaje_total
+        alt la planta se borró mientras llegaba la lectura
+            MP --x PL: PlantaNoEncontrada: no se guarda nada
+            PL --x AT: el error
+            Note over AT: lo registra en el log y sigue con el siguiente:<br/>esa lectura no suma ni resta
+        else la planta sigue siendo del dueño
+            MP -->> PL: listo
+        end
+    end
+
+    rect rgb(238, 244, 250)
+        Note over AT,F: segundo suscriptor: el aviso en vivo
+        AT ->> NW: publicar(dueño, planta, registro, diagnostico)
+        NW ->> F: {"tipo": "medicion", planta,<br/>medicion, diagnostico}, solo a las<br/>pestañas del dueño (CanalesTiempoReal)
+        Note over NW: si falla, AvisarATodos lo registra<br/>en el log: la lectura y los puntos<br/>ya están guardados
+    end
+
+    AT -->> DU: AvisarATodos nunca lanza
+    DU -->> RL: ResultadoMedicion
+    RL -->> RD: ResultadoMedicion
+    RD -->> ESP: 201 {planta, momento, diagnostico, necesidad}
+    Note over ESP,RD: necesidad sale de mascota.necesidad_principal<br/>(dominio): primero el agua, después la temperatura<br/>y después la luz. Con ella la placa dibuja su carita y su globo
+
+    F ->> CM: GET /api/v1/juego/materas, con el JWT<br/>(al llegar el mensaje y cada 10 s)
+    CM ->> MP: resumen_de(planta, ventana de 6 horas de juego), por cada planta propia
+    MP ->> BD: lee horas_por_tramo y, de movimiento_puntaje, los dos últimos<br/>movimientos y las ventanas que terminan en ellos
+    MP -->> CM: ResumenCuidado
+    Note over F,CM: con el ritmo de su especie (RitmosCrecimiento) y la<br/>última medición (HistorialMediciones, solo para el globo),<br/>CuidadoDeMascota.armar (dominio) decide la etapa, la condición,<br/>la cara, si duerme, la necesidad y el aviso. El adaptador solo cuenta
+    CM -->> F: 200 {materas: [{plantaId, etapa,<br/>condicion, cara, dormida, necesidad, aviso,<br/>puntos, horasCuidada, ultimaLectura}]}
+    Note over F: dibuja la matera Tamagotchi<br/>y avisa si llegó PASO_A_CRITICO<br/>o SE_MARCHITO

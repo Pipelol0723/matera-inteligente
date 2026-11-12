@@ -2,6 +2,8 @@
 %% Paso 1: canjea la clave del sensor por un JWT de alcance "lecturas". Paso 2: reporta la lectura con ese JWT, que se diagnostica
 %% con el ServicioDiagnostico del corte 1, se guarda en el historial y se avisa en vivo.
 %% Si el dueno de la planta esta desactivado, no hay canje ni lectura: 403 CUENTA_DESACTIVADA.
+%% Corte 3: la clave puede haberla creado la placa (la API solo guardo su huella), el aviso va a AvisarATodos
+%% (los puntos y el WebSocket, ver secuencia-puntaje) y la respuesta 201 suma necesidad.
 sequenceDiagram
     autonumber
     participant ESP as ESP32<br/>(o simulador_esp32.py)
@@ -16,7 +18,7 @@ sequenceDiagram
     participant HN as HistorialMediciones y<br/>NotificadorDiagnosticos (puertos)
 
     rect rgb(238, 244, 250)
-        Note over ESP,HN: Paso 1: canjear la clave por un token. La clave se muestra una sola vez, al crear la matera
+        Note over ESP,HN: Paso 1: canjear la clave por un token. La clave la crea la placa (corte 3) o se muestra una sola vez al crear la matera
         ESP ->> RD: POST /api/v1/dispositivos/{código}/token<br/>cuerpo {"clave"}
         RD ->> E: clave_desde_json(cuerpo)
         E -->> RD: clave
@@ -98,10 +100,10 @@ sequenceDiagram
                 DU ->> HN: HistorialMediciones.agregar(planta, RegistroMedicion.desde(diagnostico, planta.id, momento, origen))
                 Note over HN: solo si la planta sigue siendo la que se leyó (mismo id y dueño).<br/>Si se borró mientras tanto: PlantaNoEncontrada y 404
                 DU ->> HN: NotificadorDiagnosticos.publicar(dueño, planta, registro, diagnostico)
-                Note over HN: NotificadorWebSocket lo manda solo a las<br/>pestañas abiertas del dueño. Si falla, la<br/>medición ya quedó guardada: solo se registra en el log
+                Note over HN: desde el corte 3 es AvisarATodos: primero PuntuarLectura<br/>(los puntos) y después NotificadorWebSocket, que lo manda solo<br/>a las pestañas del dueño (secuencia-puntaje). Si uno falla, la<br/>medición ya quedó guardada: solo se registra en el log
                 DU -->> RL: ResultadoMedicion
                 RL -->> RD: ResultadoMedicion: planta, diagnóstico y momento
-                RD -->> ESP: 201 JSON con la planta, el momento y el diagnóstico
+                RD -->> ESP: 201 JSON con la planta, el momento, el diagnóstico<br/>y la necesidad (corte 3)
             end
         end
     end

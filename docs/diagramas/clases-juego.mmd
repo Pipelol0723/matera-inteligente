@@ -1,0 +1,373 @@
+%% El juego del corte 3: la matera Tamagotchi, el puntaje y la tabla de posiciones.
+%% Todo esta en archivos nuevos: dominio/juego.py, mascota.py, resultados_juego.py, puertos_juego.py y errores_juego.py;
+%% aplicacion/juego.py y avisos.py; presentacion/rutas_juego.py, esquemas_juego.py y errores_juego.py.
+%% Las implementaciones SQLite de los tres puertos de salida estan en clases-puertos.mmd.
+%% Colores por capa (sin namespace, para que se lea): verde dominio, amarillo aplicacion, morado presentacion,
+%% azul infraestructura.
+%% Borde grueso: se agrego en el corte 3. Borde medio: corte 2 (ya existia). Borde fino: corte 1.
+%% DiagnosticarPlantaDeUsuario no se dibuja: no cambio, y la nota de AvisarATodos dice como se engancha.
+%% El puerto de entrada lleva el prefijo puertos_juego. y el caso de uso que lo hereda va sin prefijo.
+classDiagram
+    direction TB
+
+    class rutas_juego {
+        <<módulo>>
+        +crear_blueprint_juego(consultar_mascotas, consultar_puntaje, consultar_participacion, elegir_participacion, consultar_tabla, autenticacion) Blueprint
+        GET /juego/materas · GET /juego/puntaje
+        GET y PUT /juego/participacion · GET /juego/tabla
+        todas con Autenticacion.con_usuario
+    }
+    class esquemas_juego {
+        <<módulo>>
+        +participacion_desde_json(cuerpo) participa, apodo
+        +mascotas_a_json(mascotas) dict
+        +puntaje_a_json(puntaje) dict
+        +participacion_a_json(participacion) dict
+        +tabla_a_json(posiciones) dict
+    }
+    class errores_juego_http["errores_juego"] {
+        <<módulo>>
+        +registrar_manejadores_juego(bp)
+        ApodoInvalido 400 APODO_JUGADOR_INVALIDO
+        ParticipacionRequerida 403 PARTICIPACION_REQUERIDA
+        ApodoRepetido 409 APODO_JUGADOR_REPETIDO
+    }
+
+    class AvisarATodos {
+        -suscriptores: tuple~NotificadorDiagnosticos~
+        +publicar(usuario_id, planta, registro, diagnostico)
+        si uno falla, lo registra y sigue
+    }
+    class PuntuarLectura {
+        -movimientos: MovimientosPuntaje
+        -reloj: Reloj
+        -regla: ReglaDeCuidado
+        +publicar(usuario_id, planta, registro, diagnostico)
+    }
+    class ConsultarPuntaje {
+        -movimientos: MovimientosPuntaje
+        -plantas: ConsultaPlantas
+        -limite: int = 20
+        +ejecutar(usuario) PuntajeUsuario
+    }
+    class ConsultarParticipacion {
+        -jugadores: RegistroJugadores
+        +ejecutar(usuario) Participacion
+    }
+    class ElegirParticipacion {
+        -jugadores: RegistroJugadores
+        +ejecutar(usuario, participa, apodo) Participacion
+    }
+    class ConsultarTablaPosiciones {
+        -jugadores: RegistroJugadores
+        -movimientos: MovimientosPuntaje
+        -cuentas: ConsultaCuentas
+        +ejecutar(usuario) list~PosicionTabla~
+    }
+    class ConsultarMascotas {
+        -plantas: ConsultaPlantas
+        -historial: HistorialMediciones
+        -movimientos: MovimientosPuntaje
+        -ritmos: RitmosCrecimiento
+        -cuidado: CuidadoDeMascota
+        -reloj: Reloj
+        +ejecutar(usuario) list~Mascota~
+    }
+
+    class pj_ConsultarMascotas["puertos_juego.ConsultarMascotas"] {
+        <<interface>>
+        +ejecutar(usuario) list~Mascota~
+    }
+    class pj_ConsultarPuntaje["puertos_juego.ConsultarPuntaje"] {
+        <<interface>>
+        +ejecutar(usuario) PuntajeUsuario
+    }
+    class pj_ConsultarParticipacion["puertos_juego.ConsultarParticipacion"] {
+        <<interface>>
+        +ejecutar(usuario) Participacion
+    }
+    class pj_ElegirParticipacion["puertos_juego.ElegirParticipacion"] {
+        <<interface>>
+        +ejecutar(usuario, participa, apodo) Participacion
+    }
+    class pj_ConsultarTablaPosiciones["puertos_juego.ConsultarTablaPosiciones"] {
+        <<interface>>
+        +ejecutar(usuario) list~PosicionTabla~
+    }
+    class NotificadorDiagnosticos {
+        <<interface>>
+        +publicar(usuario_id, planta, registro, diagnostico)
+    }
+    class MovimientosPuntaje {
+        <<interface>>
+        +agregar(movimiento: MovimientoPuntaje)
+        +total_de(usuario_id) int
+        +totales_por_planta(usuario_id) dict
+        +recientes_de(usuario_id, limite) list~MovimientoPuntaje~
+        +totales_de_usuarios(usuario_ids) dict
+        +resumen_de(planta, ventana) ResumenCuidado
+    }
+    class RegistroJugadores {
+        <<interface>>
+        +participacion_de(usuario_id) Participacion o None
+        +guardar(participacion: Participacion)
+        +apodo_en_uso(apodo, excepto_usuario_id) bool
+        +participantes_activos() list~Participacion~
+    }
+    class RitmosCrecimiento {
+        <<interface>>
+        +de_especie(especie: str) RitmoCrecimiento o None
+    }
+    class ReglaDeCuidado {
+        +PUNTOS: SALUDABLE 10, EN_RIESGO -5, CRITICO -10
+        +puntos(estado: EstadoGlobal) int
+        +movimiento(usuario_id, planta_id, momento, estado) MovimientoPuntaje
+    }
+    class MovimientoPuntaje {
+        +usuario_id: int
+        +planta_id: int o None
+        +momento: datetime
+        +estado: EstadoGlobal
+        +puntos: int
+    }
+    class EstadoGlobal {
+        <<enumeration>>
+        SALUDABLE
+        EN_RIESGO
+        CRITICO
+    }
+    class ApodoJugador {
+        +valor: str
+        +MINIMO: int = 3
+        +MAXIMO: int = 20
+        +clave: str, en minúsculas
+    }
+    class EstadoParticipacion {
+        <<enumeration>>
+        SIN_DECIDIR
+        PARTICIPA
+        NO_PARTICIPA
+    }
+    class Participacion {
+        +usuario_id: int
+        +estado: EstadoParticipacion
+        +apodo: ApodoJugador o None
+        +sin_decidir(usuario_id)$ Participacion
+        +participa(usuario_id, apodo)$ Participacion
+        +no_participa(usuario_id)$ Participacion
+        +en_tabla: bool
+        +exigir_participacion()
+    }
+    class RelojDeJuego {
+        +minutos_por_dia: float = 1440
+        +dia: timedelta
+        +hora: timedelta
+        +horas(cantidad) timedelta
+        +numero_de_hora(momento) int
+    }
+    class RitmoCrecimiento {
+        +dias_brote: int = 1
+        +dias_planta: int = 3
+        +dias_florecida: int = 7
+        +etapa(horas_cuidada: int) EtapaCrecimiento
+    }
+    class Tramo {
+        +cantidad: int
+        +suma: int
+        +vacio: bool
+        +promedio_mayor_que(umbral) bool
+        +promedio_al_menos(umbral) bool
+    }
+    class ResumenCuidado {
+        +horas_por_tramo: Tramo → horas
+        +ultimo: MovimientoPuntaje o None
+        +anterior: MovimientoPuntaje o None
+        +al_ultimo: Tramo
+        +al_anterior: Tramo
+        +puntos: int
+    }
+    class CuidadoDeMascota {
+        +HORAS_DE_LA_CONDICION: int = 6
+        +UMBRAL_SANA: int = 0
+        +UMBRAL_MARCHITA: int = -5
+        +MINUTOS_PARA_DORMIR: int = 30
+        -reloj: RelojDeJuego
+        +ventana: timedelta
+        +armar(planta, ritmo, resumen, ultima, ahora) Mascota
+        +condicion(tramo: Tramo) Condicion
+        +horas_cuidada(resumen) int
+        +dormida(ultimo, ahora) bool
+        +necesidad(ultima: RegistroMedicion o None)$ Necesidad o None
+        +aviso(resumen) Aviso o None
+    }
+    class necesidad_principal {
+        <<función>>
+        +necesidad_principal(estados) Necesidad o None
+        primero el agua, después la temperatura, después la luz
+    }
+    class Mascota {
+        +planta: Planta
+        +etapa: EtapaCrecimiento
+        +condicion: Condicion
+        +cara: EstadoGlobal o None
+        +dormida: bool
+        +necesidad: Necesidad o None
+        +aviso: Aviso o None
+        +puntos: int
+        +horas_cuidada: int
+        +ultima_lectura: datetime o None
+    }
+    class EtapaCrecimiento {
+        <<enumeration>>
+        SEMILLA
+        BROTE
+        PLANTA
+        FLORECIDA
+    }
+    class Condicion {
+        <<enumeration>>
+        SANA
+        DECAIDA
+        MARCHITA
+    }
+    class Necesidad {
+        <<enumeration>>
+        SED
+        EXCESO_AGUA
+        FRIO
+        CALOR
+        POCA_LUZ
+        MUCHA_LUZ
+    }
+    class Aviso {
+        <<enumeration>>
+        PASO_A_CRITICO
+        SE_MARCHITO
+    }
+    class PuntajeUsuario {
+        <<resultado>>
+        +total: int
+        +materas: list~PuntajeDeMatera~
+        +movimientos: list~MovimientoReciente~
+    }
+    class PuntajeDeMatera {
+        <<resultado>>
+        +planta: Planta
+        +puntos: int
+    }
+    class MovimientoReciente {
+        <<resultado>>
+        +momento: datetime
+        +estado: EstadoGlobal
+        +puntos: int
+        +planta: Planta o None
+    }
+    class PosicionTabla {
+        <<resultado>>
+        +posicion: int
+        +apodo: ApodoJugador
+        +puntos: int
+        +soy_yo: bool
+    }
+
+    class NotificadorWebSocket {
+        -canales: CanalesTiempoReal
+        +publicar(usuario_id, planta, registro, diagnostico)
+    }
+
+    rutas_juego ..> pj_ConsultarMascotas
+    rutas_juego ..> pj_ConsultarPuntaje
+    rutas_juego ..> pj_ConsultarParticipacion
+    rutas_juego ..> pj_ElegirParticipacion
+    rutas_juego ..> pj_ConsultarTablaPosiciones
+    rutas_juego ..> esquemas_juego
+    rutas_juego ..> errores_juego_http
+
+    pj_ConsultarMascotas <|.. ConsultarMascotas
+    pj_ConsultarPuntaje <|.. ConsultarPuntaje
+    pj_ConsultarParticipacion <|.. ConsultarParticipacion
+    pj_ElegirParticipacion <|.. ElegirParticipacion
+    pj_ConsultarTablaPosiciones <|.. ConsultarTablaPosiciones
+
+    AvisarATodos ..|> NotificadorDiagnosticos
+    AvisarATodos o-- "1..*" NotificadorDiagnosticos : suscriptores, en orden
+    PuntuarLectura ..|> NotificadorDiagnosticos
+    NotificadorWebSocket ..|> NotificadorDiagnosticos
+    PuntuarLectura --> MovimientosPuntaje : movimientos
+    PuntuarLectura --> ReglaDeCuidado : regla
+
+    ConsultarPuntaje --> MovimientosPuntaje
+    ConsultarParticipacion --> RegistroJugadores
+    ElegirParticipacion --> RegistroJugadores
+    ConsultarTablaPosiciones --> RegistroJugadores
+    ConsultarTablaPosiciones ..> Participacion : exigir_participacion()
+    ConsultarMascotas --> RitmosCrecimiento
+    ConsultarMascotas --> CuidadoDeMascota
+
+    ReglaDeCuidado ..> MovimientoPuntaje : crea
+    MovimientoPuntaje --> EstadoGlobal : estado
+    Participacion --> EstadoParticipacion : estado
+    Participacion --> "0..1" ApodoJugador : apodo
+    PosicionTabla --> ApodoJugador : apodo
+    PuntajeUsuario *-- PuntajeDeMatera
+    PuntajeUsuario *-- MovimientoReciente
+    MovimientosPuntaje ..> ResumenCuidado : agrupa y cuenta
+    RegistroJugadores ..> Participacion
+    RitmosCrecimiento ..> RitmoCrecimiento
+
+    CuidadoDeMascota ..> ResumenCuidado
+    CuidadoDeMascota --> RelojDeJuego : reloj
+    ResumenCuidado *-- Tramo
+    CuidadoDeMascota ..> RitmoCrecimiento
+    CuidadoDeMascota ..> necesidad_principal : el globo
+    CuidadoDeMascota ..> Mascota : arma
+    RitmoCrecimiento ..> EtapaCrecimiento
+    necesidad_principal ..> Necesidad
+    Mascota --> Condicion : condicion
+    Mascota --> Aviso : aviso
+
+    note for CuidadoDeMascota "Tamaño: horas de juego con promedio de -5 o más, al ritmo de la especie.<br>Condición: promedio de las 6 horas de juego que terminan en la última lectura:<br>mayor que 0 sana, de 0 a -5 decaída, menor que -5 marchita.<br>Cara: la última lectura. Dormida: sin lecturas en 30 minutos reales.<br>Aviso: SE_MARCHITO al marchitarse, o PASO_A_CRITICO."
+    note for AvisarATodos "DiagnosticarPlantaDeUsuario no cambió: sigue avisando por un solo<br>NotificadorDiagnosticos. main.py le pasa<br>AvisarATodos([PuntuarLectura, NotificadorWebSocket]).<br>Los puntos van primero: cuando el front recibe el mensaje<br>en vivo y pide /juego, ya están guardados."
+    note "Errores del juego (dominio/errores_juego.py), heredan de ErrorDominio:<br>ParticipacionRequerida, ApodoInvalido y ApodoRepetido.<br>Las clases SQLite de MovimientosPuntaje, RegistroJugadores<br>y RitmosCrecimiento están en clases-puertos."
+
+    style rutas_juego fill:#E1D5E7,stroke:#6a3d80,stroke-width:4px,color:#16231b
+    style esquemas_juego fill:#E1D5E7,stroke:#6a3d80,stroke-width:4px,color:#16231b
+    style errores_juego_http fill:#E1D5E7,stroke:#6a3d80,stroke-width:4px,color:#16231b
+    style AvisarATodos fill:#FFF2CC,stroke:#8a6d12,stroke-width:4px,color:#16231b
+    style PuntuarLectura fill:#FFF2CC,stroke:#8a6d12,stroke-width:4px,color:#16231b
+    style ConsultarPuntaje fill:#FFF2CC,stroke:#8a6d12,stroke-width:4px,color:#16231b
+    style ConsultarParticipacion fill:#FFF2CC,stroke:#8a6d12,stroke-width:4px,color:#16231b
+    style ElegirParticipacion fill:#FFF2CC,stroke:#8a6d12,stroke-width:4px,color:#16231b
+    style ConsultarTablaPosiciones fill:#FFF2CC,stroke:#8a6d12,stroke-width:4px,color:#16231b
+    style ConsultarMascotas fill:#FFF2CC,stroke:#8a6d12,stroke-width:4px,color:#16231b
+    style pj_ConsultarMascotas fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style pj_ConsultarPuntaje fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style pj_ConsultarParticipacion fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style pj_ElegirParticipacion fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style pj_ConsultarTablaPosiciones fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style NotificadorDiagnosticos fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style MovimientosPuntaje fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style RegistroJugadores fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style RitmosCrecimiento fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style ReglaDeCuidado fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style MovimientoPuntaje fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style EstadoGlobal fill:#D5E8D4,stroke:#5a7d5f,color:#16231b
+    style ApodoJugador fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style EstadoParticipacion fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style Participacion fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style RelojDeJuego fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style RitmoCrecimiento fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style Tramo fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style ResumenCuidado fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style CuidadoDeMascota fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style necesidad_principal fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style Mascota fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style EtapaCrecimiento fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style Condicion fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style Necesidad fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style Aviso fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style PuntajeUsuario fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style PuntajeDeMatera fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style MovimientoReciente fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style PosicionTabla fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style NotificadorWebSocket fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b

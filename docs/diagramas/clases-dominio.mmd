@@ -1,6 +1,8 @@
 %% Clases del dominio de matera-inteligente (backend/dominio/).
 %% Une el diagrama de clases de Roger (commit 3987f72) con el corte 2 y la fase 2 hexagonal.
-%% Relleno verde: capa de dominio. Borde grueso: se agregó en el corte 2 o en la fase 2.
+%% Relleno verde: capa de dominio. Borde medio: se agregó en el corte 2 o en la fase 2. Borde fino: corte 1.
+%% Corte 3: el dominio del juego (juego.py, mascota.py, resultados_juego.py, puertos_juego.py) esta en
+%% clases-juego.mmd. Aqui solo cambia SensorVinculado.clave, que puede ser None (commit 9167a8f).
 %% Los nombres son los del código. Los puertos de salida y quién los implementa están en clases-puertos.mmd.
 %% Los puertos de entrada (puertos_entrada.py) están en los diagramas de aplicación.
 classDiagram
@@ -206,7 +208,7 @@ classDiagram
     class SensorVinculado {
         +planta: Planta
         +codigo: CodigoSensor
-        +clave: str
+        +clave: str o None
     }
     class PlantaConEstado {
         +planta: Planta
@@ -261,6 +263,7 @@ classDiagram
 
     note for IdentidadUsuario "token_id es el jti del JWT. Mientras exista una Sesion<br>con ese token_id el token sirve: cerrar la sesión o<br>desactivar la cuenta lo invalida aunque no haya vencido."
     note for IdentidadDispositivo "token_id es el del último canje de la clave: un canje<br>nuevo, o cambiar el sensor de la planta, invalida los anteriores."
+    note for SensorVinculado "Corte 3: clave es None cuando la placa creó su clave<br>y la app solo trajo su huella: la API nunca la conoce."
     note for ReporteDeDispositivo "Al construirse exige una hora con zona horaria; después,<br>exigir_que_no_sea_futuro tolera ADELANTO_MAXIMO = 2 minutos<br>de adelanto. Las dos reglas lanzan MomentoInvalido."
 
     note "Errores del corte 2 (errores_usuarios.py), heredan de ErrorDominio:<br>CorreoInvalido, NombreInvalido, ContrasenaDebil, CorreoYaRegistrado,<br>CredencialesInvalidas, CuentaDesactivada, SesionInvalida,<br>PermisoDenegado, AccionSobreSiMismo, UsuarioNoEncontrado,<br>EspecieYaExiste, PlantaNoEncontrada, ApodoInvalido, ApodoRepetido,<br>CodigoSensorInvalido, SensorYaVinculado, ClaveSensorInvalida<br>Errores de la fase 2, en el mismo archivo:<br>TablaDeSoloLectura, AlcanceInvalido, CredencialDispositivoInvalida,<br>DispositivoAjeno, MomentoInvalido"

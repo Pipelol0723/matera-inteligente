@@ -7,34 +7,42 @@
 %% Desde la fase 2 (R7) todas las rutas del front exigen el JWT de usuario: consultar especies y diagnosticar tambien piden sesion,
 %% y el visitante solo crea su cuenta e inicia sesion.
 %% Los casos del sensor se declaran primero para que sus flechas "incluye" no crucen otros casos.
+%% Corte 3 (borde grueso): el juego (la matera Tamagotchi, los puntos y la tabla) y el asistente que conecta una placa.
 flowchart LR
     sensor["Sensor<br/>(ESP32 o simulador)"]
     visitante["Visitante"]
     usuario["Usuario registrado"]
     admin["Administrador"]
-    subgraph SIS["Matera inteligente · corte 2"]
+    subgraph SIS["Matera inteligente · cortes 2 y 3"]
         uc16(["Canjear su clave por un token"])
         uc11(["Reportar una lectura con su hora"])
         uc12(["Guardar en el historial"])
         uc15(["Avisar la medición al dueño"])
+        uc21(["Sumar o restar puntos<br/>(+10, −5 o −10)"])
         uc2(["Diagnosticar una planta"])
         uc3(["Recibir recomendaciones"])
         uc1(["Consultar especies y sus rangos"])
         uc4(["Crear cuenta"])
         uc5(["Iniciar sesión"])
         uc7(["Ver mis materas, que se actualizan solas<br/>(cada 10 s y en vivo)"])
+        uc17(["Ver mis materas Tamagotchi<br/>y mis puntos, con sus avisos"])
         uc6(["Crear una matera con su sensor y borrarla"])
         uc8(["Cambiar el sensor de una matera"])
+        uc20(["Conectar una placa con el asistente,<br/>al crear la matera o cambiarle el sensor<br/>(QR de la placa y WiFi, sin tocar código)"])
         uc9(["Ver el historial de una planta"])
         uc10(["Ver mi cuenta y cerrar sesión"])
         uc13(["Administrar usuarios"])
         uc14(["Agregar especies<br/>(con la tabla en CSV, 409)"])
+        uc18(["Elegir si participo en la tabla,<br/>con un apodo de jugador"])
+        uc19(["Ver la tabla de posiciones<br/>(solo si participo)"])
     end
     sensor --- uc16
     sensor --- uc11
     uc11 -.->|incluye| uc2
     uc11 -.->|incluye| uc12
     uc11 -.->|incluye| uc15
+    uc11 -.->|incluye| uc21
+    uc21 -.->|actualiza| uc17
     uc15 -.->|actualiza| uc7
     uc2 -.->|incluye| uc3
     visitante --- uc4
@@ -45,8 +53,12 @@ flowchart LR
     usuario --- uc6
     usuario --- uc7
     usuario --- uc8
+    usuario --- uc20
     usuario --- uc9
     usuario --- uc10
+    usuario --- uc17
+    usuario --- uc18
+    usuario --- uc19
     admin -->|también es| usuario
     admin --- uc13
     admin --- uc14
@@ -59,3 +71,5 @@ flowchart LR
     class uc1,uc2,uc3 caso
     class uc4,uc5,uc6,uc7,uc8,uc9,uc10,uc11,uc12,uc15,uc16 nuevo
     class uc13,uc14 soloAdmin
+    classDef nuevo3 fill:#dbeae0,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    class uc17,uc18,uc19,uc20,uc21 nuevo3

@@ -6,8 +6,10 @@ Matera inteligente es una API que diagnostica el estado de una planta a partir d
 - **Sensor:** cada matera nace con su sensor, que puede ser un ESP32 o el simulador. El sensor canjea su clave por un token propio y reporta lecturas con la hora en que las tomó.
 - **Historial:** solo el sensor escribe en él.
 - **Pantalla del dueño:** se actualiza sola. Consulta la API cada 10 segundos y, además, recibe cada lectura al instante por WebSocket.
+- **Corte 3, el juego:** cada matera es un Tamagotchi. Crece con el tiempo que pasa bien cuidada, se marchita si la descuidan, dice qué necesita y avisa cuando está mal. Cada lectura suma o resta puntos, y quien quiere compite en una tabla de posiciones con un apodo. Ver [La matera Tamagotchi](#la-matera-tamagotchi).
+- **Corte 3, la conexión:** la placa se conecta sola. Muestra un QR con su propia red, la app le entrega el WiFi y la dirección del servidor, y crea la matera con el código y la huella de la clave que creó la placa. Nadie toca `config.h`. Ver [Conectar una matera](#conectar-una-matera).
 
-Proyecto de Arquitectura de Software, semestre 2026-03. El corte 1, tal como se entregó, está en el tag `corte-1`. La fase 2 organiza el backend en puertos y adaptadores (arquitectura hexagonal): ver [Arquitectura](#arquitectura-puertos-y-adaptadores).
+Proyecto de Arquitectura de Software, semestre 2026-03. El corte 1, tal como se entregó, está en el tag `corte-1`. La fase 2 organiza el backend en puertos y adaptadores (arquitectura hexagonal): ver [Arquitectura](#arquitectura-puertos-y-adaptadores). El corte 3 agrega el juego sin modificar ningún archivo del núcleo: ver [La prueba de cambio del corte 3](#la-prueba-de-cambio-del-corte-3).
 
 ## Estructura
 
@@ -53,7 +55,8 @@ frontend/            HTML, CSS y JavaScript estáticos, servidos aparte
   js/escala.js       geometría de escalas y anillos
   js/formato.js      textos, colores y ayudas para crear nodos
 firmware/
-  matera-sensor/     el programa de la ESP32, para el Arduino IDE 2 (ver firmware/README.md)
+  matera-sensor/     el programa de la ESP32: su código y su clave, la red propia con el QR, la pantalla
+                     y las lecturas (ver firmware/README.md)
 docs/
   diagramas/         la vista hexagonal, casos de uso, paquetes, clases, entidad-relación y secuencias
                      (fuente .mmd, SVG y PNG)
@@ -71,8 +74,9 @@ Las carpetas son las del corte 1, y cada una tiene su lugar en la vista hexagona
 | `dominio/` y `aplicacion/` | El núcleo: reglas de negocio y casos de uso. No conocen Flask, SQLite, el CSV, JWT, JSON ni HTTP. |
 | `dominio/puertos_entrada.py` | Los puertos de entrada: una clase abstracta por caso de uso, con el mismo nombre que el caso de uso de `aplicacion/` que la implementa. Lo que entra y sale de ellos está en `dominio/resultados.py`. |
 | `dominio/puertos.py` y `dominio/puertos_usuarios.py` | Los puertos de salida: lo que el núcleo necesita de afuera, cada uno con pocos métodos. |
-| `presentacion/` | Los adaptadores de entrada: las rutas del front, las de los dispositivos y el WebSocket. Dependen de los puertos de entrada, nunca de los casos de uso. |
-| `infraestructura/` | Los adaptadores de salida: implementan los puertos de salida con SQLite, el CSV, PyJWT, PBKDF2, el reloj y el WebSocket. |
+| `dominio/puertos_juego.py` | Los puertos del juego (corte 3), en un archivo nuevo: cinco de entrada (`ConsultarMascotas`, `ConsultarPuntaje`, `ConsultarParticipacion`, `ElegirParticipacion` y `ConsultarTablaPosiciones`) y tres de salida (`MovimientosPuntaje`, `RegistroJugadores` y `RitmosCrecimiento`). Lo que devuelven está en `dominio/resultados_juego.py`. |
+| `presentacion/` | Los adaptadores de entrada: las rutas del front, las del juego, las de los dispositivos y el WebSocket. Dependen de los puertos de entrada, nunca de los casos de uso. |
+| `infraestructura/` | Los adaptadores de salida: implementan los puertos de salida con SQLite, el CSV, PyJWT, PBKDF2, el reloj y el WebSocket. `red_local.py` busca las IPv4 del PC para `GET /red`. |
 | `main.py` | El único punto de composición: elige qué adaptador se conecta a cada puerto. `crear_admin.py` y `exportar_especies_csv.py` le piden sus piezas (`construir_consola`). |
 
 Las dependencias apuntan hacia el núcleo. `tests/dominio/test_arquitectura.py` lo comprueba en cada corrida:
@@ -82,13 +86,53 @@ Las dependencias apuntan hacia el núcleo. `tests/dominio/test_arquitectura.py` 
 
 El diagrama está en [docs/diagramas](docs/diagramas/README.md#vista-hexagonal) (`hexagonal.mmd`).
 
-**La prueba de cambio.** El adaptador de dispositivos y el simulador entraron en el commit `d41ca34` sin tocar ningún archivo del núcleo. Lo muestra este comando, que no lista ningún archivo:
+**La prueba de cambio de la fase 2.** El adaptador de dispositivos y el simulador entraron en el commit `d41ca34` sin tocar ningún archivo del núcleo. Lo muestra este comando, que no lista ningún archivo:
 
 ```bash
 git show --stat d41ca34 -- backend/dominio backend/aplicacion
 ```
 
 El núcleo ya tenía, desde el commit `13a3c1b`, los puertos de entrada `RegistrarLectura` y `CanjearClaveDispositivo`, probados con dobles. Lo mismo pasó con la tabla en CSV (commit `9c7ce5e`), que es otro adaptador de los puertos del corte 1.
+
+### La prueba de cambio del corte 3
+
+**El juego entró solo agregando archivos.** El commit `1dac8d8` trae el núcleo del juego: las reglas, los puertos y los casos de uso. En `dominio/` y `aplicacion/` solo agrega archivos (`A`), ninguno modificado (`M`):
+
+```bash
+git show --name-status 1dac8d8 -- backend/dominio backend/aplicacion
+```
+
+```
+A	backend/aplicacion/avisos.py
+A	backend/aplicacion/juego.py
+A	backend/dominio/errores_juego.py
+A	backend/dominio/juego.py
+A	backend/dominio/mascota.py
+A	backend/dominio/puertos_juego.py
+A	backend/dominio/resultados_juego.py
+```
+
+Es el principio abierto/cerrado: el juego solo lee lo que ya existía (el `EstadoGlobal` de la regla híbrida, `Planta`, `RegistroMedicion` y los puertos de plantas, historial y cuentas). Se engancha así:
+- `DiagnosticarPlantaDeUsuario` no cambió: después de guardar cada lectura avisa por un solo `NotificadorDiagnosticos`, como en la fase 2.
+- `main.py` le entrega `AvisarATodos([PuntuarLectura, NotificadorWebSocket])` (`aplicacion/avisos.py`). Reparte el aviso en ese orden: primero se guardan los puntos y después sale el mensaje en vivo, así el front no pide `GET /juego/...` antes de tiempo. Si un suscriptor falla, el error va al log y el otro igual recibe el aviso; la lectura ya quedó guardada.
+- Sumar otro suscriptor (por ejemplo, Web Push) es agregarlo a esa lista en `main.py`.
+
+Los commits siguientes del juego (`1b43072` y las revisiones) solo cambian esos archivos nuevos.
+
+**La conexión sí cambió las firmas de dos puertos de entrada** (commit `9167a8f`). En el corte 2 la clave del sensor la creaba la API y la mostraba una vez. Desde el corte 3 la crea la placa, y la app solo trae su huella SHA-256 (el esquema de PKCE: primero se registra la huella y después se presenta el secreto). El contrato de entrada de crear la matera cambia, porque ahora puede llegar la huella en vez de pedirle la clave a la API:
+- `RegistrarPlanta.ejecutar(usuario, apodo, especie, codigo, huella=None)` y `ReemplazarSensor.ejecutar(usuario, planta_id, codigo, huella=None)`, en `dominio/puertos_entrada.py`.
+- `SensorVinculado.clave` pasa a ser `str | None`, en `dominio/resultados.py`: con huella no hay clave que devolver.
+- Los casos de uso de `aplicacion/plantas.py` y `aplicacion/sensores.py` guardan la huella tal cual. Sin huella, crean la clave como antes.
+
+Ninguna regla cambia: especie, apodo, sensor libre, propiedad de la planta y revocación de la clave y del token. El parámetro es opcional, así que el simulador, «Conectar a mano» y las pruebas de antes siguen igual. El dominio trata la huella como texto: el formato (64 caracteres hexadecimales en minúscula) lo revisa `presentacion/esquemas_usuarios.py`, y SHA-256 solo existe en `infraestructura/seguridad.py` y en el firmware. Es el único commit del corte 3 que modifica archivos del núcleo que ya existían, y va aparte, con su motivo. Este comando lo comprueba para todo el corte (solo los cuatro archivos de `9167a8f` salen con `M`):
+
+```bash
+git diff --name-status b574752 HEAD -- backend/dominio backend/aplicacion
+```
+
+**`GET /red` no pasa por el núcleo.** No tiene ninguna regla de negocio: solo dice por qué direcciones alcanza una placa al servidor. `main.py` le pasa a `presentacion/rutas_red.py` las funciones de `RedLocal` (`infraestructura/red_local.py`), así presentación sigue sin importar infraestructura.
+
+Los diagramas del corte 3 están en [docs/diagramas](docs/diagramas/README.md): `hexagonal`, `clases-juego`, `secuencia-puntaje` y `secuencia-conexion-placa`.
 
 ## Requisitos
 
@@ -174,7 +218,7 @@ $env:MATERA_HOST = "0.0.0.0"
 python main.py
 ```
 
-Al arrancar, Flask muestra una línea `Running on http://192.168.x.x:5000` con la dirección del PC en la red. Si el PC tiene una VPN o varias redes, puede mostrar otra; en ese caso la que va en el ESP32 es la «Dirección IPv4» del adaptador WiFi que muestra `ipconfig`.
+Al arrancar, Flask muestra una línea `Running on http://192.168.x.x:5000` con la dirección del PC en la red. Si el PC tiene una VPN o varias redes, puede mostrar otra; la buena es la «Dirección IPv4» del adaptador WiFi que muestra `ipconfig`. Desde el corte 3 no hay que copiarla en la placa: el asistente se la pide a `GET /red` y se la entrega (ver [Conectar una matera](#conectar-una-matera)). Solo hace falta para el respaldo de `config.h` y para abrir el front desde el celular.
 
 El firewall de Windows bloquea el puerto para otros equipos. Se abre una vez, en una PowerShell como administrador, con la red WiFi marcada como privada:
 
@@ -194,7 +238,7 @@ Para cerrarlo después de la demo:
 Remove-NetFirewallRule -DisplayName "Matera API 5000"
 ```
 
-El ESP32 le habla a la API en dos pasos, con el código de su matera y la clave que entregó Mis materas al crearla. Primero canjea la clave por su token, de alcance «lecturas», que vence a las 24 horas:
+El ESP32 le habla a la API en dos pasos, con su código y su clave. Desde el corte 3 la clave la crea la placa y la API solo guarda su huella; con «Conectar a mano», en cambio, la clave la entrega Mis materas al crear la matera. Primero canjea la clave por su token, de alcance «lecturas», que vence a las 24 horas:
 
 ```http
 POST http://192.168.x.x:5000/api/v1/dispositivos/MT-0001-AA/token
@@ -221,7 +265,7 @@ Con `0.0.0.0`, cualquiera en esa red puede llamar la API, y los tokens y la clav
 
 `simulador/simulador_esp32.py` manda lecturas a la API como el ESP32, sin hardware. Hace lo mismo que la placa (el canje, el token y las lecturas con su hora), y además genera lecturas fuera de rango y datos inválidos. Es un script aparte: no importa nada del backend y solo usa la biblioteca estándar de Python.
 
-Conviene darle su propia matera en Mis materas, distinta de la de la placa, porque cada canje deja sin efecto el token anterior del mismo sensor. Créela con la especie **potos**: los valores «normales» del simulador están dentro de sus rangos, así salen saludables, y las lecturas fuera de rango se distinguen. Con otra especie, por ejemplo la sansevieria, las normales también pueden salir en riesgo. Desde la raíz del repositorio, con el backend corriendo:
+Conviene darle su propia matera en Mis materas, distinta de la de la placa, porque cada canje deja sin efecto el token anterior del mismo sensor. Créela con el enlace «Conectar a mano» del formulario de Mis materas, que pide el código (por ejemplo, `MT-0002-AB`) y muestra la clave una sola vez, y con la especie **potos**: los valores «normales» del simulador están dentro de sus rangos, así salen saludables, y las lecturas fuera de rango se distinguen. Con otra especie, por ejemplo la sansevieria, las normales también pueden salir en riesgo. Desde la raíz del repositorio, con el backend corriendo:
 
 ```powershell
 python simulador/simulador_esp32.py MT-0002-AB --clave=<clave> --intervalo 5 --fuera-de-rango 0.2 --invalidas 0.1
@@ -253,7 +297,7 @@ python simulador/simulador_esp32.py MT-0002-AB --clave=<clave> --casos
 
 ### La demo de la sustentación
 
-El enunciado pide cuatro cosas. Las tres primeras se hacen así, desde la raíz del repositorio y con el backend corriendo:
+**Fase 2.** El enunciado pide cuatro cosas. Las tres primeras se hacen así, desde la raíz del repositorio y con el backend corriendo:
 
 1. **El simulador enviando lecturas en vivo.** Con Mis materas abierta en el navegador, cada lectura aparece al instante (ver [Simulador del ESP32](#simulador-del-esp32)). Con `--fuera-de-rango` y `--invalidas` se ven también los rechazos.
 2. **El cambio de CSV a BD por configuración.** `exportar_especies_csv.py`, `MATERA_TABLA_REFERENCIA=csv` y reiniciar el backend (ver [Tabla de referencia](#tabla-de-referencia-csv-o-base-de-datos)). El simulador sigue solo cuando el backend vuelve. Agregar una especie en Administración responde `409 TABLA_SOLO_LECTURA`.
@@ -271,6 +315,23 @@ El enunciado pide cuatro cosas. Las tres primeras se hacen así, desde la raíz 
 
 La cuarta es la pregunta de cambio (MQTT u OAuth), y va en el documento de arquitectura.
 
+**Corte 3.** Lo nuevo se muestra así:
+
+1. **La matera Tamagotchi en vivo.** Desde `backend/`, se arranca el backend abierto a la red y con el reloj de la demo:
+
+   ```powershell
+   $env:MATERA_HOST = "0.0.0.0"
+   $env:MATERA_MINUTOS_POR_DIA_JUEGO = "6"
+   python main.py
+   ```
+
+   Con 6 minutos por día, una hora de juego dura 15 segundos, lo mismo que tarda la placa entre una lectura y otra: un potos bien cuidado llega a brote a los 6 minutos. Para verla decaer sin esperar, se usa el simulador sobre otra matera de potos con `--fuera-de-rango 1`: con esa especie, la mayoría de esas lecturas salen CRITICO. La cara se pone triste, llega el aviso «pasó a CRÍTICO» y, cuando el promedio de las 6 horas de juego queda por debajo de −5, «se marchitó» (ver [La matera Tamagotchi](#la-matera-tamagotchi)).
+2. **La tabla de posiciones con dos cuentas.** Una participa con un apodo y la otra no. La que no participa no aparece en la tabla ni la ve: su pantalla Juego la invita a participar, y `GET /juego/tabla` le responde `403 PARTICIPACION_REQUERIDA`. Lo decide `Participacion.exigir_participacion`, en el dominio.
+3. **La placa que se conecta sola.** «Agregar matera», escanear el QR de la pantalla y elegir el WiFi en la app (ver [Conectar una matera](#conectar-una-matera)). Se hace desde el PC o desde el celular de alguien que no sea el hotspot.
+4. **La prueba de cambio del corte 3.** `git show --name-status 1dac8d8 -- backend/dominio backend/aplicacion` solo lista archivos agregados (ver [La prueba de cambio del corte 3](#la-prueba-de-cambio-del-corte-3)).
+
+Si el profesor confirma que una lectura EN_RIESGO no debe restar, solo cambia la tabla `ReglaDeCuidado.PUNTOS` de `dominio/juego.py` (y sus pruebas).
+
 ## Ejecutar el front
 
 En otra terminal, desde la raíz del repositorio:
@@ -281,7 +342,7 @@ python -m http.server 5500 --directory frontend
 
 Abra `http://localhost:5500`. El front se tiene que servir por HTTP; abrir `index.html` con doble clic no funciona porque usa módulos de JavaScript.
 
-El front busca la API en el mismo equipo desde el que se abrió: `http://<equipo>:5000/api/v1`. En el PC es `localhost`; desde un celular en la misma red se abre `http://<IP del PC>:5500`, con el backend arrancado con `MATERA_HOST=0.0.0.0` (ver [Mediciones de un ESP32](#mediciones-de-un-esp32-en-la-red)). Si cambia el puerto del backend, ajuste `frontend/js/config.js`.
+El front busca la API en el mismo equipo desde el que se abrió: `http://<equipo>:5000/api/v1`. En el PC es `localhost`; desde un celular en la misma red se abre `http://<IP del PC>:5500`, con el backend arrancado con `MATERA_HOST=0.0.0.0` y el puerto 5500 abierto en el firewall (ver «Abrir el front desde el celular», en [Conectar una matera](#conectar-una-matera)). Si cambia el puerto del backend, ajuste `frontend/js/config.js`.
 
 El front no tiene rangos, umbrales ni reglas. Los parámetros, las especies, los estados y las recomendaciones salen de la API. Del juego tampoco calcula nada: los puntos, la etapa, la condición, la cara, la necesidad, el aviso y quién ve la tabla vienen de `GET /juego/...`, y el front solo los dibuja.
 
@@ -290,7 +351,7 @@ El front no tiene rangos, umbrales ni reglas. Los parámetros, las especies, los
 | Diagnóstico | con sesión | Consulta `POST /diagnosticos` mientras se escribe (espera 400 ms después de la última tecla) y muestra el estado en los anillos. Los botones Saludable, En riesgo y Crítico llenan valores de ejemplo a partir de los rangos, y la API decide el estado. El panel "Errores de la API" envía peticiones inválidas a propósito. No guarda nada. |
 | Especies | con sesión | Muestra el catálogo de `GET /especies` con bandas escaladas según los límites físicos de `GET /parametros`. |
 | Ingresar / Crear cuenta | pública | Dos formularios. Al entrar guarda el token y vuelve a la pantalla privada que se había pedido. |
-| Mis materas | con sesión | Las materas del usuario con su última medición, que se actualiza sola (ver abajo). «Agregar matera» pide apodo y especie y abre el asistente «Conectar sensor» (ver abajo); «Cambiar sensor», en cada tarjeta, abre el mismo asistente y conserva el historial. Para placas con `config.h` y para el simulador queda «Conectar a mano»: se escribe el código del sensor y la clave se muestra una sola vez (va en `config.h` o en `--clave=`); con el mismo código, da una clave nueva y la anterior deja de servir con su token. Cada tarjeta también permite ver el historial y eliminar la matera. Desde el front no se escriben mediciones. Cada tarjeta muestra además la matera Tamagotchi (ver abajo) con los puntos de esa matera y sus horas de juego bien cuidada. |
+| Mis materas | con sesión | Las materas del usuario con su última medición, que se actualiza sola (ver abajo). «Agregar matera» pide apodo y especie y abre el asistente «Conectar sensor» (ver [Conectar una matera](#conectar-una-matera)); «Cambiar sensor», en cada tarjeta, abre el mismo asistente y conserva el historial. Para el simulador y las placas con el programa de la fase 2 (código y clave en `config.h`) queda «Conectar a mano»: se escribe el código del sensor y la clave se muestra una sola vez (va en `--clave=` o en `config.h`); con el mismo código, da una clave nueva y la anterior deja de servir con su token. Cada tarjeta también permite ver el historial y eliminar la matera. Desde el front no se escriben mediciones. Cada tarjeta muestra además la matera Tamagotchi (ver [La matera Tamagotchi](#la-matera-tamagotchi)) con los puntos de esa matera y sus horas de juego bien cuidada. |
 | Historial | con sesión | La lista, la gráfica y el resumen de las mediciones de una planta, con el estado que calculó la API en su momento. Se actualiza solo, igual que Mis materas. |
 | Juego | con sesión | Tus puntos: el total, los puntos de cada matera y los últimos 20 movimientos («+10 · sala · SALUDABLE · 14:03:15»). A quien participa le muestra la tabla de posiciones con su fila resaltada; a quien no, lo invita a participar desde Mi cuenta. También dice cómo llegan los avisos y tiene el botón para activar las notificaciones del navegador. |
 | Mi cuenta | con sesión | Nombre, correo, rol, cantidad de plantas y cerrar sesión. En «Tabla de posiciones», participar con un apodo de jugador, cambiarlo o dejar de participar (`PUT /juego/participacion`); los errores del apodo los responde la API. |
@@ -303,20 +364,123 @@ Mis materas y el Historial se actualizan solos de dos maneras:
 - **En vivo.** Mientras hay una sesión, `js/tiempo-real.js` mantiene abierto el WebSocket `/api/v1/tiempo-real`, y la barra muestra «En vivo». Cada lectura aparece al instante, sin esperar la próxima consulta. Si la conexión se cae, reintenta con esperas de 1 a 30 segundos, y mientras tanto la consulta periódica mantiene la pantalla al día.
 - **Las dos a la vez.** Si una respuesta de la consulta llega después de una medición en vivo más reciente, la pantalla no retrocede, y el Historial no repite una medición que ya tenía. Una petición que no termina en 15 segundos se da por perdida, así una conexión colgada no detiene la consulta periódica.
 
-El juego (`js/juego.js`) también se actualiza solo: mientras hay sesión, en cualquier pantalla, pide `GET /juego/materas` y `GET /juego/puntaje` cada 10 segundos y cada vez que llega un mensaje del WebSocket (el backend guarda los puntos antes de avisar). Así cambian solos el dibujo de cada matera, sus puntos, el puntaje de la cabecera y la tabla. Al cerrar la sesión se borra todo lo del juego.
-- **La matera Tamagotchi** (`js/dibujo-planta.js`) es un SVG: la etapa (`SEMILLA`, `BROTE`, `PLANTA`, `FLORECIDA`) da el tamaño, la condición (`SANA`, `DECAIDA`, `MARCHITA`) el color y la postura de las hojas, la última lectura la cara (feliz, preocupada, triste, o dormida si `dormida` es verdadero) y la necesidad el globo («¡tengo sed!», «¡me ahogo!», «¡tengo frío!», «¡tengo calor!», «¡poca luz!», «¡mucha luz!»). Una matera sin lecturas es una semilla dormida. Los colores son variables de `estilos.css`, y cada dibujo tiene su descripción accesible.
-- **Participar.** La primera vez que entra alguien que todavía no decidió (`SIN_DECIDIR`), un diálogo de la página le pregunta si quiere aparecer en la tabla; si dice que sí, pide el apodo y muestra los errores de la API (400 `APODO_JUGADOR_INVALIDO`, 409 `APODO_JUGADOR_REPETIDO`). «Decidir después» no responde a la API: se vuelve a preguntar en la próxima sesión.
-- **Avisos** (`js/avisos.js`). Cuando una matera trae `aviso` (`PASO_A_CRITICO` o `SE_MARCHITO`), el front avisa una sola vez por lectura («sala pasó a CRÍTICO», «sala se marchitó») y guarda las ya avisadas en `sessionStorage`. Con contexto seguro (por ejemplo, `http://localhost`) y el permiso concedido, usa una notificación del navegador; el permiso se pide con el botón de la pantalla Juego o del aviso, nunca al cargar. Si no (por ejemplo, el celular que abre el front por la red local, en http), muestra el aviso dentro de la página y el celular vibra.
+El juego (`js/juego.js`) también se actualiza solo: mientras hay sesión, en cualquier pantalla, pide `GET /juego/materas` y `GET /juego/puntaje` cada 10 segundos y cada vez que llega un mensaje del WebSocket (el backend guarda los puntos antes de avisar). Así cambian solos el dibujo de cada matera, sus puntos, el puntaje de la cabecera y la tabla. Al cerrar la sesión se borra todo lo del juego. Las reglas están en [La matera Tamagotchi](#la-matera-tamagotchi), y el asistente que conecta una placa, en [Conectar una matera](#conectar-una-matera).
 
-El asistente «Conectar sensor» (`js/conectar-sensor.js`) conecta una placa nueva sin tocar código, en seis pasos:
-1. **Preparar:** mientras el equipo sigue en su WiFi, pide `GET /red` y anota a qué direcciones mandará la placa sus lecturas. Si la lista viene vacía, muestra el aviso de la API y no sigue.
-2. **Unirse a la placa:** el equipo se une a la red `Matera-…` que muestra la pantalla de la matera (con su QR), y la app encuentra la placa sola en `http://192.168.4.1` (`GET /info`: código, huella de su clave y redes que ve).
-3. **Elegir el WiFi:** la red y su clave van directo a la placa (`POST /configurar`), y la app sigue sus etapas (`GET /estado`).
-4. **Volver a su red:** la placa apaga la suya (`POST /cerrar`) y la app espera a que la API vuelva a responder.
-5. **Crear la matera** (`POST /plantas`) o **cambiar el sensor** (`PUT /plantas/{id}/sensor`) con el código y la huella. La clave nunca sale de la placa.
-6. **Primera lectura:** espera la primera medición de esa placa y muestra su estado.
+## La matera Tamagotchi
 
-El avance (sin la clave del WiFi) se guarda en `sessionStorage`, porque al cambiar de red la página puede recargarse. El código, la huella y las etapas los decide la placa, y el estado lo calcula la API: el asistente solo los muestra. Para probarlo sin la placa, se abre el front con `?placa=http://127.0.0.1:8099` y se pone ahí un doble de la API local de la placa; solo se aceptan direcciones de este equipo o de una red privada.
+Es el pedido del profesor para el corte 3: volver la planta un Tamagotchi. Cada matera tiene un dibujo que cambia con su estado, y cada dueño gana o pierde puntos con cada lectura. Todo lo decide el dominio, en `dominio/juego.py` y `dominio/mascota.py` (`ReglaDeCuidado` y `CuidadoDeMascota`): el front pide `GET /juego/materas` y solo dibuja lo que recibe. El diagrama está en [docs/diagramas](docs/diagramas/README.md#clases-del-juego) (`clases-juego.mmd`).
+
+**Puntos.** Cada lectura aceptada (la que responde 201) deja un movimiento en el puntaje del dueño:
+
+| Estado de la lectura | Puntos |
+|---|---|
+| `SALUDABLE` | +10 |
+| `EN_RIESGO` | −5 |
+| `CRITICO` | −10 |
+
+- El estado es el de la regla híbrida del corte 1: el juego solo lo lee.
+- Una lectura rechazada (400, 401 o 403) no cuenta.
+- El movimiento lleva la hora del servidor, no la de la placa.
+- El puntaje puede quedar negativo, y cada matera suma por su lado. Los puntos de una matera borrada siguen en el total del dueño.
+- Todos empiezan en 0 con la versión 4 de la base: las lecturas de antes no cuentan.
+- Restar 5 en `EN_RIESGO` es decisión del equipo: el profesor dijo que lo normal no suma ni resta. Si se cambia, solo cambia `ReglaDeCuidado.PUNTOS`.
+
+El dibujo tiene cinco capas, y cada una sale de un dato distinto:
+
+| Capa | Sale de | Valores |
+|---|---|---|
+| Tamaño (`etapa`) | Las horas de juego bien cuidada, al ritmo de su especie. | `SEMILLA`, `BROTE`, `PLANTA`, `FLORECIDA` |
+| Condición (`condicion`): color y postura de las hojas | El promedio de puntos de las lecturas de las 6 horas de juego que terminan en la última lectura. | `SANA`, `DECAIDA`, `MARCHITA` |
+| Cara (`cara`) | El estado de la última lectura. | feliz (`SALUDABLE`), preocupada (`EN_RIESGO`), triste (`CRITICO`), o dormida |
+| Globo (`necesidad`) | El parámetro fuera de rango de la última lectura. | «¡tengo sed!», «¡me ahogo!», «¡tengo frío!», «¡tengo calor!», «¡poca luz!», «¡mucha luz!» |
+| Aviso (`aviso`) | Lo que cambió con la última lectura. | `PASO_A_CRITICO`, `SE_MARCHITO` |
+
+**Tamaño.** Cuenta cada hora de juego en la que la matera tuvo lecturas y su promedio fue de −5 o más. Una hora con una sola lectura `EN_RIESGO` cuenta; una hora marchita no, y una hora sin lecturas tampoco: si la descuidan, deja de crecer. Cada especie tiene su ritmo, en días de juego bien cuidada (tabla `ritmo_crecimiento`, cargada desde `datos/ritmos.sql`). Son valores de juego, no botánicos:
+
+| Especie | Brote | Planta | Florecida |
+|---|---|---|---|
+| potos | 1 día | 3 días | 6 días |
+| helecho | 1 día | 3 días | 7 días |
+| lavanda | 1 día | 4 días | 8 días |
+| sansevieria | 2 días | 5 días | 10 días |
+| suculenta | 2 días | 6 días | 12 días |
+| una especie que agrega el admin | 1 día | 3 días | 7 días |
+
+**Condición.** El promedio de puntos de las lecturas de las 6 horas de juego que terminan en la última lectura:
+- mayor que 0: sana;
+- de 0 a −5, los dos incluidos: decaída. Una matera que siempre está `EN_RIESGO` queda aquí y sigue creciendo;
+- menor que −5: marchita.
+
+La ventana se cuenta desde la última lectura y no desde la hora de la consulta: mientras no llegan lecturas, la condición no cambia.
+
+**Globo.** Si hay varios parámetros fuera de rango, primero el agua, después la temperatura y después la luz (`necesidad_principal`). La misma regla llena el campo `necesidad` de la respuesta 201, con el que la pantalla de la placa dibuja su globo.
+
+**Avisos.** `SE_MARCHITO` sale cuando la matera queda marchita y antes no lo estaba. `PASO_A_CRITICO` sale cuando la última lectura es `CRITICO` y la anterior no lo era. Si pasan las dos cosas con la misma lectura, gana `SE_MARCHITO`.
+- En la app (`js/avisos.js`), cada aviso sale una sola vez por lectura («sala pasó a CRÍTICO», «sala se marchitó»). Las ya avisadas se guardan en `localStorage`, por usuario: la consulta cada 10 s, recargar o volver a ingresar no lo repiten.
+- Con contexto seguro (por ejemplo, `http://localhost`) y el permiso concedido, es una notificación del navegador. El permiso se pide con un botón de la pantalla Juego o del aviso, nunca al cargar.
+- Si no (por ejemplo, el celular que abre el front por la red local, en http), el aviso aparece dentro de la página y el celular vibra.
+- En la placa, la pantalla parpadea mientras el estado sea `CRITICO`.
+
+**Dormida.** Si no llegan lecturas en 30 minutos reales (`MATERA_MINUTOS_SIN_LECTURAS`), la matera duerme: cara dormida, sin globo y sin aviso, porque la última lectura ya es vieja. Sin lecturas no suma ni resta. Una matera que nunca tuvo lecturas es una semilla dormida.
+
+**El reloj del juego.** `MATERA_MINUTOS_POR_DIA_JUEGO` dice cuántos minutos reales dura un día de juego. Con 1440, el valor por defecto, es el tiempo real. Para la demo se usa 6: una hora de juego dura 15 segundos, lo mismo que tarda la placa entre una lectura y otra, así que cada hora tiene su lectura y la matera crece y se marchita en minutos. Con menos de 6 quedan horas sin lectura y crece más lento. Las reglas no cambian, solo la escala.
+- Cada lectura queda en su hora de juego al llegar (tabla `cuidado_por_hora`): cambiar el reloj no reagrupa las horas que ya pasaron, y ninguna matera crece de golpe.
+- Los 30 minutos para dormirse son reales y no cambian con el reloj.
+
+```powershell
+$env:MATERA_MINUTOS_POR_DIA_JUEGO = "6"
+python main.py
+```
+
+**La tabla de posiciones.** Solo para quien decide participar:
+- La primera vez que entra alguien que todavía no decidió (`SIN_DECIDIR`), un diálogo de la página le pregunta si quiere aparecer en la tabla. Si dice que sí, pide un apodo de jugador. «Decidir después» no responde a la API: se vuelve a preguntar en la próxima sesión. En Mi cuenta se puede participar, cambiar el apodo o dejar de participar.
+- El apodo tiene de 3 a 20 caracteres (letras sin tildes, números, `_` y `-`) y no se repite, sin importar mayúsculas. Los errores los responde la API: `400 APODO_JUGADOR_INVALIDO` y `409 APODO_JUGADOR_REPETIDO`.
+- Quien no participa conserva su puntaje, sus movimientos y su matera Tamagotchi, pero no aparece en la tabla y no la ve: `GET /juego/tabla` le responde `403 PARTICIPACION_REQUERIDA`. Lo decide `Participacion.exigir_participacion`, en el dominio.
+- Las cuentas desactivadas no aparecen. Con los mismos puntos, misma posición (1, 2, 2, 4), y entre ellas, por apodo. La fila de quien pregunta viene con `soyYo`.
+
+**Dónde se ve.** En Mis materas, el dibujo de cada tarjeta (`js/dibujo-planta.js`, un SVG con los colores de `estilos.css` y su descripción accesible). En la cabecera, el puntaje total. En la pantalla Juego, los puntos de cada matera, los últimos 20 movimientos y la tabla. Las rutas están en la [API](#cuentas-plantas-y-sensores-corte-2), y el recorrido de una lectura hasta los puntos, en [`secuencia-puntaje`](docs/diagramas/README.md#secuencia-del-puntaje).
+
+## Conectar una matera
+
+Desde el corte 3, una placa nueva se conecta sin tocar `config.h` ni volver a subir el programa. La placa saca su código de la MAC (`MT-0000-XX`, como siempre), crea su propia clave y abre una red WiFi con un QR en su pantalla. La app se une a esa red, le entrega el WiFi y la dirección del servidor, y crea la matera con el código y la huella de esa clave. Todo lo de la placa (etapas, pantallas, API local en `192.168.4.1`, botón BOOT y cómo compilar) está en [firmware/README.md](firmware/README.md).
+
+Antes de empezar:
+- El backend tiene que escuchar en la red, con `MATERA_HOST=0.0.0.0` y el puerto 5000 abierto en el firewall (ver [Mediciones de un ESP32](#mediciones-de-un-esp32-en-la-red)).
+- La placa y el PC van en el mismo WiFi, de 2,4 GHz y con salida a internet (la placa toma la hora por NTP).
+
+**El recorrido del asistente.** «Agregar matera» pide apodo y especie y abre el asistente «Conectar sensor» (`js/conectar-sensor.js`); «Cambiar sensor», en una tarjeta, abre el mismo asistente y conserva el historial. Son seis pasos:
+1. **Preparar.** Mientras el equipo sigue en su WiFi, la app pide `GET /red` y anota a qué direcciones mandará la placa sus lecturas. Si la lista viene vacía (el backend escucha solo en `127.0.0.1`), muestra el aviso de la API y no sigue.
+2. **Unirse a la placa.** La pantalla de la matera muestra un QR con su red (`Matera-` y el código, por ejemplo `Matera-5500BA`) y una clave WPA2 de 8 caracteres, nueva cada vez. Se escanea con la cámara del celular, o en el PC se elige esa red y se escribe la clave. La app encuentra la placa sola en `http://192.168.4.1` (`GET /info`: el código, la huella de su clave y las redes que ve).
+3. **Elegir el WiFi.** La red y su clave van directo a la placa (`POST /configurar`), con las direcciones del paso 1. La app sigue sus etapas con `GET /estado`: `conectando`, `buscando-servidor` y `esperando-matera`. La placa prueba cada dirección primero sin la clave, y solo se la manda a la que responde como la API.
+4. **Volver a su red.** La placa apaga su red (`POST /cerrar`) y la app espera a que la API vuelva a responder.
+5. **Crear la matera** (`POST /plantas`) o **cambiar el sensor** (`PUT /plantas/{id}/sensor`), con el código y la huella. La respuesta no trae clave: la clave nunca sale de la placa, salvo hacia la API en el canje.
+6. **Primera lectura.** La placa canjea su clave cada 5 s hasta que la API reconoce la matera, y manda su primera lectura. La app la espera y muestra su estado. La pantalla de la placa pasa de «Agrégame en la app» a la carita.
+
+El avance se guarda en `sessionStorage`, porque al cambiar de red la página puede recargarse; la clave del WiFi nunca se guarda. El código, la huella y las etapas los decide la placa, y el estado lo calcula la API: el asistente solo los muestra. La secuencia completa está en [`secuencia-conexion-placa`](docs/diagramas/README.md#secuencia-de-la-conexión-de-una-placa). Para probarlo sin la placa, se abre el front con `?placa=http://127.0.0.1:8099` y se pone ahí un doble de la API local de la placa; solo se acepta una dirección de este mismo equipo.
+
+**Abrir el front desde el celular.** Hace falta si el asistente se usa desde un celular, o para mostrar la app en él:
+1. Arrancar el backend con `MATERA_HOST=0.0.0.0`. Así, además de escuchar en la red, acepta el front desde `http://<IP del PC>:5500` en CORS y en el WebSocket (el puerto sale de `MATERA_PUERTO_FRONT`).
+2. Servir el front como siempre (`python -m http.server 5500 --directory frontend`): escucha en todas las redes del PC.
+3. Abrir también el puerto 5500 en el firewall, como administrador:
+
+   ```powershell
+   New-NetFirewallRule -DisplayName "Matera front 5500" -Direction Inbound -Protocol TCP -LocalPort 5500 -Action Allow -Profile Private
+   ```
+
+   Para cerrarlo después: `Remove-NetFirewallRule -DisplayName "Matera front 5500"`.
+4. En el celular, abrir `http://<IP del PC>:5500`. La IP es la de `GET /red` o la «Dirección IPv4» de `ipconfig`. El front busca la API en ese mismo equipo, en el puerto 5000.
+
+Por la red local el front va en http, así que el celular no muestra notificaciones del navegador: los avisos del juego aparecen dentro de la página y el celular vibra.
+
+**Límites conocidos.**
+- **El celular que hace de hotspot no puede unirse a la red de la placa.** El asistente se usa desde el PC (con el front en `localhost`, la app sigue alcanzando la API al cambiar de red) o desde el celular de otra persona.
+- **Apagar los datos móviles** mientras el celular está en la red de la placa: con ellos encendidos, Android puede mandar las peticiones por los datos y no llegar a `192.168.4.1`.
+- **Chrome puede pedir permiso para buscar dispositivos de la red local.** Hay que elegir Permitir; el asistente lo recuerda en sus pistas.
+- La red de la placa acepta un solo equipo a la vez, y no tiene internet: es normal.
+- Al unirse al WiFi, la placa cambia el canal de su red y el equipo se desconecta un momento: la app vuelve a preguntar sola.
+- La ESP32 no ve las redes de 5 GHz. En el hotspot de un iPhone hay que encender «Maximizar compatibilidad».
+
+**El respaldo: «Conectar a mano».** Es el enlace del formulario de Mis materas y de los primeros pasos del asistente. Se escribe el código del sensor y la API crea la clave y la muestra una sola vez, como en la fase 2. Sirve para el simulador (`--clave=`) y para las placas con el programa de la fase 2, que llevan el código y la clave en `config.h`. El programa actual ya no usa `CODIGO_SENSOR` ni `CLAVE_SENSOR`: su `config.h` es opcional y solo ajusta pines, los valores del LDR y una red de respaldo para desarrollo.
 
 ## Pruebas
 
@@ -334,8 +498,9 @@ python -m pytest tests/dominio
 ```
 
 **Dominio y aplicación.**
-- No levantan el servidor ni abren la base de datos. Usan dobles en memoria de cada puerto (`tests/dobles.py` y `tests/dobles_usuarios.py`), incluidos unos tokens falsos que no son JWT, y siguen pasando aunque se borre la carpeta `infraestructura/`.
+- No levantan el servidor ni abren la base de datos. Usan dobles en memoria de cada puerto (`tests/dobles.py`, `tests/dobles_usuarios.py` y `tests/dobles_juego.py`), incluidos unos tokens falsos que no son JWT, y siguen pasando aunque se borre la carpeta `infraestructura/`.
 - Cubren lecturas en rango, fuera de rango e inválidas, la regla de propiedad, la hora del reporte, el canje y los tokens anulados.
+- Del corte 3, el juego (`test_juego.py` y `test_mascota.py`, con un reloj fijo): los puntos y el total negativo, el tamaño con el reloj real y con el acelerado, los umbrales de la condición, el orden del globo, dormida, los dos avisos, la tabla solo con participantes activos, el apodo repetido y `AvisarATodos` con un suscriptor que falla. Y la conexión (`tests/aplicacion/test_plantas_y_sensores.py`): la huella en `RegistrarPlanta` y `ReemplazarSensor`.
 - `tests/aplicacion/test_puertos_entrada.py` comprueba que cada puerto de entrada lo implementa el caso de uso de su mismo nombre.
 - `tests/dominio/test_arquitectura.py` comprueba las reglas de dependencias de la sección [Arquitectura](#arquitectura-puertos-y-adaptadores).
 
@@ -346,13 +511,17 @@ python -m pytest tests/dominio
 | `test_tokens_jwt.py` | El adaptador de JWT con la librería de verdad: la firma, el vencimiento, el algoritmo (rechaza `none`), los reclamos y el alcance. |
 | `test_api_dispositivos.py` | Cada respuesta de la ruta de los dispositivos. |
 | `test_tabla_referencia.py` | El cambio entre CSV y base de datos. |
-| `test_migracion_bd.py` | La migración de una base de antes de la fase 2. |
+| `test_migracion_bd.py` | La migración de una base de antes de la fase 2, y de la versión 3 a la 4 con las tablas del juego y los ritmos. |
 | `test_servidor_real.py` | Levanta el servidor con hilos, como `python main.py`, y detecta un error que el cliente de pruebas de Flask no ve: usar una misma conexión de `sqlite3` desde varios hilos. |
 | `test_websocket.py` | Ese mismo servidor, con un cliente WebSocket de verdad. |
 | `test_simulador.py` | El simulador contra ese servidor, en sus dos modos. |
 | `test_arquitectura_adaptadores.py` | Que `jwt` y `csv` solo los importe su adaptador. Va aquí porque mira la carpeta `infraestructura/`. |
+| `test_api_juego.py` | Las rutas del juego: los puntos de cada lectura 201 y su `necesidad`, una lectura rechazada que no cuenta, la matera que crece de semilla a brote y se marchita con el reloj acelerado, dormida, el 401 sin JWT, cada cuenta solo con lo suyo, el 403 de la tabla, el 400 y el 409 del apodo, y los puntos ya guardados cuando sale el aviso en vivo. |
+| `test_repositorio_juego_sqlite.py` | Los tres adaptadores SQLite del juego, comparados con sus dobles: las horas de juego, las ventanas de la condición, el reloj que no reagrupa el pasado, los puntos de una matera borrada, el apodo único en la base y los ritmos de las cinco especies. |
+| `test_api_huella.py` | Crear la matera y cambiarle el sensor con la huella de una clave que creó la placa, y la huella mal formada (400). |
+| `test_red_local.py` | `GET /red`, las IPv4 del PC y los orígenes de la red local en CORS. |
 
-El firmware no tiene pruebas automáticas: se prueba en la placa, con el monitor serie.
+El firmware no tiene pruebas automáticas en el PC. Al arrancar revisa sus propios vectores (el código desde la MAC, SHA-256, base64url y el lector de JSON; ver [firmware/README.md](firmware/README.md)), y el resto se prueba en la placa, con el monitor serie.
 
 ## API
 
@@ -484,7 +653,7 @@ Todas las respuestas de error, incluidas las de rutas inexistentes, tienen la fo
 | El cuerpo no es JSON estricto: no es JSON, trae `NaN`, `Infinity` o un número que no cabe en un float, un texto con un carácter inválido, o está anidado miles de veces | 400 | `SOLICITUD_INVALIDA` | vacío |
 | Ruta inexistente / método no permitido | 404 / 405 | `RUTA_NO_ENCONTRADA` / `METODO_NO_PERMITIDO` | `ruta` |
 | Error inesperado | 500 | `ERROR_INTERNO` | vacío |
-| Correo, nombre, contraseña, apodo o rango inválidos | 400 | `PARAMETRO_INVALIDO` | `campo`, `motivo` |
+| Correo, nombre, contraseña, apodo, rango o huella inválidos (la huella: 64 caracteres hexadecimales en minúscula) | 400 | `PARAMETRO_INVALIDO` | `campo`, `motivo` |
 | Código de sensor con otra forma (no `MT-0000-XX`) al crear la matera o al cambiarle el sensor | 400 | `CODIGO_SENSOR_INVALIDO` | `campo`, `motivo`, `texto` |
 | La hora de una lectura que no es ISO 8601 o que no se puede pasar a UTC (por ejemplo, el año 1 con zona) | 400 | `PARAMETRO_INVALIDO` | `campo: "momento"`, `motivo: "formato"` |
 | La hora de una lectura sin zona horaria o más de 2 minutos en el futuro | 400 | `MOMENTO_INVALIDO` | `campo: "momento"`, `motivo: "invalido"` |

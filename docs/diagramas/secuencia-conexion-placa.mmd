@@ -1,0 +1,90 @@
+%% Secuencia del corte 3 (implementada): el asistente «Conectar sensor» lleva una placa nueva a su WiFi y a su matera
+%% sin tocar config.h. Los seis pasos son los de js/conectar-sensor.js; las etapas y la API local son las de
+%% firmware/matera-sensor (ver firmware/README.md). La clave del sensor la crea la placa y nunca sale de ella hacia
+%% la app: la app solo lleva su huella SHA-256 (el esquema de PKCE). El canje y las lecturas son los de la fase 2.
+%% Mientras el equipo esta en la red de la placa no alcanza la API: por eso la matera se crea al final, y el avance
+%% del asistente se guarda en sessionStorage (sin la clave del WiFi).
+sequenceDiagram
+    autonumber
+    actor P as Persona
+    participant A as App: asistente «Conectar sensor»<br/>(js/conectar-sensor.js)
+    participant M as Placa ESP32 y su pantalla<br/>(API local en 192.168.4.1)
+    participant S as API del backend<br/>(Flask, puerto 5000)
+
+    P ->> A: Agregar matera: apodo y especie<br/>(o «Cambiar sensor» en una tarjeta)
+
+    rect rgb(238, 244, 250)
+        Note over A,S: 1. Preparar: el equipo todavía está en su WiFi
+        A ->> S: GET /api/v1/red, con el JWT de usuario
+        S -->> A: 200 {servidores: ["http://<ip del PC>:5000/api/v1", ...]}
+        Note over S: rutas_red.py con RedLocal (infraestructura): primero la IP de la ruta<br/>por defecto. Con MATERA_HOST=127.0.0.1 la lista viene vacía, con un aviso,<br/>y el asistente no sigue
+    end
+
+    M ->> M: sin red guardada (o BOOT 5 s): abre Matera-5500BA, WPA2 con 8 caracteres<br/>nuevos, y muestra el QR (esp_qrcode_generate) con la red y la clave en texto
+
+    rect rgb(238, 248, 238)
+        Note over P,M: 2. Unirse a la placa
+        P ->> M: escanea el QR con la cámara del celular<br/>(en el PC, se une a Matera-5500BA con la clave de la pantalla)
+        loop cada 2 s, hasta que el equipo esté en la red de la placa
+            A ->> M: GET http://192.168.4.1/info
+        end
+        M -->> A: 200 {codigo: "MT-5500-BA", huella: "<64 hex>", redes: [{nombre, senal, segura}]}
+        Note over M: el código sale de la MAC (FNV-1a) y la huella es el SHA-256<br/>de la clave que la placa creó y guarda en su NVS.<br/>Solo responde a quien está unido a su red, y acepta uno a la vez
+    end
+
+    rect rgb(238, 244, 250)
+        Note over P,S: 3. Elegir el WiFi
+        P ->> A: elige su WiFi y escribe su clave
+        A ->> M: POST /configurar {red, claveRed, servidores}<br/>(como text/plain: sin consulta previa de CORS)
+        M -->> A: 202 {etapa: "conectando"}
+        M ->> M: guarda la red y los servidores en la NVS y se une al WiFi<br/>sin cerrar su propia red
+        loop cada 1,5 s: GET /estado (conectando, buscando-servidor...)
+            A ->> M: GET /estado
+            M -->> A: {etapa, detalle}
+        end
+        M ->> S: POST /api/v1/dispositivos/MT-5500-BA/token con {} (sin la clave)
+        S -->> M: 400 en JSON con su campo error: es la API
+        M ->> S: POST .../token {clave}
+        S -->> M: 401 CLAVE_SENSOR_INVALIDA: la matera todavía no existe
+        Note over M: etapa esperando-matera: la pantalla dice<br/>«Agrégame en la app» y muestra MT-5500-BA
+        A ->> M: GET /estado
+        M -->> A: {etapa: "esperando-matera"}
+    end
+
+    rect rgb(238, 248, 238)
+        Note over A,S: 4. Volver a su red
+        A ->> M: POST /cerrar
+        M -->> A: 204, y apaga su red
+        loop cada 2 s, hasta que la API vuelva a responder
+            A ->> S: GET /api/v1/red
+        end
+        S -->> A: 200: el equipo ya está otra vez en su WiFi
+    end
+
+    rect rgb(238, 244, 250)
+        Note over A,S: 5. Crear la matera (o cambiar el sensor)
+        A ->> S: POST /api/v1/plantas {apodo, especie, codigo: "MT-5500-BA", huella}<br/>(o PUT /api/v1/plantas/{id}/sensor {codigo, huella})
+        Note over S: rutas_plantas.py valida la huella (64 hex en minúscula, si no 400)<br/>y RegistrarPlanta (o ReemplazarSensor) la guarda tal cual como hash_clave
+        S -->> A: 201 {planta, codigo}, sin clave: la API nunca la vio
+    end
+
+    rect rgb(238, 248, 238)
+        Note over M,S: la placa, sola: el canje y las lecturas de la fase 2
+        loop cada 5 s, mientras la API responda 401
+            M ->> S: POST /api/v1/dispositivos/MT-5500-BA/token {clave}
+        end
+        Note over S: CanjearClaveDispositivo compara la clave con la huella guardada
+        S -->> M: 200 {token, venceEn}: JWT de alcance «lecturas»
+        M ->> S: POST /api/v1/dispositivos/MT-5500-BA/lecturas<br/>Authorization: Bearer, cada 15 s
+        S -->> M: 201 {planta, momento, diagnostico, necesidad}
+        Note over M: etapa conectada: la carita, el apodo,<br/>el estado y el globo de lo que necesita
+    end
+
+    rect rgb(238, 244, 250)
+        Note over A,S: 6. Primera lectura
+        loop cada 3 s (o al llegar el mensaje del WebSocket)
+            A ->> S: GET /api/v1/plantas
+            S -->> A: la matera con su ultimaMedicion
+        end
+        A -->> P: la primera medición con origen MT-5500-BA y su estado
+    end

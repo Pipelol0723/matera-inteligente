@@ -1,5 +1,7 @@
 %% Secuencia del corte 2, fase 2 hexagonal (implementada): el front abre el WebSocket, se autentica con el JWT en el primer mensaje
 %% y recibe en vivo la lectura que manda el dispositivo. El WebSocket es un aviso: el front ademas consulta GET /plantas cada 10 s.
+%% Corte 3: el aviso pasa por AvisarATodos, que primero guarda los puntos (PuntuarLectura, ver secuencia-puntaje) y despues
+%% avisa al WebSocket. Con el mensaje, el front tambien vuelve a pedir GET /juego/materas y GET /juego/puntaje.
 sequenceDiagram
     autonumber
     participant F as Mis materas<br/>(js/tiempo-real.js)
@@ -8,6 +10,7 @@ sequenceDiagram
     participant IU as IdentificarUsuario<br/>(aplicación)
     participant C as CanalesTiempoReal<br/>(infraestructura)
     participant DU as DiagnosticarPlantaDeUsuario<br/>(aplicación)
+    participant AT as AvisarATodos<br/>(aplicación, corte 3)
     participant NW as NotificadorWebSocket<br/>(infraestructura)
 
     F ->> TR: new WebSocket(ws://…/api/v1/tiempo-real), con Origin
@@ -36,7 +39,9 @@ sequenceDiagram
                 TR -->> F: {"tipo": "listo", "usuario"}
                 Note over TR,C: primero se registra y después dice "listo":<br/>desde ahí no se pierde ninguna medición.<br/>Cada 60 s la ruta vuelve a revisar la sesión con IdentificarUsuario.ejecutar(identidad)
                 Note over DU: llega una lectura del dispositivo<br/>(secuencia-medicion-sensor) y ya se guardó
-                DU ->> NW: publicar(dueño, planta, registro, diagnostico)
+                DU ->> AT: publicar(dueño, planta, registro, diagnostico)
+                Note over AT: primero PuntuarLectura guarda los puntos<br/>(secuencia-puntaje), después avisa al WebSocket
+                AT ->> NW: publicar(dueño, planta, registro, diagnostico)
                 NW ->> C: enviar(dueño, JSON de medicion_en_vivo_a_json)
                 C ->> TR: canal.enviar(texto), en cada pestaña del dueño
                 TR ->> IU: ejecutar(identidad): ¿la sesión sigue valiendo?
@@ -45,7 +50,7 @@ sequenceDiagram
                     TR -->> F: {"tipo": "error", "error": "SESION_INVALIDA"} y cierre 1008
                 else sesión válida
                     TR -->> F: {"tipo": "medicion", planta, medicion, diagnostico}
-                    Note over F: actualiza la tarjeta y el Historial<br/>sin pedir nada más
+                    Note over F: actualiza la tarjeta y el Historial sin pedir nada más.<br/>juego.js vuelve a pedir GET /juego/materas y /juego/puntaje
                 end
                 Note over TR: el mensaje queda en la cola de la pestaña y lo<br/>manda su propio hilo: una pestaña que no lee<br/>no traba el POST del dispositivo (si la cola se llena, se corta)
             end

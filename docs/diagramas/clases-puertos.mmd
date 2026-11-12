@@ -1,6 +1,8 @@
 %% Puertos de salida del dominio (backend/dominio/puertos.py y puertos_usuarios.py) y las clases de infraestructura que los implementan.
 %% Toda flecha va de infraestructura hacia el dominio (RA5, DIP). Los puertos de entrada (dominio/puertos_entrada.py) se dibujan en los diagramas de aplicacion.
-%% Verde: dominio. Azul: infraestructura. Borde grueso: se agrego en el corte 2 o en la fase 2 (puertos de pocos metodos, JWT y tabla en CSV).
+%% Verde: dominio. Azul: infraestructura. Amarillo: aplicacion. Borde medio: se agrego en el corte 2 o en la fase 2
+%% (puertos de pocos metodos, JWT y tabla en CSV). Borde grueso: corte 3 (los puertos de salida del juego, en
+%% dominio/puertos_juego.py, sus clases SQLite y los dos nuevos que implementan NotificadorDiagnosticos).
 classDiagram
     direction LR
 
@@ -93,6 +95,35 @@ classDiagram
             <<interface>>
             +ahora() datetime
         }
+        class MovimientosPuntaje {
+            <<interface>>
+            +agregar(movimiento: MovimientoPuntaje)
+            +total_de(usuario_id) int
+            +totales_por_planta(usuario_id) dict
+            +recientes_de(usuario_id, limite) list~MovimientoPuntaje~
+            +totales_de_usuarios(usuario_ids) dict
+            +resumen_de(planta, ventana) ResumenCuidado
+        }
+        class RegistroJugadores {
+            <<interface>>
+            +participacion_de(usuario_id) Participacion o None
+            +guardar(participacion: Participacion)
+            +apodo_en_uso(apodo, excepto_usuario_id) bool
+            +participantes_activos() list~Participacion~
+        }
+        class RitmosCrecimiento {
+            <<interface>>
+            +de_especie(especie: str) RitmoCrecimiento o None
+        }
+    }
+
+    namespace aplicacion {
+        class AvisarATodos {
+            -suscriptores: tuple~NotificadorDiagnosticos~
+        }
+        class PuntuarLectura {
+            -movimientos: MovimientosPuntaje
+        }
     }
 
     namespace infraestructura {
@@ -146,6 +177,16 @@ classDiagram
             -canales: CanalesTiempoReal
             -formato: medicion_en_vivo_a_json
         }
+        class MovimientosPuntajeSqlite {
+            -bd: BaseDatos
+            -reloj: RelojDeJuego
+        }
+        class RegistroJugadoresSqlite {
+            -bd: BaseDatos
+        }
+        class RitmosCrecimientoSqlite {
+            -bd: BaseDatos
+        }
         class CanalesTiempoReal {
             -por_usuario: canales de cada usuario
             +conectado(usuario_id, canal)
@@ -179,8 +220,13 @@ classDiagram
     GeneradorSecretosSeguro ..|> GeneradorSecretos
     RelojSistema ..|> Reloj
     NotificadorWebSocket ..|> NotificadorDiagnosticos
+    AvisarATodos ..|> NotificadorDiagnosticos
+    PuntuarLectura ..|> NotificadorDiagnosticos
+    MovimientosPuntajeSqlite ..|> MovimientosPuntaje
+    RegistroJugadoresSqlite ..|> RegistroJugadores
+    RitmosCrecimientoSqlite ..|> RitmosCrecimiento
 
-    note for BaseDatos "Abre una conexión por operación y activa<br>PRAGMA foreign_keys: Flask atiende cada petición<br>en un hilo y sqlite3 no comparte conexiones<br>entre hilos. La usan los seis repositorios SQLite."
+    note for BaseDatos "Abre una conexión por operación y activa<br>PRAGMA foreign_keys: Flask atiende cada petición<br>en un hilo y sqlite3 no comparte conexiones<br>entre hilos. La usan los nueve repositorios SQLite.<br>Desde el corte 3 espera hasta 30 s si otra conexión<br>está escribiendo (ESPERA_SI_ESTA_OCUPADA)."
     note for CanalesTiempoReal "Las conexiones abiertas de cada usuario,<br>con un candado: se usa desde varios hilos.<br>La ruta del WebSocket (presentación) registra<br>cada pestaña; main.py le pasa estos mismos canales."
     note for TokensJwt "Firma HS256 con un secreto del servidor. El token trae<br>sub, alcance (usuario o lecturas), jti, iat y exp.<br>Es el único archivo que importa jwt (PyJWT)."
     note for EspeciesDeSoloLectura "Con MATERA_TABLA_REFERENCIA=csv, agregar una especie<br>lanza TablaDeSoloLectura: el CSV es una copia de la base."
@@ -204,6 +250,14 @@ classDiagram
     style Cifrador fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
     style GeneradorSecretos fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
     style Reloj fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style MovimientosPuntaje fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style RegistroJugadores fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style RitmosCrecimiento fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style AvisarATodos fill:#FFF2CC,stroke:#8a6d12,stroke-width:4px,color:#16231b
+    style PuntuarLectura fill:#FFF2CC,stroke:#8a6d12,stroke-width:4px,color:#16231b
+    style MovimientosPuntajeSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:4px,color:#16231b
+    style RegistroJugadoresSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:4px,color:#16231b
+    style RitmosCrecimientoSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:4px,color:#16231b
     style RepositorioEspeciesCsv fill:#DAE8FC,stroke:#5b7aa6,color:#16231b
     style EspeciesDeSoloLectura fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
     style RegistroEspeciesConCopiaCsv fill:#DAE8FC,stroke:#2f5f99,stroke-width:2px,color:#16231b
