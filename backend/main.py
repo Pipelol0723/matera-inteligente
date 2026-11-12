@@ -195,7 +195,7 @@ def construir_app(config: Configuracion, reloj: Reloj | None = None) -> Flask:
         consultar_puntaje=ConsultarPuntaje(movimientos, plantas),
         consultar_participacion=ConsultarParticipacion(jugadores),
         elegir_participacion=ElegirParticipacion(jugadores),
-        consultar_tabla=ConsultarTablaPosiciones(jugadores, movimientos),
+        consultar_tabla=ConsultarTablaPosiciones(jugadores, movimientos, usuarios),
         autenticacion=autenticacion,
     )
 

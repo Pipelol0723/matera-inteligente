@@ -12,7 +12,13 @@ from dominio.juego import ApodoJugador, Participacion, ReglaDeCuidado
 from dominio.mascota import CuidadoDeMascota, Mascota, RitmoCrecimiento
 from dominio.plantas import Planta
 from dominio.puertos_juego import MovimientosPuntaje, RegistroJugadores, RitmosCrecimiento
-from dominio.puertos_usuarios import ConsultaPlantas, HistorialMediciones, NotificadorDiagnosticos, Reloj
+from dominio.puertos_usuarios import (
+    ConsultaCuentas,
+    ConsultaPlantas,
+    HistorialMediciones,
+    NotificadorDiagnosticos,
+    Reloj,
+)
 from dominio.resultados_juego import MovimientoReciente, PosicionTabla, PuntajeDeMatera, PuntajeUsuario
 from dominio.usuarios import Usuario
 
@@ -47,7 +53,8 @@ class ConsultarPuntaje(puertos.ConsultarPuntaje):
     def ejecutar(self, usuario: Usuario) -> PuntajeUsuario:
         propias = {planta.id: planta for planta in _plantas_propias(self._plantas, usuario)}
         totales = self._movimientos.totales_por_planta(usuario.id)
-        recientes = self._movimientos.recientes_de(usuario.id, self._limite)
+        # El puerto ya filtra por dueno; si un adaptador trajera de mas, aqui tampoco se muestran movimientos ajenos.
+        recientes = [m for m in self._movimientos.recientes_de(usuario.id, self._limite) if m.usuario_id == usuario.id]
         return PuntajeUsuario(
             total=self._movimientos.total_de(usuario.id),
             materas=[PuntajeDeMatera(planta, totales.get(planta.id, 0)) for planta in propias.values()],
@@ -88,15 +95,19 @@ class ConsultarTablaPosiciones(puertos.ConsultarTablaPosiciones):
     """Solo la ve quien participa, y solo trae a quienes participan con la cuenta activa.
 
     Mismos puntos, misma posicion (1, 2, 2, 4); entre ellos, por apodo.
+    El registro ya trae solo a los participantes activos, pero el caso de uso lo
+    vuelve a revisar con las reglas del dominio (Participacion.en_tabla y
+    Usuario.activo), uno por usuario: un adaptador con un error no muestra a nadie de mas.
     """
 
-    def __init__(self, jugadores: RegistroJugadores, movimientos: MovimientosPuntaje):
+    def __init__(self, jugadores: RegistroJugadores, movimientos: MovimientosPuntaje, cuentas: ConsultaCuentas):
         self._jugadores = jugadores
         self._movimientos = movimientos
+        self._cuentas = cuentas
 
     def ejecutar(self, usuario: Usuario) -> list[PosicionTabla]:
         _participacion(self._jugadores, usuario).exigir_participacion()
-        participantes = [p for p in self._jugadores.participantes_activos() if p.en_tabla]
+        participantes = self._participantes()
         totales = self._movimientos.totales_de_usuarios([p.usuario_id for p in participantes])
         filas = sorted(
             ((totales.get(p.usuario_id, 0), p) for p in participantes),
@@ -107,6 +118,15 @@ class ConsultarTablaPosiciones(puertos.ConsultarTablaPosiciones):
             posicion = tabla[-1].posicion if tabla and tabla[-1].puntos == puntos else indice
             tabla.append(PosicionTabla(posicion, participante.apodo, puntos, participante.usuario_id == usuario.id))
         return tabla
+
+    def _participantes(self) -> list[Participacion]:
+        por_usuario: dict[int, Participacion] = {}
+        for participacion in self._jugadores.participantes_activos():
+            if participacion.en_tabla and participacion.usuario_id not in por_usuario:
+                cuenta = self._cuentas.por_id(participacion.usuario_id)
+                if cuenta is not None and cuenta.activo:
+                    por_usuario[participacion.usuario_id] = participacion
+        return list(por_usuario.values())
 
 
 class ConsultarMascotas(puertos.ConsultarMascotas):

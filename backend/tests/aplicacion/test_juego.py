@@ -27,7 +27,7 @@ from dominio.especie import Especie
 from dominio.estados import EstadoGlobal
 from dominio.evaluador import EvaluadorPlanta
 from dominio.historial import RegistroMedicion
-from dominio.juego import ApodoJugador, EstadoParticipacion, Participacion
+from dominio.juego import ApodoJugador, EstadoParticipacion, Participacion, ReglaDeCuidado
 from dominio.mascota import Aviso, Condicion, CuidadoDeMascota, EtapaCrecimiento, Necesidad, RelojDeJuego
 from dominio.parametros import HUMEDAD, LUZ, TEMPERATURA
 from dominio.plantas import Planta
@@ -90,7 +90,7 @@ class Juego:
         )
         self.cuidado = CuidadoDeMascota(self.reloj_de_juego)
         self.puntaje = ConsultarPuntaje(self.movimientos, self.plantas)
-        self.tabla = ConsultarTablaPosiciones(self.jugadores, self.movimientos)
+        self.tabla = ConsultarTablaPosiciones(self.jugadores, self.movimientos, self.cuentas)
         self.participacion = ConsultarParticipacion(self.jugadores)
         self.elegir = ElegirParticipacion(self.jugadores)
         self.mascotas = ConsultarMascotas(
@@ -389,20 +389,71 @@ def test_mismos_puntos_misma_posicion():
     ]
 
 
+class JugadoresQueNoFiltran(RegistroJugadoresEnMemoria):
+    """Un adaptador con un error: devuelve a todos, participen o no, y con la cuenta como este."""
+
+    def __init__(self, repetidos=()):
+        super().__init__()
+        self._repetidos = list(repetidos)
+
+    def participantes_activos(self):
+        return list(self.participaciones.values()) + self._repetidos
+
+
+def _cuentas(*usuarios: Usuario) -> RepositorioUsuariosEnMemoria:
+    cuentas = RepositorioUsuariosEnMemoria(RepositorioPlantasEnMemoria())
+    for usuario in usuarios:
+        cuentas.guardar(usuario)
+    return cuentas
+
+
 def test_la_tabla_aplica_la_regla_del_dominio_aunque_el_registro_traiga_de_mas():
-    class JugadoresQueNoFiltran(RegistroJugadoresEnMemoria):
-        """Un adaptador con un error: devuelve a todos, participen o no."""
-
-        def participantes_activos(self):
-            return list(self.participaciones.values())
-
     jugadores = JugadoresQueNoFiltran()
     jugadores.guardar(Participacion.participa(ANA.id, ApodoJugador("ana_a")))
     jugadores.guardar(Participacion.no_participa(BETO.id))
 
-    tabla = ConsultarTablaPosiciones(jugadores, MovimientosEnMemoria()).ejecutar(ANA)
+    tabla = ConsultarTablaPosiciones(jugadores, MovimientosEnMemoria(), _cuentas(ANA, BETO)).ejecutar(ANA)
 
     assert [p.apodo.valor for p in tabla] == ["ana_a"]
+
+
+def test_la_tabla_deja_afuera_las_cuentas_desactivadas_o_borradas_aunque_el_registro_las_traiga():
+    jugadores = JugadoresQueNoFiltran()
+    for usuario, apodo in ((ANA, "ana_a"), (BETO, "beto_b"), (CARO, "caro_c")):
+        jugadores.guardar(Participacion.participa(usuario.id, ApodoJugador(apodo)))
+    cuentas = _cuentas(ANA, BETO.con_estado(False))  # Beto desactivada; Caro ya no existe
+
+    tabla = ConsultarTablaPosiciones(jugadores, MovimientosEnMemoria(), cuentas).ejecutar(ANA)
+
+    assert [p.apodo.valor for p in tabla] == ["ana_a"]
+
+
+def test_la_tabla_no_repite_a_un_jugador_aunque_el_registro_lo_traiga_dos_veces():
+    jugadores = JugadoresQueNoFiltran(repetidos=[Participacion.participa(ANA.id, ApodoJugador("ana_a"))])
+    jugadores.guardar(Participacion.participa(ANA.id, ApodoJugador("ana_a")))
+    jugadores.guardar(Participacion.participa(BETO.id, ApodoJugador("beto_b")))
+
+    tabla = ConsultarTablaPosiciones(jugadores, MovimientosEnMemoria(), _cuentas(ANA, BETO)).ejecutar(ANA)
+
+    assert [(p.posicion, p.apodo.valor) for p in tabla] == [(1, "ana_a"), (1, "beto_b")]
+
+
+def test_el_puntaje_no_muestra_movimientos_ajenos_aunque_el_puerto_los_traiga():
+    class MovimientosQueNoFiltran(MovimientosEnMemoria):
+        """Un adaptador con un error: los recientes de todos, sin mirar el dueno."""
+
+        def recientes_de(self, usuario_id, limite):
+            return self._mas_recientes_primero()[:limite]
+
+    juego = Juego()
+    sala, patio = juego.matera(ANA, "sala"), juego.matera(BETO, "patio")
+    movimientos = MovimientosQueNoFiltran()
+    movimientos.agregar(ReglaDeCuidado().movimiento(ANA.id, sala.id, AHORA, S))
+    movimientos.agregar(ReglaDeCuidado().movimiento(BETO.id, patio.id, AHORA + CADA_5_S, C))
+
+    puntaje = ConsultarPuntaje(movimientos, juego.plantas).ejecutar(ANA)
+
+    assert [(m.planta, m.estado, m.puntos) for m in puntaje.movimientos] == [(sala, S, 10)]
 
 
 # --- La matera Tamagotchi ---
