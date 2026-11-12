@@ -22,17 +22,22 @@ def _es_de_red(texto: str) -> bool:
 
 
 def ips_ipv4() -> list[str]:
-    """Las IPv4 del PC, sin 127.x ni 169.254.x, sin repetir y en orden estable."""
+    """Las IPv4 del PC, sin 127.x ni 169.254.x y sin repetir.
+
+    Primero la de la ruta por defecto (la que da la sonda UDP), que es la de la
+    red donde estan el PC y la placa; despues las demas (VirtualBox, conexion
+    compartida...). La placa prueba las direcciones en orden: asi empieza por la buena.
+    """
     encontradas: list[str] = []
-    try:
-        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
-            encontradas.append(info[4][0])
-    except OSError:
-        pass
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sonda:
             sonda.connect(("10.255.255.255", 1))  # UDP: no envia nada
             encontradas.append(sonda.getsockname()[0])
+    except OSError:
+        pass
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            encontradas.append(info[4][0])
     except OSError:
         pass
     vistas: list[str] = []

@@ -34,27 +34,50 @@ def test_con_loopback_ninguna_placa_alcanza_el_servidor(ips_falsas, host):
     assert "MATERA_HOST=0.0.0.0" in red.aviso()
 
 
-def test_ips_ipv4_sin_loopback_ni_link_local_y_sin_repetir(monkeypatch):
-    class SocketFalso:
-        def __enter__(self):
-            return self
+class SocketFalso:
+    """La sonda UDP: dice por cual IP saldria el PC a internet, la de la ruta por defecto."""
 
-        def __exit__(self, *args):
-            return False
+    def __init__(self, ip: str | None):
+        self._ip = ip
 
-        def connect(self, destino):
-            pass
+    def __enter__(self):
+        return self
 
-        def getsockname(self):
-            return ("192.168.1.20", 0)
+    def __exit__(self, *args):
+        return False
 
-    direcciones = ("127.0.0.1", "169.254.3.4", "10.0.0.5", "192.168.1.20")
+    def connect(self, destino):
+        if self._ip is None:
+            raise OSError("sin red")
+
+    def getsockname(self):
+        return (self._ip, 0)
+
+
+def _red_falsa(monkeypatch, direcciones, de_la_ruta_por_defecto):
     monkeypatch.setattr(
         red_local.socket, "getaddrinfo", lambda *args, **kwargs: [(2, 1, 6, "", (ip, 0)) for ip in direcciones]
     )
-    monkeypatch.setattr(red_local.socket, "socket", lambda *args, **kwargs: SocketFalso())
+    monkeypatch.setattr(red_local.socket, "socket", lambda *args, **kwargs: SocketFalso(de_la_ruta_por_defecto))
 
-    assert red_local.ips_ipv4() == ["10.0.0.5", "192.168.1.20"]
+
+def test_ips_ipv4_sin_loopback_ni_link_local_y_sin_repetir(monkeypatch):
+    _red_falsa(monkeypatch, ("127.0.0.1", "169.254.3.4", "10.0.0.5", "192.168.1.20"), "192.168.1.20")
+
+    assert red_local.ips_ipv4() == ["192.168.1.20", "10.0.0.5"]
+
+
+def test_primero_va_la_ip_de_la_ruta_por_defecto(monkeypatch):
+    """El PC tiene VirtualBox y la conexion compartida: la placa prueba primero la de la red del hotspot."""
+    _red_falsa(monkeypatch, ("192.168.56.1", "192.168.137.1", "10.34.101.124"), "10.34.101.124")
+
+    assert red_local.ips_ipv4() == ["10.34.101.124", "192.168.56.1", "192.168.137.1"]
+
+
+def test_sin_ruta_por_defecto_quedan_las_del_nombre_del_pc(monkeypatch):
+    _red_falsa(monkeypatch, ("192.168.56.1", "10.34.101.124"), None)
+
+    assert red_local.ips_ipv4() == ["192.168.56.1", "10.34.101.124"]
 
 
 def test_get_red_sin_jwt_da_401_en_json(api):
