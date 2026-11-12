@@ -1,7 +1,7 @@
 // La matera Tamagotchi en SVG. Cada capa llega tal cual de GET /juego/materas, que la calcula el dominio:
 // la etapa da el tamaño, la condición el color y la postura de las hojas, la última lectura la cara (o la
 // cara dormida) y la necesidad el globo. Aquí solo se hace corresponder cada valor con su dibujo y su texto.
-// Los colores salen de variables CSS (estilos.css). El SVG se arma con piezas fijas y números: ningún texto
+// Los colores salen de variables CSS (variables.css, con los de cada tema). El SVG se arma con piezas fijas y números: ningún texto
 // que mande la API entra al marcado sin pasar por las tablas de abajo.
 
 const ETAPAS = Object.assign(Object.create(null), {

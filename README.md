@@ -38,7 +38,10 @@ frontend/            HTML, CSS y JavaScript estáticos, servidos aparte
   css/variables.css  los dos estilos (Profesional y Juego) y los colores de cada tema, con contraste AA
   css/componentes.css  botones, campos, tarjetas, pastillas, cifras, errores, avisos y diálogos
   css/armazon.css    la cabecera, las pestañas (arriba en el PC y abajo en el celular), el puntaje y la cuenta
-  css/estilos.css    Diagnóstico, Mis materas con el asistente, la matera Tamagotchi y Juego
+  css/estilos.css    Mis materas, la matera Tamagotchi y Juego
+  css/diagnostico.css  Diagnóstico: el menú de materas, el Tamagotchi grande y la última lectura revisada por la API
+  css/asistente.css  el asistente «Conectar sensor», con sus dos vías (Bluetooth y la red de la placa)
+  css/modo-prueba.css  el panel del modo prueba (solo administradores) y su marca
   css/cuenta.css     Ingresar, Mi cuenta y el diálogo de participar en la tabla de posiciones
   css/especies.css   el catálogo de especies y el formulario para agregar una
   css/historial.css  el historial de una matera
@@ -69,7 +72,7 @@ frontend/            HTML, CSS y JavaScript estáticos, servidos aparte
   js/admin.js        administración de cuentas
   js/formularios.js  errores de la API en los formularios
   js/lecturas.js     texto de unas lecturas y de su origen
-  js/escala.js       geometría de escalas y anillos
+  js/escala.js       la escala de cada parámetro: dónde van la banda óptima y la marca del valor
   js/formato.js      textos, colores y ayudas para crear nodos
 firmware/
   matera-sensor/     el programa de la ESP32: su código y su clave, la red propia con el QR, la pantalla
@@ -367,7 +370,7 @@ Tiene dos estilos, Profesional (por defecto en el PC) y Juego (por defecto en el
 
 | Pantalla | Acceso | Qué hace |
 |---|---|---|
-| Diagnóstico | con sesión | Consulta `POST /diagnosticos` mientras se escribe (espera 400 ms después de la última tecla) y muestra el estado en los anillos. Los botones Saludable, En riesgo y Crítico llenan valores de ejemplo a partir de los rangos, y la API decide el estado. El panel "Errores de la API" envía peticiones inválidas a propósito. No guarda nada. |
+| Diagnóstico | con sesión | Elige una de sus materas y muestra su Tamagotchi (`GET /juego/materas`) y su última lectura real, enviada a `POST /diagnosticos` (R1), con el estado de cada parámetro y las recomendaciones. Se actualiza sola cada 10 s y con el WebSocket. No hay valores escritos a mano (el corte 3 pide reducir lo manual). No guarda nada. |
 | Especies | con sesión | Muestra el catálogo de `GET /especies` con bandas escaladas según los límites físicos de `GET /parametros`. Al admin le muestra además «Agregar especie»: el nombre, el nombre científico y un mínimo y un máximo por parámetro, con una vista previa de la banda (`POST /admin/especies`). Los rangos los revisa la API, y a quien no es admin le responde 403. |
 | Ingresar / Crear cuenta | pública | Una tarjeta con dos pestañas, Ingresar y Crear cuenta. Al entrar guarda el token y vuelve a la pantalla privada que se había pedido, o a Mis materas. |
 | Mis materas | con sesión | Las materas del usuario con su última medición, que se actualiza sola (ver abajo). «Agregar matera» pide apodo y especie y abre el asistente «Conectar sensor» (ver [Conectar una matera](#conectar-una-matera)); «Cambiar sensor», en cada tarjeta, abre el mismo asistente y conserva el historial. Para el simulador y las placas con el programa de la fase 2 (código y clave en `config.h`) queda «Conectar a mano»: se escribe el código del sensor y la clave se muestra una sola vez (va en `--clave=` o en `config.h`); con el mismo código, da una clave nueva y la anterior deja de servir con su token. Cada tarjeta también permite ver el historial y eliminar la matera. Desde el front no se escriben mediciones. Cada tarjeta muestra además la matera Tamagotchi (ver [La matera Tamagotchi](#la-matera-tamagotchi)) con los puntos de esa matera y sus horas de juego bien cuidada. |
