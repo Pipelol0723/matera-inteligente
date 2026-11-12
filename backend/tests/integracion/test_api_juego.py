@@ -197,8 +197,49 @@ def test_la_matera_se_duerme_con_los_minutos_sin_lecturas_de_la_configuracion(co
 
     reloj.avanzar(seconds=61)
 
+    # Dormida conserva la cara, pero no muestra lo que pedia: esa lectura ya es vieja.
     dormida = _mascota(api, ana)
-    assert (dormida["dormida"], dormida["cara"], dormida["necesidad"]) == (True, "EN_RIESGO", "CALOR")
+    assert (dormida["dormida"], dormida["cara"], dormida["necesidad"], dormida["aviso"]) == (True, "EN_RIESGO", None, None)
+
+
+def test_con_la_ventana_llena_el_aviso_se_marchito_sale_una_vez(config, reloj):
+    """El reloj de la demo (6 minutos por dia: una hora de juego dura 15 s) y una lectura cada 15 s, como la placa."""
+    api = ClienteApi(replace(config, minutos_por_dia_juego=6), reloj)
+    ana = api.cuenta()
+    sala = Matera(api, ana, reloj=reloj)
+    vistos = []
+    for lecturas in [SALUDABLE] * 6 + [CRITICO] * 6:
+        reloj.avanzar(seconds=15)
+        assert sala.leer(lecturas).status_code == 201
+        mascota = _mascota(api, ana)
+        vistos.append((mascota["condicion"], mascota["aviso"]))
+
+    assert [aviso for _, aviso in vistos] == [None] * 6 + ["PASO_A_CRITICO", None, None, None, "SE_MARCHITO", None]
+    assert [condicion for condicion, _ in vistos][-2:] == ["MARCHITA", "MARCHITA"]
+
+    # La placa se apaga: pasan los 90 s de la ventana y la matera sigue igual, hasta que se duerme.
+    reloj.avanzar(minutes=2)
+    quieta = _mascota(api, ana)
+    assert (quieta["condicion"], quieta["cara"], quieta["dormida"], quieta["necesidad"]) == ("MARCHITA", "CRITICO", False, "SED")
+    reloj.avanzar(minutes=29)
+    dormida = _mascota(api, ana)
+    assert (dormida["condicion"], dormida["dormida"], dormida["necesidad"], dormida["aviso"]) == ("MARCHITA", True, None, None)
+
+
+def test_una_lectura_con_la_hora_del_dispositivo_atrasada_cambia_la_cara_y_avisa(juego, reloj):
+    ana = juego.cuenta()
+    sala = Matera(juego, ana, reloj=reloj)
+    reloj.avanzar(seconds=15)
+    assert sala.leer(SALUDABLE).status_code == 201
+    reloj.avanzar(seconds=15)
+
+    # La placa reinicio y manda su hora 31 minutos atrasada: la API la acepta.
+    atrasada = sala.leer(CRITICO, momento=(reloj.ahora() - timedelta(minutes=31)).isoformat())
+
+    assert atrasada.status_code == 201
+    mascota = _mascota(juego, ana)
+    assert (mascota["cara"], mascota["aviso"], mascota["dormida"], mascota["puntos"]) == ("CRITICO", "PASO_A_CRITICO", False, 0)
+    assert mascota["ultimaLectura"] == reloj.ahora().isoformat()  # la hora del servidor
 
 
 # --- Quien ve que ---

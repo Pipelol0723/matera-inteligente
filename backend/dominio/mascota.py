@@ -4,12 +4,16 @@ Cada capa del dibujo sale de un dato distinto, y todas las decide el dominio:
 el front solo dibuja lo que recibe.
 
 - Tamano: las horas de juego bien cuidada, al ritmo de su especie.
-- Condicion: el promedio de puntos de las lecturas de las ultimas 6 horas de juego.
+- Condicion: el promedio de puntos de las lecturas de las 6 horas de juego que
+  terminan en la ultima lectura.
 - Cara: el estado de la ultima lectura, o dormida si hace rato no llegan lecturas.
 - Necesidad: el parametro fuera de rango de la ultima lectura.
 - Aviso: lo que cambio con la ultima lectura.
 
-El reloj del juego solo cambia la escala: un dia de juego puede durar 2 minutos
+Todo se mide desde las lecturas, con la hora del servidor, y no desde la hora de
+la consulta: mientras no llegan lecturas, la matera no cambia, hasta que se duerme.
+
+El reloj del juego solo cambia la escala: un dia de juego puede durar 6 minutos
 en la demo. Los minutos para dormirse son reales y no se escalan.
 """
 import math
@@ -169,10 +173,6 @@ class Tramo:
         """suma / cantidad >= umbral, sin dividir. Solo tiene sentido si el tramo tiene lecturas."""
         return self.suma >= umbral * self.cantidad
 
-    def sin(self, puntos: int) -> "Tramo":
-        """El mismo tramo sin una de sus lecturas: como estaba antes de que llegara."""
-        return Tramo(self.cantidad - 1, self.suma - puntos)
-
 
 @dataclass(frozen=True)
 class ResumenCuidado:
@@ -181,21 +181,35 @@ class ResumenCuidado:
     El adaptador solo agrupa y cuenta; las reglas las aplica CuidadoDeMascota.
     - horas: de cada hora de juego que tuvo lecturas (numerada con
       RelojDeJuego.numero_de_hora), cuantas hubo y cuanto sumaron.
-    - ventana: las lecturas posteriores al inicio de la ventana de la condicion.
     - ultimo y anterior: los dos movimientos mas recientes, o None si no hay.
+    - al_ultimo: las lecturas de la ventana de la condicion que termina en la
+      ultima, con ella incluida: momento en (ultimo.momento - ventana, ultimo.momento].
+    - al_anterior: las de la ventana que termina en la anterior, sin la ultima:
+      momento en (anterior.momento - ventana, anterior.momento]. Es como estaba
+      la matera antes de que llegara la ultima lectura.
+    Las dos ventanas se anclan en lecturas y no en la hora de la consulta: asi no
+    cambian mientras no llegan lecturas, y con la ventana llena la lectura que sale
+    por detras no se confunde con la que entro.
     """
 
     horas: Mapping[int, Tramo]
-    ventana: Tramo
     ultimo: MovimientoPuntaje | None = None
     anterior: MovimientoPuntaje | None = None
+    al_ultimo: Tramo = Tramo()
+    al_anterior: Tramo = Tramo()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "horas", MappingProxyType(dict(self.horas)))
+        # Cada ventana trae al menos la lectura en que termina, y no hay ventana sin esa lectura.
+        if self.anterior is not None and self.ultimo is None:
+            raise ValueError("Un resumen con lectura anterior tiene que tener una ultima.")
+        for movimiento, tramo in ((self.ultimo, self.al_ultimo), (self.anterior, self.al_anterior)):
+            if (movimiento is None) != tramo.vacio:
+                raise ValueError("La ventana de una lectura la incluye, y sin esa lectura la ventana esta vacia.")
 
     @classmethod
     def sin_lecturas(cls) -> "ResumenCuidado":
-        return cls({}, Tramo())
+        return cls({})
 
     @property
     def puntos(self) -> int:
@@ -207,9 +221,11 @@ class ResumenCuidado:
 class Mascota:
     """La matera Tamagotchi lista para dibujar. Ninguna de estas capas la calcula el front.
 
-    cara es el estado global de la ultima lectura, o None si nunca hubo lecturas.
-    ultima_lectura es el momento de esa lectura: con el, la app avisa una sola vez
-    por lectura aunque consulte cada 10 s.
+    cara es el estado global de la ultima lectura puntuada, o None si nunca hubo.
+    ultima_lectura es cuando llego esa lectura, con la hora del servidor (no la
+    del dispositivo): con el, la app avisa una sola vez por lectura aunque
+    consulte cada 10 s. Dormida, necesidad y aviso son None: la ultima lectura es
+    vieja y no se muestra como si fuera de ahora.
     """
 
     planta: Planta
@@ -245,9 +261,10 @@ class CuidadoDeMascota:
     def reloj(self) -> RelojDeJuego:
         return self._reloj
 
-    def inicio_ventana(self, ahora: datetime) -> datetime:
-        """Desde cuando cuentan las lecturas para la condicion. Se escala con el reloj del juego."""
-        return ahora - self._reloj.horas(self.HORAS_DE_LA_CONDICION)
+    @property
+    def ventana(self) -> timedelta:
+        """Cuanto mira hacia atras la condicion, desde cada lectura: 6 horas de juego, escaladas con el reloj."""
+        return self._reloj.horas(self.HORAS_DE_LA_CONDICION)
 
     def armar(
         self,
@@ -257,21 +274,27 @@ class CuidadoDeMascota:
         ultima: RegistroMedicion | None,
         ahora: datetime,
     ) -> Mascota:
-        """resumen debe venir con la ventana que empieza en inicio_ventana(ahora); ultima es la del historial."""
+        """resumen debe venir con ventanas que duren self.ventana; ultima es la del historial, solo para el globo.
+
+        La cara, si duerme y la ultima lectura salen del ultimo movimiento, que
+        guarda el estado con la hora del servidor: una placa con la hora atrasada
+        no puede dejar la cara de una lectura vieja ni dormir a una matera despierta.
+        """
+        ultimo = resumen.ultimo
         horas = self.horas_cuidada(resumen)
-        dormida = self.dormida(ultima, ahora)
+        dormida = self.dormida(ultimo, ahora)
         return Mascota(
             planta=planta,
             etapa=ritmo.etapa(horas),
-            condicion=self.condicion(resumen.ventana),
-            cara=ultima.estado if ultima is not None else None,
+            condicion=self.condicion(resumen.al_ultimo),
+            cara=ultimo.estado if ultimo is not None else None,
             dormida=dormida,
-            necesidad=self.necesidad(ultima),
-            # Dormida, la ultima lectura es vieja: su aviso ya se dio cuando llego.
+            # Dormida, la ultima lectura es vieja: no se muestra lo que pedia ni se repite su aviso.
+            necesidad=None if dormida else self.necesidad(ultima),
             aviso=None if dormida else self.aviso(resumen),
             puntos=resumen.puntos,
             horas_cuidada=horas,
-            ultima_lectura=ultima.momento if ultima is not None else None,
+            ultima_lectura=ultimo.momento if ultimo is not None else None,
         )
 
     def condicion(self, tramo: Tramo) -> Condicion:
@@ -283,14 +306,19 @@ class CuidadoDeMascota:
         return Condicion.MARCHITA
 
     def horas_cuidada(self, resumen: ResumenCuidado) -> int:
-        """Las horas de juego con lecturas en que no estuvo marchita. Si la descuidan, deja de crecer."""
+        """Las horas de juego bien cuidada: cuenta cada hora con su propio promedio de -5 o mas.
+
+        Cada hora se mira sola, no con la ventana de 6 horas de la condicion: una
+        hora con una sola lectura EN_RIESGO (-5) cuenta aunque la matera siga
+        marchita por las horas anteriores. Si la descuidan, deja de crecer.
+        """
         return sum(
             1 for tramo in resumen.horas.values() if not tramo.vacio and self.condicion(tramo) is not Condicion.MARCHITA
         )
 
-    def dormida(self, ultima: RegistroMedicion | None, ahora: datetime) -> bool:
-        """Duerme si su ultima lectura tiene mas de los minutos para dormir, que son reales, o si nunca hubo una."""
-        return ultima is None or ahora - ultima.momento > self._para_dormir
+    def dormida(self, ultimo: MovimientoPuntaje | None, ahora: datetime) -> bool:
+        """Duerme si su ultima lectura llego hace mas de los minutos para dormir, que son reales, o si nunca hubo una."""
+        return ultimo is None or ahora - ultimo.momento > self._para_dormir
 
     @staticmethod
     def necesidad(ultima: RegistroMedicion | None) -> Necesidad | None:
@@ -301,24 +329,22 @@ class CuidadoDeMascota:
     def aviso(self, resumen: ResumenCuidado) -> Aviso | None:
         """Lo que cambio con la ultima lectura.
 
-        - SE_MARCHITO: con la ultima lectura la condicion es marchita, y con las
-          mismas lecturas de la ventana menos esa no lo era.
+        - SE_MARCHITO: en la ventana que termina en la ultima lectura la condicion
+          es marchita, y en la que terminaba en la anterior no lo era (o no habia
+          anterior). Asi el aviso sale una vez al marchitarse, aunque la ventana
+          este llena y entre lectura y lectura salga la mas vieja.
         - PASO_A_CRITICO: la ultima lectura es CRITICO y la anterior no lo era, o
           no habia anterior.
         Si pasan las dos cosas con la misma lectura, gana SE_MARCHITO: es la que
         detiene el crecimiento, y la cara triste ya muestra el CRITICO.
         """
-        ultimo = resumen.ultimo
+        ultimo, anterior = resumen.ultimo, resumen.anterior
         if ultimo is None:
             return None
-        ventana = resumen.ventana
-        if (
-            not ventana.vacio
-            and self.condicion(ventana) is Condicion.MARCHITA
-            and self.condicion(ventana.sin(ultimo.puntos)) is not Condicion.MARCHITA
-        ):
+        marchita_ahora = self.condicion(resumen.al_ultimo) is Condicion.MARCHITA
+        marchita_antes = anterior is not None and self.condicion(resumen.al_anterior) is Condicion.MARCHITA
+        if marchita_ahora and not marchita_antes:
             return Aviso.SE_MARCHITO
-        anterior = resumen.anterior
         if ultimo.estado is EstadoGlobal.CRITICO and (anterior is None or anterior.estado is not EstadoGlobal.CRITICO):
             return Aviso.PASO_A_CRITICO
         return None

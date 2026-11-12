@@ -104,33 +104,41 @@ class MovimientosPuntajeSqlite(MovimientosPuntaje):
                 totales.update({usuario_id: suma for usuario_id, suma in filas})
         return totales
 
-    def resumen_de(self, planta: Planta, reloj: RelojDeJuego, desde: datetime) -> ResumenCuidado:
-        parametros = {
-            "planta": planta.id,
-            "usuario": planta.usuario_id,
-            "hora": reloj.hora // _MICROSEGUNDO,
-            "desde": microsegundos(desde),
-        }
+    def resumen_de(self, planta: Planta, reloj: RelojDeJuego, ventana: timedelta) -> ResumenCuidado:
+        parametros = {"planta": planta.id, "usuario": planta.usuario_id, "hora": reloj.hora // _MICROSEGUNDO}
         propios = "FROM movimiento_puntaje WHERE planta_id = :planta AND usuario_id = :usuario"
         with self._bd.conexion() as conexion:
-            # Una transaccion de lectura: las tres consultas ven lo mismo aunque llegue una lectura en medio.
+            # Una transaccion de lectura: las consultas ven lo mismo aunque llegue una lectura en medio.
             conexion.execute("BEGIN")
+            ultimos = conexion.execute(
+                f"SELECT id, {_COLUMNAS_MOVIMIENTO} {propios} {_RECIENTES_PRIMERO} LIMIT 2", parametros
+            ).fetchall()
             horas = conexion.execute(
                 f"SELECT {_hora_de_juego('momento_us')} AS hora_juego, COUNT(*), SUM(puntos) {propios} GROUP BY hora_juego",
                 parametros,
             ).fetchall()
-            cantidad, suma = conexion.execute(
-                f"SELECT COUNT(*), COALESCE(SUM(puntos), 0) {propios} AND momento_us > :desde", parametros
-            ).fetchone()
-            ultimos = conexion.execute(
-                f"SELECT {_COLUMNAS_MOVIMIENTO} {propios} {_RECIENTES_PRIMERO} LIMIT 2", parametros
-            ).fetchall()
-        movimientos = [_movimiento(fila) for fila in ultimos]
+
+            def al(fila: sqlite3.Row, sin_id: int | None = None) -> Tramo:
+                """Los movimientos de la ventana que termina en el de esa fila, con el incluido."""
+                hasta = fila["momento_us"]
+                cantidad, suma = conexion.execute(
+                    f"SELECT COUNT(*), COALESCE(SUM(puntos), 0) {propios}"
+                    " AND momento_us > :desde AND momento_us <= :hasta AND id IS NOT :sin",
+                    {**parametros, "desde": hasta - ventana // _MICROSEGUNDO, "hasta": hasta, "sin": sin_id},
+                ).fetchone()
+                return Tramo(cantidad, suma)
+
+            ultimo = ultimos[0] if ultimos else None
+            anterior = ultimos[1] if len(ultimos) > 1 else None
+            # La ventana de la anterior es sin la ultima: si las dos tienen el mismo momento, la ultima tambien cae ahi.
+            al_ultimo = al(ultimo) if ultimo is not None else Tramo()
+            al_anterior = al(anterior, sin_id=ultimo["id"]) if anterior is not None else Tramo()
         return ResumenCuidado(
             horas={hora: Tramo(cuantas, total) for hora, cuantas, total in horas},
-            ventana=Tramo(cantidad, suma),
-            ultimo=movimientos[0] if movimientos else None,
-            anterior=movimientos[1] if len(movimientos) > 1 else None,
+            ultimo=_movimiento(ultimo) if ultimo is not None else None,
+            anterior=_movimiento(anterior) if anterior is not None else None,
+            al_ultimo=al_ultimo,
+            al_anterior=al_anterior,
         )
 
 

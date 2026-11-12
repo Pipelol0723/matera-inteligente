@@ -535,6 +535,103 @@ def test_avisa_al_pasar_a_critico_y_al_marchitarse():
     assert avisos == [None, None, Aviso.PASO_A_CRITICO, None, None, None, None, None, Aviso.SE_MARCHITO]
 
 
+CADA_15_S = timedelta(seconds=15)
+
+
+def _avisos_al_leer(juego: Juego, planta: Planta, *estados: EstadoGlobal, cada: timedelta = CADA_15_S) -> list:
+    """El aviso y la condicion que ve la app justo despues de cada lectura."""
+    vistos = []
+    for estado in estados:
+        juego.reloj.avanzar(cada)
+        juego.leer(planta, estado)
+        mascota = juego.mascota(ANA, planta)
+        vistos.append((mascota.condicion, mascota.aviso))
+    return vistos
+
+
+def test_con_la_ventana_llena_se_marchita_y_avisa_una_sola_vez():
+    """El reloj de la demo (6 min por dia: hora de 15 s, ventana de 90 s) y la placa cada 15 s.
+
+    En uso normal la ventana esta llena: con cada lectura que entra sale la mas
+    vieja. El aviso compara la ventana de la ultima con la de la anterior.
+    """
+    juego = Juego(minutos_por_dia=6)
+    sala = juego.matera(ANA, "sala")
+
+    vistos = _avisos_al_leer(juego, sala, *[S] * 6, *[C] * 6)
+
+    sana, decaida, marchita = Condicion.SANA, Condicion.DECAIDA, Condicion.MARCHITA
+    assert vistos == [
+        *[(sana, None)] * 6,
+        (sana, Aviso.PASO_A_CRITICO),  # 5 S y 1 C
+        (sana, None),  # 4 S y 2 C: 3,3
+        (decaida, None),  # 3 S y 3 C: 0
+        (decaida, None),  # 2 S y 4 C: -3,3
+        (marchita, Aviso.SE_MARCHITO),  # 1 S y 5 C: -6,7. Sin la ultima seria 1 S y 4 C (-6): no avisaria
+        (marchita, None),
+    ]
+
+
+def test_marchita_desde_la_primera_lectura_avisa_una_sola_vez():
+    juego = Juego(minutos_por_dia=6)
+    sala = juego.matera(ANA, "sala")
+
+    vistos = _avisos_al_leer(juego, sala, C, R, R, R, R, R, C)
+
+    assert {condicion for condicion, _ in vistos} == {Condicion.MARCHITA}
+    # Al final vuelve a CRITICO desde EN_RIESGO: avisa eso, pero no que se marchito, porque ya lo estaba.
+    assert [aviso for _, aviso in vistos] == [Aviso.SE_MARCHITO, *[None] * 5, Aviso.PASO_A_CRITICO]
+
+
+def test_sin_lecturas_nuevas_la_matera_no_cambia_hasta_que_se_duerme():
+    """La placa se apaga con el reloj de la demo: la ventana de 90 s pasa, pero no llega otra lectura."""
+    juego = Juego(minutos_por_dia=6)
+    sala = juego.matera(ANA, "sala")
+    for segundos, estado in ((0, S), (30, C), (10, S), (10, C), (10, C), (10, C)):
+        juego.reloj.avanzar(timedelta(seconds=segundos))
+        juego.leer(sala, estado)
+    recien = juego.mascota(ANA, sala)
+
+    for despues in (timedelta(seconds=5), timedelta(seconds=25), timedelta(minutes=2), timedelta(minutes=30)):
+        juego.reloj.avanzar(despues - (juego.reloj.ahora() - recien.ultima_lectura))
+        igual = juego.mascota(ANA, sala)
+        assert (igual.condicion, igual.cara, igual.necesidad, igual.aviso, igual.dormida) == (
+            recien.condicion, C, Necesidad.SED, recien.aviso, False
+        ), despues
+
+    juego.reloj.avanzar(timedelta(seconds=1))  # 30 minutos y 1 segundo: se duerme
+    dormida = juego.mascota(ANA, sala)
+    assert (dormida.dormida, dormida.cara, dormida.necesidad, dormida.aviso) == (True, C, None, None)
+    assert dormida.condicion is recien.condicion
+
+
+def test_una_lectura_con_la_hora_del_dispositivo_atrasada_igual_cambia_la_cara_y_avisa():
+    """La placa reinicio y manda su hora 31 minutos atrasada: la API la acepta y el historial la deja atras."""
+    juego = Juego()
+    sala = juego.matera(ANA, "sala")
+    juego.leer(sala, S)
+    juego.reloj.avanzar(CADA_15_S)
+
+    atrasada = juego.reloj.ahora() - timedelta(minutes=31)
+    juego.diagnosticar.ejecutar(ANA.id, sala.id, LECTURAS[C], origen="MT-0001-AA", momento=atrasada)
+    mascota = juego.mascota(ANA, sala)
+
+    assert juego.historial.ultimo_de(sala.id).estado is S  # por la hora del dispositivo, la ultima sigue siendo la S
+    assert (mascota.cara, mascota.aviso, mascota.dormida, mascota.puntos) == (C, Aviso.PASO_A_CRITICO, False, 0)
+    assert mascota.ultima_lectura == juego.reloj.ahora()
+
+
+def test_la_primera_lectura_con_la_hora_atrasada_no_deja_dormida_a_la_matera():
+    juego = Juego()
+    sala = juego.matera(ANA, "sala")
+
+    atrasada = juego.reloj.ahora() - timedelta(minutes=31)
+    juego.diagnosticar.ejecutar(ANA.id, sala.id, LECTURAS[C], origen="MT-0001-AA", momento=atrasada)
+    mascota = juego.mascota(ANA, sala)
+
+    assert (mascota.cara, mascota.dormida, mascota.necesidad, mascota.aviso) == (C, False, Necesidad.SED, Aviso.SE_MARCHITO)
+
+
 # --- Puertos de entrada del juego ---
 
 

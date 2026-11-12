@@ -10,7 +10,7 @@ infraestructura; en las pruebas, cada uno tiene un doble en memoria.
 """
 from abc import ABC, abstractmethod
 from collections.abc import Collection
-from datetime import datetime
+from datetime import timedelta
 
 from dominio.juego import ApodoJugador, MovimientoPuntaje, Participacion
 from dominio.mascota import Mascota, RelojDeJuego, ResumenCuidado, RitmoCrecimiento
@@ -96,16 +96,21 @@ class MovimientosPuntaje(ABC):
         """usuario_id -> su total, para la tabla de posiciones. Quien no tiene movimientos puede faltar."""
 
     @abstractmethod
-    def resumen_de(self, planta: Planta, reloj: RelojDeJuego, desde: datetime) -> ResumenCuidado:
+    def resumen_de(self, planta: Planta, reloj: RelojDeJuego, ventana: timedelta) -> ResumenCuidado:
         """Los movimientos de esa planta y de su dueno (planta.id y planta.usuario_id), agrupados.
 
         - horas: hora de juego -> Tramo(cantidad, suma), solo las horas con
           movimientos. La hora de un movimiento es reloj.numero_de_hora(momento):
           floor((momento - EPOCA) / reloj.hora).
-        - ventana: Tramo de los movimientos con momento posterior a `desde`.
         - ultimo y anterior: los dos mas recientes, por momento y, si empatan,
           por orden de guardado.
-        Solo agrupa y cuenta: que hora fue bien cuidada lo decide CuidadoDeMascota.
+        - al_ultimo: Tramo de los movimientos con momento en
+          (ultimo.momento - ventana, ultimo.momento]. Vacio si no hay ultimo.
+        - al_anterior: Tramo de los movimientos con momento en
+          (anterior.momento - ventana, anterior.momento], sin contar el ultimo
+          aunque tenga el mismo momento. Vacio si no hay anterior.
+        Solo agrupa y cuenta: que hora fue bien cuidada, la condicion y los avisos
+        los decide CuidadoDeMascota.
         """
 
 

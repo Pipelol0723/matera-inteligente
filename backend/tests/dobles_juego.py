@@ -9,7 +9,7 @@ aparecen en la tabla.
 """
 from collections.abc import Collection
 from dataclasses import replace
-from datetime import datetime
+from datetime import timedelta
 
 from dominio.errores_juego import ApodoRepetido
 from dominio.errores_usuarios import PlantaNoEncontrada
@@ -58,7 +58,7 @@ class MovimientosEnMemoria(MovimientosPuntaje):
         con_movimientos = {m.usuario_id for m in self.movimientos}
         return {u: self.total_de(u) for u in usuario_ids if u in con_movimientos}
 
-    def resumen_de(self, planta: Planta, reloj: RelojDeJuego, desde: datetime) -> ResumenCuidado:
+    def resumen_de(self, planta: Planta, reloj: RelojDeJuego, ventana: timedelta) -> ResumenCuidado:
         propios = [
             m for m in self._mas_recientes_primero() if m.planta_id == planta.id and m.usuario_id == planta.usuario_id
         ]
@@ -67,12 +67,19 @@ class MovimientosEnMemoria(MovimientosPuntaje):
             numero = reloj.numero_de_hora(m.momento)
             tramo = horas.get(numero, Tramo())
             horas[numero] = Tramo(tramo.cantidad + 1, tramo.suma + m.puntos)
-        en_ventana = [m for m in propios if m.momento > desde]
+
+        def al(indice: int) -> Tramo:
+            # La ventana que termina en propios[indice], sin los mas recientes que el (aunque empaten en momento).
+            fin = propios[indice].momento
+            dentro = [m for m in propios[indice:] if fin - ventana < m.momento <= fin]
+            return Tramo(len(dentro), sum(m.puntos for m in dentro))
+
         return ResumenCuidado(
             horas=horas,
-            ventana=Tramo(len(en_ventana), sum(m.puntos for m in en_ventana)),
             ultimo=propios[0] if propios else None,
             anterior=propios[1] if len(propios) > 1 else None,
+            al_ultimo=al(0) if propios else Tramo(),
+            al_anterior=al(1) if len(propios) > 1 else Tramo(),
         )
 
     def _mas_recientes_primero(self) -> list[MovimientoPuntaje]:

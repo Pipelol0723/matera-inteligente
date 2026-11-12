@@ -1,7 +1,8 @@
 """Reglas de la matera Tamagotchi (corte 3): tamano, condicion, cara, necesidad y aviso.
 
 Sin servidor ni archivos, con un momento fijo. Los resumenes se arman a mano,
-como los entregaria el puerto MovimientosPuntaje.
+como los entregaria el puerto MovimientosPuntaje: las ventanas de la condicion
+ya vienen ancladas en la ultima lectura y en la anterior.
 """
 from datetime import datetime, timedelta, timezone
 
@@ -58,6 +59,22 @@ def horas_saludables(cantidad: int) -> dict[int, Tramo]:
     return {numero: tramo(S) for numero in range(cantidad)}
 
 
+def resumen_con(
+    al_ultimo: tuple[EstadoGlobal, ...],
+    al_anterior: tuple[EstadoGlobal, ...] = (),
+    horas: dict[int, Tramo] | None = None,
+    cuando: datetime = AHORA,
+) -> ResumenCuidado:
+    """La ultima lectura es la ultima de al_ultimo, y la anterior, la ultima de al_anterior (si hay)."""
+    return ResumenCuidado(
+        horas or {},
+        ultimo=movimiento(al_ultimo[-1], cuando),
+        anterior=movimiento(al_anterior[-1], cuando - timedelta(minutes=1)) if al_anterior else None,
+        al_ultimo=tramo(*al_ultimo),
+        al_anterior=tramo(*al_anterior),
+    )
+
+
 def armar(resumen=None, ultima=None, ritmo=POTOS, reloj=REAL, ahora=AHORA):
     return CuidadoDeMascota(reloj).armar(SALA, ritmo, resumen or ResumenCuidado.sin_lecturas(), ultima, ahora)
 
@@ -97,7 +114,7 @@ def test_un_parametro_sin_globo_propio_no_pide_nada():
 
 
 def test_la_mascota_pide_lo_de_la_ultima_lectura_del_historial():
-    mascota = armar(ultima=registro(C, temperatura=ALTO, luz=BAJO))
+    mascota = armar(resumen_con((C,)), ultima=registro(C, temperatura=ALTO, luz=BAJO))
 
     assert mascota.necesidad is Necesidad.CALOR
 
@@ -131,8 +148,8 @@ def test_el_dia_de_juego_dura_algo(minutos):
 
 
 def test_la_ventana_de_la_condicion_son_6_horas_de_juego():
-    assert CuidadoDeMascota(REAL).inicio_ventana(AHORA) == AHORA - timedelta(hours=6)
-    assert CuidadoDeMascota(DEMO).inicio_ventana(AHORA) == AHORA - timedelta(seconds=30)
+    assert CuidadoDeMascota(REAL).ventana == timedelta(hours=6)
+    assert CuidadoDeMascota(DEMO).ventana == timedelta(seconds=30)
 
 
 # --- Tamano: horas bien cuidada y ritmo de la especie ---
@@ -159,7 +176,7 @@ def test_la_etapa_sale_de_los_dias_bien_cuidada_y_del_ritmo(horas, etapa):
 
 
 def test_cada_especie_crece_a_su_ritmo():
-    resumen = ResumenCuidado(horas_saludables(24), Tramo())
+    resumen = ResumenCuidado(horas_saludables(24))
 
     assert armar(resumen, ritmo=POTOS).etapa is EtapaCrecimiento.BROTE
     assert armar(resumen, ritmo=SANSEVIERIA).etapa is EtapaCrecimiento.SEMILLA
@@ -171,7 +188,7 @@ def test_el_ritmo_tiene_que_ser_creciente(ritmo):
         RitmoCrecimiento(*ritmo)
 
 
-def test_solo_cuentan_las_horas_con_promedio_de_menos_5_o_mas():
+def test_solo_cuentan_las_horas_con_su_propio_promedio_de_menos_5_o_mas():
     horas = {
         0: tramo(S),  # 10
         1: tramo(S, R, R),  # 0: decaida, cuenta
@@ -183,13 +200,22 @@ def test_solo_cuentan_las_horas_con_promedio_de_menos_5_o_mas():
         7: tramo(R, C),  # -7,5: marchita, no cuenta
     }
 
-    assert armar(ResumenCuidado(horas, Tramo())).horas_cuidada == 6
+    assert armar(ResumenCuidado(horas)).horas_cuidada == 6
+
+
+def test_una_hora_con_su_promedio_de_menos_5_cuenta_aunque_la_ventana_este_marchita():
+    """Cada hora se mira sola: la condicion de 6 horas no la cambia (decision del equipo)."""
+    resumen = resumen_con((C, C, C, C, C, R), (C, C, C, C, C), horas={0: tramo(C), 1: tramo(C), 2: tramo(R)})
+
+    mascota = armar(resumen)
+
+    assert (mascota.condicion, mascota.horas_cuidada) == (Condicion.MARCHITA, 1)
 
 
 def test_siempre_en_riesgo_queda_decaida_y_sigue_creciendo():
     en_riesgo = {numero: tramo(R) for numero in range(200)}
 
-    mascota = armar(ResumenCuidado(en_riesgo, tramo(R)))
+    mascota = armar(ResumenCuidado(en_riesgo, ultimo=movimiento(R), al_ultimo=tramo(R)))
 
     assert mascota.condicion is Condicion.DECAIDA
     assert mascota.horas_cuidada == 200
@@ -199,7 +225,7 @@ def test_siempre_en_riesgo_queda_decaida_y_sigue_creciendo():
 def test_el_tiempo_marchita_no_hace_crecer():
     marchitas = {numero: tramo(C) for numero in range(200)}
 
-    mascota = armar(ResumenCuidado(marchitas, Tramo()))
+    mascota = armar(ResumenCuidado(marchitas))
 
     assert (mascota.horas_cuidada, mascota.etapa) == (0, EtapaCrecimiento.SEMILLA)
 
@@ -213,7 +239,7 @@ def test_sin_lecturas_es_una_semilla_dormida_sin_cara():
     assert (mascota.puntos, mascota.horas_cuidada, mascota.ultima_lectura) == (0, 0, None)
 
 
-# --- Condicion: promedio de las ultimas 6 horas de juego ---
+# --- Condicion: promedio de las 6 horas de juego que terminan en la ultima lectura ---
 
 
 @pytest.mark.parametrize(
@@ -233,14 +259,27 @@ def test_sin_lecturas_es_una_semilla_dormida_sin_cara():
     ],
 )
 def test_la_condicion_sigue_el_promedio_de_la_ventana(lecturas, condicion):
-    assert armar(ResumenCuidado({}, tramo(*lecturas))).condicion is condicion
+    resumen = resumen_con(lecturas) if lecturas else ResumenCuidado.sin_lecturas()
+
+    assert armar(resumen).condicion is condicion
 
 
 def test_la_condicion_no_depende_de_las_horas_fuera_de_la_ventana():
     # Muchas horas marchitas antes, pero en la ventana solo hay lecturas buenas.
-    resumen = ResumenCuidado({numero: tramo(C) for numero in range(50)}, tramo(S, S))
+    resumen = resumen_con((S, S), horas={numero: tramo(C) for numero in range(50)})
 
     assert armar(resumen).condicion is Condicion.SANA
+
+
+def test_la_condicion_es_la_de_la_ventana_de_la_ultima_lectura_y_no_cambia_sin_lecturas():
+    # Con el reloj de la demo la ventana dura 30 s: 20 minutos despues ya paso, pero no llego otra lectura.
+    resumen = resumen_con((C, C, C), (C, C))
+
+    recien = armar(resumen, reloj=DEMO)
+    despues = armar(resumen, reloj=DEMO, ahora=AHORA + timedelta(minutes=20))
+
+    assert recien.condicion is despues.condicion is Condicion.MARCHITA
+    assert (despues.cara, despues.dormida) == (C, False)
 
 
 # --- Cara y dormida ---
@@ -248,97 +287,135 @@ def test_la_condicion_no_depende_de_las_horas_fuera_de_la_ventana():
 
 @pytest.mark.parametrize("estado", list(EstadoGlobal))
 def test_la_cara_es_el_estado_de_la_ultima_lectura(estado):
-    mascota = armar(ultima=registro(estado))
+    mascota = armar(resumen_con((estado,)), ultima=registro(estado))
 
     assert mascota.cara is estado
     assert mascota.ultima_lectura == AHORA
 
 
+def test_la_cara_y_el_sueno_salen_del_ultimo_movimiento_y_no_de_la_hora_del_dispositivo():
+    """Una placa con la hora 31 minutos atrasada: en el historial su lectura queda detras de la anterior.
+
+    El movimiento guarda el estado con la hora del servidor: la cara es la de la
+    lectura que acaba de llegar, la matera esta despierta y el aviso sale.
+    """
+    resumen = resumen_con((S, C), (S,))
+    historial_atrasado = registro(S, AHORA - timedelta(seconds=15))  # el historial ordena por la hora del dispositivo
+
+    mascota = armar(resumen, ultima=historial_atrasado)
+
+    assert (mascota.cara, mascota.dormida, mascota.aviso) == (C, False, Aviso.PASO_A_CRITICO)
+    assert mascota.ultima_lectura == AHORA
+
+
 def test_se_duerme_despues_de_30_minutos_reales_sin_lecturas():
-    assert armar(ultima=registro(S, AHORA - timedelta(minutes=30))).dormida is False
-    assert armar(ultima=registro(S, AHORA - timedelta(minutes=30, seconds=1))).dormida is True
+    assert armar(resumen_con((S,), cuando=AHORA - timedelta(minutes=30))).dormida is False
+    assert armar(resumen_con((S,), cuando=AHORA - timedelta(minutes=30, seconds=1))).dormida is True
 
 
 def test_los_minutos_para_dormirse_no_se_escalan_con_el_reloj_del_juego():
     # Con el reloj de la demo, 10 minutos reales son 5 dias de juego: igual sigue despierta.
-    assert armar(ultima=registro(S, AHORA - timedelta(minutes=10)), reloj=DEMO).dormida is False
-    assert armar(ultima=registro(S, AHORA - timedelta(minutes=31)), reloj=DEMO).dormida is True
+    assert armar(resumen_con((S,), cuando=AHORA - timedelta(minutes=10)), reloj=DEMO).dormida is False
+    assert armar(resumen_con((S,), cuando=AHORA - timedelta(minutes=31)), reloj=DEMO).dormida is True
 
 
 def test_los_minutos_para_dormirse_se_pueden_configurar():
     cuidado = CuidadoDeMascota(REAL, minutos_para_dormir=5)
 
-    assert cuidado.dormida(registro(S, AHORA - timedelta(minutes=6)), AHORA) is True
+    assert cuidado.dormida(movimiento(S, AHORA - timedelta(minutes=6)), AHORA) is True
+    assert cuidado.dormida(None, AHORA) is True
     with pytest.raises(ValueError):
         CuidadoDeMascota(REAL, minutos_para_dormir=0)
 
 
-def test_dormida_conserva_la_cara_de_la_ultima_lectura():
-    mascota = armar(ultima=registro(R, AHORA - timedelta(hours=2), humedad=BAJO))
+def test_dormida_conserva_la_cara_pero_no_muestra_lo_que_pedia_ni_avisa():
+    hace_dos_horas = AHORA - timedelta(hours=2)
+    resumen = resumen_con((S, C), (S,), cuando=hace_dos_horas)
 
-    assert (mascota.dormida, mascota.cara, mascota.necesidad) == (True, R, Necesidad.SED)
+    mascota = armar(resumen, ultima=registro(C, hace_dos_horas, humedad=BAJO))
+
+    assert (mascota.dormida, mascota.cara, mascota.necesidad, mascota.aviso) == (True, C, None, None)
+    assert mascota.ultima_lectura == hace_dos_horas
+
+
+def test_las_ventanas_tienen_que_traer_la_lectura_en_que_terminan():
+    with pytest.raises(ValueError):
+        ResumenCuidado({}, ultimo=movimiento(S))  # sin la ventana de la ultima
+    with pytest.raises(ValueError):
+        ResumenCuidado({}, al_ultimo=tramo(S))  # una ventana sin su lectura
+    with pytest.raises(ValueError):
+        ResumenCuidado({}, ultimo=movimiento(S), anterior=movimiento(S), al_ultimo=tramo(S, S))
+    with pytest.raises(ValueError):
+        ResumenCuidado({}, anterior=movimiento(S), al_anterior=tramo(S))  # anterior sin ultima
 
 
 # --- Avisos ---
 
 
-def resumen_con(ventana: tuple[EstadoGlobal, ...], anterior: EstadoGlobal | None) -> ResumenCuidado:
-    """La ultima lectura es la ultima de la ventana."""
-    return ResumenCuidado(
-        {},
-        tramo(*ventana),
-        ultimo=movimiento(ventana[-1]),
-        anterior=movimiento(anterior, AHORA - timedelta(minutes=1)) if anterior else None,
-    )
-
-
 def test_avisa_al_pasar_a_critico():
-    resumen = resumen_con((S, S, C), anterior=S)  # 3,3: sigue sana
+    resumen = resumen_con((S, S, C), (S, S))  # 3,3: sigue sana
 
     assert CuidadoDeMascota(REAL).aviso(resumen) is Aviso.PASO_A_CRITICO
 
 
 def test_no_avisa_si_ya_estaba_en_critico():
-    resumen = resumen_con((S, S, S, C, C), anterior=C)  # 2: sana
+    resumen = resumen_con((S, S, S, C, C), (S, S, S, C))  # 2: sana
 
     assert CuidadoDeMascota(REAL).aviso(resumen) is None
 
 
-def test_la_primera_lectura_critica_tambien_avisa():
-    # Con el reloj de la demo, la lectura ya salio de la ventana de 30 s pero la planta sigue despierta.
-    resumen = ResumenCuidado({}, Tramo(), ultimo=movimiento(C), anterior=None)
-
-    assert CuidadoDeMascota(DEMO).aviso(resumen) is Aviso.PASO_A_CRITICO
+def test_la_primera_lectura_critica_ya_esta_marchita_y_avisa_eso():
+    # Su ventana solo la tiene a ella (-10): pasa a CRITICO y se marchita a la vez, y gana SE_MARCHITO.
+    assert CuidadoDeMascota(REAL).aviso(resumen_con((C,))) is Aviso.SE_MARCHITO
 
 
 def test_avisa_al_marchitarse():
-    resumen = resumen_con((S, C, C, C, C), anterior=C)  # sin la ultima: -5; con ella: -6
+    resumen = resumen_con((S, C, C, C, C), (S, C, C, C))  # antes: -5; con la ultima: -6
+
+    assert CuidadoDeMascota(REAL).aviso(resumen) is Aviso.SE_MARCHITO
+
+
+def test_con_la_ventana_llena_compara_con_la_ventana_de_la_anterior():
+    """La lectura mas vieja sale de la ventana mientras entra la nueva.
+
+    Antes (la ventana de la anterior) habia S, S y cuatro C: -3,3, decaida.
+    Ahora (la de la ultima) ya no esta la primera S y entra otra C: -6,7, marchita.
+    Quitar solo la ultima de la ventana de ahora daria S y cuatro C (-6): marchita, y no avisaria.
+    """
+    resumen = resumen_con((S, C, C, C, C, C), (S, S, C, C, C, C))
 
     assert CuidadoDeMascota(REAL).aviso(resumen) is Aviso.SE_MARCHITO
 
 
 def test_no_avisa_si_ya_estaba_marchita():
-    resumen = resumen_con((C, C, C), anterior=C)
+    resumen = resumen_con((C, C, C), (C, C))
 
     assert CuidadoDeMascota(REAL).aviso(resumen) is None
 
 
+def test_si_se_recupera_y_vuelve_a_marchitarse_avisa_otra_vez():
+    cuidado = CuidadoDeMascota(REAL)
+
+    assert cuidado.aviso(resumen_con((S, S, R), (S, S))) is None
+    assert cuidado.aviso(resumen_con((S, C, C, C, C), (S, S, C, C, C))) is Aviso.SE_MARCHITO
+
+
 def test_si_pasan_las_dos_cosas_gana_se_marchito():
-    resumen = resumen_con((C, C, C, S, C), anterior=S)  # sin la ultima: -5; con ella: -6
+    resumen = resumen_con((C, C, C, S, C), (C, C, C, S))  # antes: -5; con la ultima: -6
 
     assert CuidadoDeMascota(REAL).aviso(resumen) is Aviso.SE_MARCHITO
 
 
 @pytest.mark.parametrize("ultima, anterior", [(S, C), (R, S), (R, None), (S, None)])
 def test_sin_critico_nuevo_ni_marchitarse_no_avisa(ultima, anterior):
-    resumen = ResumenCuidado({}, Tramo(), ultimo=movimiento(ultima), anterior=movimiento(anterior) if anterior else None)
+    resumen = resumen_con((anterior, ultima) if anterior else (ultima,), (anterior,) if anterior else ())
 
     assert CuidadoDeMascota(REAL).aviso(resumen) is None
 
 
 def test_dormida_no_avisa_lo_de_una_lectura_vieja():
     hace_una_hora = AHORA - timedelta(hours=1)
-    resumen = ResumenCuidado({}, tramo(S, C), ultimo=movimiento(C, hace_una_hora), anterior=movimiento(S, hace_una_hora))
+    resumen = resumen_con((S, C), (S,), cuando=hace_una_hora)
 
     assert armar(resumen, ultima=registro(C, hace_una_hora)).aviso is None
     assert armar(resumen, ultima=registro(C, hace_una_hora), ahora=hace_una_hora).aviso is Aviso.PASO_A_CRITICO
@@ -350,7 +427,7 @@ def test_dormida_no_avisa_lo_de_una_lectura_vieja():
 def test_la_mascota_reune_las_cinco_capas():
     horas = horas_saludables(80)
     horas[80] = tramo(S, R)
-    resumen = ResumenCuidado(horas, tramo(S, S, R), ultimo=movimiento(R), anterior=movimiento(S))
+    resumen = resumen_con((S, S, R), (S, S), horas=horas)
 
     mascota = armar(resumen, ultima=registro(R, humedad=BAJO))
 

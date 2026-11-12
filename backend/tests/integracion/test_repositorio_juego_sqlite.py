@@ -33,6 +33,7 @@ AHORA = datetime(2026, 11, 11, 15, 0, tzinfo=timezone.utc)
 REGLA = ReglaDeCuidado()
 # Minutos por dia de juego: el real, dos acelerados y uno cuya hora no es un numero entero de milisegundos (2,5 ms).
 RELOJES = (1440, 6, 2, 0.001)
+SEIS_HORAS = timedelta(hours=6)
 
 
 class Base:
@@ -95,17 +96,17 @@ def _comparar(doble, sqlite, plantas, usuarios, momentos):
     assert sqlite.totales_de_usuarios([]) == doble.totales_de_usuarios([]) == {}
     for minutos_por_dia in RELOJES:
         reloj = RelojDeJuego(minutos_por_dia)
-        desdes = [
-            CuidadoDeMascota(reloj).inicio_ventana(AHORA),
-            momentos[0],  # justo el momento de un movimiento: la ventana es estricta (>)
-            AHORA - timedelta(days=30),
-            AHORA + timedelta(days=1),
+        ventanas = [
+            CuidadoDeMascota(reloj).ventana,
+            timedelta(microseconds=1),  # solo los del mismo momento que la ultima: los empates
+            timedelta(seconds=2),
+            timedelta(days=30),
         ]
         for planta in plantas:
-            for desde in desdes:
-                esperado = doble.resumen_de(planta, reloj, desde)
-                obtenido = sqlite.resumen_de(planta, reloj, desde)
-                assert obtenido == esperado, (minutos_por_dia, planta, desde)
+            for ventana in ventanas:
+                esperado = doble.resumen_de(planta, reloj, ventana)
+                obtenido = sqlite.resumen_de(planta, reloj, ventana)
+                assert obtenido == esperado, (minutos_por_dia, planta, ventana)
 
 
 def test_el_adaptador_da_lo_mismo_que_el_doble_con_varios_relojes_de_juego(base):
@@ -141,13 +142,38 @@ def test_el_resumen_agrupa_cada_hora_de_juego_como_numero_de_hora(base):
     for segundos, estado in ((0, EstadoGlobal.SALUDABLE), (4.999999, EstadoGlobal.CRITICO), (5, EstadoGlobal.EN_RIESGO)):
         base.movimientos.agregar(_movimiento(sala, inicio + timedelta(seconds=segundos), estado))
 
-    resumen = base.movimientos.resumen_de(sala, reloj, inicio)
+    resumen = base.movimientos.resumen_de(sala, reloj, timedelta(seconds=5))
 
     primera = reloj.numero_de_hora(inicio)
     assert {hora: (t.cantidad, t.suma) for hora, t in resumen.horas.items()} == {primera: (2, 0), primera + 1: (1, -5)}
-    assert (resumen.ventana.cantidad, resumen.ventana.suma) == (2, -15)  # el del momento exacto no entra
     assert (resumen.ultimo.estado, resumen.anterior.estado) == (EstadoGlobal.EN_RIESGO, EstadoGlobal.CRITICO)
     assert resumen.ultimo.momento == inicio + timedelta(seconds=5)
+    # La ventana de 5 s que termina en la ultima no incluye la del segundo 0: el inicio no entra.
+    assert (resumen.al_ultimo.cantidad, resumen.al_ultimo.suma) == (2, -15)
+    # La que termina en la anterior (segundo 4,999999) si la incluye, y no incluye la ultima.
+    assert (resumen.al_anterior.cantidad, resumen.al_anterior.suma) == (2, 0)
+
+
+def test_las_ventanas_se_anclan_en_las_lecturas_y_la_de_la_anterior_no_cuenta_la_ultima(base):
+    """Con empates: dos movimientos con el mismo momento caen en las dos ventanas, salvo la ultima."""
+    ana = base.cuenta("ana@correo.co")
+    sala = base.planta(ana, "Sala")
+    ventana = timedelta(seconds=90)
+    doble = MovimientosEnMemoria()
+    for segundos, estado in ((0, EstadoGlobal.SALUDABLE), (15, EstadoGlobal.SALUDABLE), (100, EstadoGlobal.CRITICO),
+                             (100, EstadoGlobal.EN_RIESGO)):
+        movimiento = _movimiento(sala, AHORA + timedelta(seconds=segundos), estado)
+        base.movimientos.agregar(movimiento)
+        doble.agregar(movimiento)
+
+    resumen = base.movimientos.resumen_de(sala, RelojDeJuego(), ventana)
+
+    # La ultima es la EN_RIESGO (guardada despues); su ventana (10 s, 100 s] tiene la S de 15 s, la C y ella.
+    assert (resumen.ultimo.estado, resumen.anterior.estado) == (EstadoGlobal.EN_RIESGO, EstadoGlobal.CRITICO)
+    assert (resumen.al_ultimo.cantidad, resumen.al_ultimo.suma) == (3, -5)
+    # La de la anterior es la misma ventana sin la ultima.
+    assert (resumen.al_anterior.cantidad, resumen.al_anterior.suma) == (2, 0)
+    assert doble.resumen_de(sala, RelojDeJuego(), ventana) == resumen
 
 
 # --- Lo que asegura la base ---
@@ -178,7 +204,7 @@ def test_cada_consulta_trae_solo_lo_del_dueno(base):
     assert base.movimientos.totales_de_usuarios([ana.id, beto.id]) == {ana.id: 10, beto.id: -10}
     assert base.movimientos.totales_de_usuarios([ana.id]) == {ana.id: 10}
     # La planta de Beto pedida como si fuera de Ana: el resumen sale vacio.
-    vacio = base.movimientos.resumen_de(Planta(patio.id, ana.id, "Patio", "potos"), RelojDeJuego(), AHORA - timedelta(days=1))
+    vacio = base.movimientos.resumen_de(Planta(patio.id, ana.id, "Patio", "potos"), RelojDeJuego(), SEIS_HORAS)
     assert vacio == ResumenCuidado.sin_lecturas()
 
 
@@ -196,7 +222,7 @@ def test_un_movimiento_con_otro_dueno_que_el_de_su_planta_no_cuenta_en_esa_plant
     assert base.movimientos.total_de(ana.id) == 10  # es de Ana
     assert base.movimientos.totales_por_planta(ana.id) == {}  # pero la planta no es suya
     assert base.movimientos.totales_por_planta(beto.id) == {}
-    assert base.movimientos.resumen_de(patio, RelojDeJuego(), AHORA - timedelta(days=1)) == ResumenCuidado.sin_lecturas()
+    assert base.movimientos.resumen_de(patio, RelojDeJuego(), SEIS_HORAS) == ResumenCuidado.sin_lecturas()
 
 
 def test_al_borrar_una_matera_sus_puntos_siguen_con_el_dueno_y_no_pasan_a_la_planta_que_toma_su_id(base):
@@ -216,7 +242,7 @@ def test_al_borrar_una_matera_sus_puntos_siguen_con_el_dueno_y_no_pasan_a_la_pla
     assert base.movimientos.total_de(beto.id) == 0
     assert base.movimientos.totales_por_planta(beto.id) == {}
     for planta in (otra, propia_nueva):
-        assert base.movimientos.resumen_de(planta, RelojDeJuego(), AHORA - timedelta(days=1)) == ResumenCuidado.sin_lecturas()
+        assert base.movimientos.resumen_de(planta, RelojDeJuego(), SEIS_HORAS) == ResumenCuidado.sin_lecturas()
 
 
 def test_al_borrar_una_cuenta_se_borran_sus_movimientos_y_su_participacion(base):
