@@ -208,6 +208,9 @@ function sinRepetir(redes) {
   });
 }
 
+// Cuántas direcciones del servidor acepta la API local de la placa (POST /configurar).
+const SERVIDORES_POR_PLACA = 4;
+
 // La dirección por la que este front llegó a la API va primero: desde ese WiFi ya se sabe que responde.
 function ordenar(servidores) {
   const lista = servidores.filter((s) => typeof s === "string" && s);
@@ -422,11 +425,12 @@ export function crearAsistente(contexto, { raiz, alAbrirOCerrar, alCambiarLasMat
       reintentar(principal, () => irA("preparar"));
       return;
     }
-    estado.servidores = servidores;
+    // La API local de la placa recibe de 1 a 4 direcciones: van las primeras, que la API ya ordenó.
+    estado.servidores = servidores.slice(0, SERVIDORES_POR_PLACA);
     guardar();
     resultado.append(
       parrafo("La placa mandará sus lecturas a:"),
-      crear("ul", { clase: "asistente__servidores" }, ...servidores.map((s) => crear("li", {}, crear("code", { texto: s })))));
+      crear("ul", { clase: "asistente__servidores" }, ...estado.servidores.map((s) => crear("li", {}, crear("code", { texto: s })))));
     principal.hidden = false;
     principal.focus();
   }
@@ -559,7 +563,7 @@ export function crearAsistente(contexto, { raiz, alAbrirOCerrar, alCambiarLasMat
       try {
         await ocupado(enviar, () => pedirPlaca("/configurar", {
           metodo: "POST",
-          datos: { red, claveRed: clave.value, servidores: estado.servidores },
+          datos: { red, claveRed: clave.value, servidores: estado.servidores.slice(0, SERVIDORES_POR_PLACA) },
           ms: CONFIGURAR_MAXIMO_MS,
         }));
       } catch (fallo) {
