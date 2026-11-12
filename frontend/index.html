@@ -23,6 +23,7 @@
         <button type="button" class="pestana" data-pantalla="especies">Especies</button>
         <button type="button" class="pestana" data-pantalla="materas">Mis materas</button>
         <button type="button" class="pestana" data-pantalla="historial">Historial</button>
+        <button type="button" class="pestana" data-pantalla="juego">Juego</button>
         <button type="button" class="pestana" data-pantalla="admin" hidden>Administración</button>
       </div>
       <div id="conexion" class="conexion conexion--pendiente" role="status">
@@ -33,6 +34,10 @@
         <span class="en-vivo__punto" aria-hidden="true"></span>
         <span id="en-vivo-texto" class="en-vivo__texto"></span>
       </div>
+      <button id="puntaje" type="button" class="puntaje" data-pantalla="juego" aria-label="Tus puntos" title="Tus puntos" hidden>
+        <span class="puntaje__icono" aria-hidden="true"></span>
+        <span id="puntaje-valor" class="puntaje__valor">0</span>
+      </button>
       <button id="boton-cuenta" type="button" class="boton-cuenta" data-pantalla="acceso">Ingresar</button>
     </div>
   </nav>
@@ -141,6 +146,23 @@
         <button id="cerrar-sesion" type="button" class="boton-secundario">Cerrar sesión</button>
       </div>
     </div>
+    <section class="tarjeta cuenta__tarjeta cuenta__juego" aria-labelledby="cuenta-juego-titulo">
+      <h2 id="cuenta-juego-titulo" class="formulario__titulo">Tabla de posiciones</h2>
+      <p id="jugador-estado" class="formulario__ayuda"></p>
+      <form id="form-jugador" class="cuenta__jugador" novalidate>
+        <div class="formulario__grupo">
+          <label class="formulario__etiqueta" for="jugador-apodo">Apodo de jugador</label>
+          <input id="jugador-apodo" name="apodo" class="formulario__campo" autocomplete="nickname" spellcheck="false">
+        </div>
+        <button id="jugador-guardar" type="submit" class="boton-primario">Participar</button>
+      </form>
+      <p class="formulario__ayuda">En la tabla solo se ve el apodo, nunca su nombre ni su correo. La API revisa que sirva y que nadie más lo use.</p>
+      <div id="error-jugador" class="tarjeta-error" role="alert" hidden></div>
+      <p id="exito-jugador" class="mensaje-exito" role="status" hidden></p>
+      <div class="acciones">
+        <button id="jugador-salir" type="button" class="boton-secundario" hidden>Dejar de participar</button>
+      </div>
+    </section>
   </main>
 
   <main id="pantalla-materas" class="pantalla" hidden>
@@ -209,6 +231,35 @@
     </aside>
   </main>
 
+  <main id="pantalla-juego" class="pantalla juego" hidden>
+    <p class="ceja">Matera Tamagotchi</p>
+    <h1 class="titulo">Juego</h1>
+    <p class="bajada bajada--sin-margen bajada--angosta">Cada lectura que llega de sus sensores suma puntos si la planta está bien y resta si no. Los puntos, el tamaño y el ánimo de cada matera los calcula la API.</p>
+    <p id="juego-consulta" class="consulta"></p>
+    <div id="error-juego" class="tarjeta-error juego__error" role="alert" hidden></div>
+    <div class="juego__columnas">
+      <section class="tarjeta juego__panel" aria-labelledby="juego-puntos-titulo">
+        <h2 id="juego-puntos-titulo" class="rotulo">Tus puntos</h2>
+        <p id="juego-total" class="juego__total">—</p>
+        <h3 class="rotulo juego__subrotulo">Por matera</h3>
+        <ul id="juego-materas" class="juego__lista"></ul>
+        <h3 class="rotulo juego__subrotulo">Últimos movimientos</h3>
+        <ol id="juego-movimientos" class="juego__lista"></ol>
+      </section>
+      <div class="juego__lado">
+        <section class="tarjeta juego__panel" aria-labelledby="juego-tabla-titulo">
+          <h2 id="juego-tabla-titulo" class="rotulo">Tabla de posiciones</h2>
+          <div id="juego-tabla"></div>
+        </section>
+        <section class="tarjeta juego__panel" aria-labelledby="juego-avisos-titulo">
+          <h2 id="juego-avisos-titulo" class="rotulo">Avisos</h2>
+          <p id="juego-permiso" class="juego__nota"></p>
+          <button id="activar-notificaciones" type="button" class="boton-contorno" hidden>Activar notificaciones</button>
+        </section>
+      </div>
+    </div>
+  </main>
+
   <main id="pantalla-admin" class="pantalla admin" hidden>
     <p class="ceja">Solo para administradores</p>
     <h1 class="titulo">Administración</h1>
@@ -244,5 +295,30 @@
       <button type="submit" class="boton-primario">Agregar especie</button>
     </form>
   </main>
+
+  <dialog id="dialogo-participar" class="dialogo" aria-labelledby="participar-titulo">
+    <form id="form-participar" class="dialogo__cuerpo" novalidate>
+      <p class="ceja">Juego</p>
+      <h2 id="participar-titulo" class="formulario__titulo">¿Quiere aparecer en la tabla de posiciones?</h2>
+      <p class="formulario__ayuda">Sus materas suman y restan puntos con cada lectura, participe o no. En la tabla se compite con un apodo de jugador, nunca con su nombre ni su correo. Puede cambiar de opinión cuando quiera en Mi cuenta.</p>
+      <div id="participar-paso-apodo" class="dialogo__apodo" hidden>
+        <label class="formulario__etiqueta" for="participar-apodo">Apodo de jugador</label>
+        <input id="participar-apodo" name="apodo" class="formulario__campo" autocomplete="nickname" spellcheck="false">
+        <p class="formulario__ayuda">Es el nombre con el que lo ven los demás jugadores. La API revisa que sirva y que nadie más lo use.</p>
+      </div>
+      <div id="error-participar" class="tarjeta-error" role="alert" hidden></div>
+      <div id="participar-acciones-pregunta" class="acciones">
+        <button id="participar-si" type="button" class="boton-primario">Sí, quiero participar</button>
+        <button id="participar-no" type="button" class="boton-secundario">No, gracias</button>
+      </div>
+      <div id="participar-acciones-apodo" class="acciones" hidden>
+        <button id="participar-enviar" type="submit" class="boton-primario">Entrar a la tabla</button>
+        <button id="participar-volver" type="button" class="boton-secundario">Volver</button>
+      </div>
+      <button id="participar-despues" type="button" class="enlace dialogo__despues">Decidir después</button>
+    </form>
+  </dialog>
+
+  <div id="avisos" class="avisos"></div>
 </body>
 </html>

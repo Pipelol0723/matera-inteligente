@@ -4,6 +4,14 @@ export const numero = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 
 
 export const capitalizar = (texto) => texto.charAt(0).toUpperCase() + texto.slice(1);
 
+// Puntos del juego, como los manda la API: «1.250», «−40» (con el signo menos tipográfico).
+const ENTERO = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 });
+export const puntos = (valor) => (valor < 0 ? `−${ENTERO.format(-valor)}` : ENTERO.format(valor));
+// Con signo también los positivos: «+10», «−5», «0».
+export const puntosConSigno = (valor) => (valor > 0 ? `+${ENTERO.format(valor)}` : puntos(valor));
+// Para colorear: «mas», «menos» o «cero».
+export const signoDe = (valor) => (valor > 0 ? "mas" : valor < 0 ? "menos" : "cero");
+
 const ETIQUETAS = { humedad: "Humedad", luz: "Luz", temperatura: "Temperatura" };
 export const etiqueta = (nombre) => ETIQUETAS[nombre] ?? capitalizar(nombre);
 

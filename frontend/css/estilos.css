@@ -10,6 +10,20 @@
   --acento: #2e6a4e;
   --acento-oscuro: #22523b;
 
+  /* La matera Tamagotchi (dibujo-planta.js) y los puntos del juego */
+  --maceta: #b77c56;
+  --maceta-borde: #9a6443;
+  --hoja-sana: #5fae69;
+  --hoja-riesgo: #c9b347;
+  --hoja-mal: #94764d;
+  --cara: #1c2a21;
+  --mejilla: #f29a9a;
+  --petalo: #e98ab0;
+  --centro-flor: #f2c94c;
+  --gota: #7fb8e6;
+  --suma: #2b7a4b;
+  --resta: #ae3636;
+
   --serif: Newsreader, Georgia, serif;
   --mono: Consolas, "Cascadia Mono", monospace;
 }
@@ -1891,5 +1905,571 @@ a:hover {
   .terrario__pulso {
     animation: none;
     opacity: 0.35;
+  }
+}
+
+/* ---- juego (corte 3): la matera Tamagotchi, los puntos y la tabla de posiciones ---- */
+
+.planta svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.planta__cuerpo {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+.planta--sana .planta__cuerpo {
+  animation: mecerse 5s ease-in-out infinite;
+}
+
+.planta--dormida .planta__cuerpo {
+  animation: none;
+}
+
+.planta__z {
+  fill: var(--tenue);
+  font-family: var(--mono);
+  animation: flotar 3s ease-in-out infinite;
+}
+
+.planta__z--segunda {
+  animation-delay: 0.9s;
+}
+
+@keyframes mecerse {
+  0%,
+  100% {
+    transform: rotate(-1.5deg);
+  }
+  50% {
+    transform: rotate(1.5deg);
+  }
+}
+
+@keyframes flotar {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(1px);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+/* Los puntos: verde si suman, rojo si restan. */
+.juego__valor--mas {
+  color: var(--suma);
+}
+
+.juego__valor--menos {
+  color: var(--resta);
+}
+
+.juego__valor--cero {
+  color: var(--tenue);
+}
+
+/* En cada tarjeta de Mis materas */
+.matera__mascota {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  padding: 8px 14px 8px 6px;
+  border: 1px solid var(--borde-suave);
+  border-radius: 12px;
+  background: var(--superficie-suave);
+}
+
+.matera__mascota--nueva {
+  animation: destello 1.8s ease-out;
+}
+
+.matera__juego {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.matera__puntos {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.7rem;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.matera__puntos-unidad {
+  font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--tenue);
+}
+
+.matera__etapa {
+  margin: 4px 0 0;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.matera__cuidado {
+  margin: 0;
+  font-size: 0.76rem;
+  text-wrap: pretty;
+  color: var(--tenue);
+}
+
+/* La pastilla de la cabecera: el total, en todas las pantallas con sesión */
+.puntaje {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px 6px 9px;
+  border: 1px solid var(--borde-acento);
+  border-radius: 999px;
+  background: var(--superficie);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--tinta);
+  cursor: pointer;
+}
+
+.puntaje:hover,
+.puntaje.pestana--activa {
+  border-color: var(--acento);
+}
+
+.puntaje__icono {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 0 60% 0 60%;
+  background: var(--hoja-sana);
+  box-shadow: inset 0 0 0 1px rgba(28, 42, 33, 0.35);
+}
+
+.puntaje--sube {
+  animation: sube 1.6s ease-out;
+}
+
+.puntaje--baja {
+  animation: baja 1.6s ease-out;
+}
+
+@keyframes sube {
+  from {
+    box-shadow: 0 0 0 4px rgba(43, 122, 75, 0.35);
+    border-color: var(--suma);
+  }
+}
+
+@keyframes baja {
+  from {
+    box-shadow: 0 0 0 4px rgba(174, 54, 54, 0.3);
+    border-color: var(--resta);
+  }
+}
+
+/* Pantalla Juego */
+.juego .consulta {
+  margin-bottom: 22px;
+}
+
+.juego__error {
+  margin-bottom: 18px;
+}
+
+.juego__columnas {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.juego__lado {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.juego__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 22px;
+}
+
+.juego__panel .rotulo {
+  margin: 0;
+}
+
+.juego__panel .juego__subrotulo {
+  margin-top: 14px;
+}
+
+.juego__total {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 3rem;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.juego__lista {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.juego__fila {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px dashed #e6ece4;
+}
+
+.juego__fila:last-child {
+  border-bottom: 0;
+}
+
+.juego__mini {
+  flex: none;
+  width: 48px;
+}
+
+.juego__nombre {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.juego__apodo {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.juego__especie {
+  font-size: 0.8rem;
+  color: var(--tenue);
+}
+
+.juego__fila > .juego__valor--mas,
+.juego__fila > .juego__valor--menos,
+.juego__fila > .juego__valor--cero {
+  flex: none;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.juego__fila--movimiento > .juego__valor--mas,
+.juego__fila--movimiento > .juego__valor--menos,
+.juego__fila--movimiento > .juego__valor--cero {
+  min-width: 44px;
+}
+
+.juego__detalle {
+  min-width: 0;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.juego__posicion {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--fondo);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--tenue);
+}
+
+.juego__fila--yo {
+  margin: 0 -10px;
+  padding: 8px 10px;
+  border-bottom-color: transparent;
+  border-radius: 10px;
+  background: #e1f0e6;
+}
+
+.juego__fila--yo .juego__posicion {
+  background: var(--acento);
+  color: #fff;
+}
+
+.juego__vacio,
+.juego__nota {
+  margin: 0;
+  font-size: 0.88rem;
+  text-wrap: pretty;
+  color: var(--tenue);
+}
+
+.juego__vacio {
+  padding: 6px 0;
+}
+
+#juego-tabla {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#juego-tabla .boton-primario,
+#activar-notificaciones {
+  align-self: flex-start;
+}
+
+/* Mi cuenta: participar en la tabla */
+.cuenta__juego {
+  margin-top: 22px;
+  gap: 12px;
+}
+
+.cuenta__juego .formulario__titulo {
+  margin: 0;
+}
+
+.cuenta__jugador {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.cuenta__jugador .formulario__grupo {
+  flex: 1 1 220px;
+}
+
+/* El diálogo de participar: un diálogo de la página, no el confirm del navegador */
+.dialogo {
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  padding: 0;
+  border: 1px solid var(--borde);
+  border-radius: 16px;
+  background: var(--superficie);
+  color: var(--tinta);
+  box-shadow: 0 18px 48px rgba(22, 35, 27, 0.18);
+}
+
+.dialogo::backdrop {
+  background: rgba(22, 35, 27, 0.38);
+}
+
+.dialogo__cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px;
+}
+
+.dialogo__cuerpo .ceja,
+.dialogo__cuerpo .formulario__titulo {
+  margin: 0;
+}
+
+.dialogo__apodo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dialogo__despues {
+  align-self: flex-start;
+}
+
+/* Avisos dentro de la página: cuando no hay notificaciones del navegador */
+.avisos {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(380px, calc(100vw - 32px));
+}
+
+.avisos:empty {
+  display: none;
+}
+
+.aviso {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 40px 12px 12px;
+  border: 1px solid #e4bbb8;
+  border-left: 4px solid var(--resta);
+  border-radius: 12px;
+  background: var(--superficie);
+  box-shadow: 0 10px 30px rgba(22, 35, 27, 0.16);
+  animation: entrar 0.25s ease-out;
+}
+
+.aviso--marchita {
+  border-color: #dccfb8;
+  border-left-color: var(--hoja-mal);
+}
+
+.aviso__dibujo {
+  flex: none;
+  width: 52px;
+}
+
+.aviso__cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.aviso__titulo {
+  margin: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.aviso__detalle {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--tenue);
+}
+
+.aviso__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.aviso__cerrar {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  font: inherit;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: var(--tenue);
+  cursor: pointer;
+}
+
+.aviso__cerrar:hover {
+  background: var(--fondo);
+}
+
+@keyframes entrar {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* Con la pestaña Juego y el puntaje, la barra necesita un poco menos de aire entre sus partes. */
+@media (max-width: 1280px) {
+  .navegacion__contenido {
+    gap: 24px;
+  }
+}
+
+@media (max-width: 900px) {
+  .juego__columnas {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Cuando las pestañas no caben al lado de lo demás (en el celular, o con la pestaña Administración junto al
+   puntaje), app.js pone la barra en dos filas: arriba la marca, los indicadores, el puntaje y la cuenta;
+   abajo las pestañas, que se desplazan de lado si aun así no caben. */
+.navegacion--dos-filas .navegacion__contenido {
+  height: auto;
+  flex-wrap: wrap;
+  row-gap: 4px;
+  padding-top: 10px;
+}
+
+.navegacion--dos-filas .pestanas {
+  order: 1;
+  flex-basis: 100%;
+  height: 44px;
+}
+
+.navegacion--dos-filas .pestana:first-child {
+  padding-left: 0;
+}
+
+@media (max-width: 760px) {
+  .navegacion__contenido {
+    column-gap: 12px;
+  }
+
+  .marca__version {
+    display: none;
+  }
+
+  .puntaje {
+    padding: 6px 10px 6px 8px;
+  }
+
+  .juego__total {
+    font-size: 2.5rem;
+  }
+
+  .avisos {
+    right: 16px;
+    bottom: 16px;
+  }
+}
+
+@media (max-width: 420px) {
+  .matera__mascota {
+    grid-template-columns: 116px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .matera__puntos {
+    font-size: 1.45rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .planta--sana .planta__cuerpo,
+  .planta__z,
+  .matera__mascota--nueva,
+  .puntaje--sube,
+  .puntaje--baja,
+  .aviso {
+    animation: none;
   }
 }

@@ -7,6 +7,7 @@ import { crearPantallaCuenta } from "./cuenta.js";
 import { crearPantallaDiagnostico } from "./diagnostico.js";
 import { crearPantallaEspecies } from "./especies.js";
 import { crearPantallaHistorial } from "./historial.js";
+import { crearJuego } from "./juego.js";
 import { crearPantallaMateras } from "./materas.js";
 import { sesion } from "./sesion.js";
 import { crearTiempoReal } from "./tiempo-real.js";
@@ -14,7 +15,7 @@ import { crearTiempoReal } from "./tiempo-real.js";
 const PUBLICAS = ["acceso"];
 // Exigen sesión (R7), también Diagnóstico y Especies. Ocultarlas no protege nada: la API
 // responde 401 sin token, y 403 en administración si el usuario no es ADMIN.
-const PRIVADAS = ["diagnostico", "especies", "materas", "historial", "cuenta", "admin"];
+const PRIVADAS = ["diagnostico", "especies", "materas", "historial", "juego", "cuenta", "admin"];
 const PANTALLAS = [...PUBLICAS, ...PRIVADAS];
 const PANTALLA_INICIAL = "diagnostico";
 const DESPUES_DE_INGRESAR = "materas";
@@ -53,6 +54,7 @@ const contexto = {
   alIniciarSesion() {
     pintarSesion();
     cargarCatalogos();
+    contexto.juego.iniciar();
     contexto.navegar(destino ?? DESPUES_DE_INGRESAR);
     destino = null;
   },
@@ -63,7 +65,13 @@ const contexto = {
   alCambiarUsuario: pintarSesion,
   // Después de que el admin agrega una especie: Diagnóstico, Especies y Mis materas la ven.
   recargarCatalogos: () => cargarCatalogos(),
+  // Mientras el asistente «Conectar sensor» tiene al equipo en la red de la placa, no hay API.
+  sinApi: () => pantallas.materas.sinApi(),
 };
+
+// El juego (corte 3): los puntos de la cabecera y los avisos se ven en todas las pantallas con sesión,
+// y Mis materas dibuja cada matera con lo que trae.
+contexto.juego = crearJuego(contexto);
 
 const diagnostico = crearPantallaDiagnostico(contexto);
 const especies = crearPantallaEspecies(contexto);
@@ -72,6 +80,7 @@ const pantallas = {
   cuenta: crearPantallaCuenta(contexto),
   materas: crearPantallaMateras(contexto),
   historial: crearPantallaHistorial(contexto),
+  juego: contexto.juego,
   admin: crearPantallaAdmin(contexto),
 };
 
@@ -100,6 +109,8 @@ function mostrarPantalla() {
     if (activa) pestana.setAttribute("aria-current", "page");
     else pestana.removeAttribute("aria-current");
   }
+  // En el celular las pestañas se desplazan de lado: la de la pantalla actual queda a la vista.
+  document.querySelector(`.pestana[data-pantalla="${pedida}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
   window.scrollTo(0, 0);
   pantallas[pedida]?.mostrar?.();
 }
@@ -111,16 +122,36 @@ function pintarSesion() {
   boton.dataset.pantalla = usuario ? "cuenta" : "acceso";
   boton.classList.toggle("boton-cuenta--activa", Boolean(usuario));
   document.querySelector('.pestana[data-pantalla="admin"]').hidden = !sesion.esAdmin();
+  ajustarBarra();
   if (sesion.activa()) {
     tiempoReal.conectar();
   } else {
     tiempoReal.desconectar();
     pantallas.materas.reiniciar();
     pantallas.historial.reiniciar();
+    pantallas.cuenta.reiniciar();
+    contexto.juego.reiniciar();
     contexto.plantaElegida = null;
     marcarSinSesion();
   }
 }
+
+// La barra pasa a dos filas cuando las pestañas no caben al lado de la marca, los indicadores, el puntaje y
+// la cuenta. Se mide en el cuadro siguiente: así el cambio de filas no vuelve a disparar la medición en el mismo.
+const barra = document.querySelector(".navegacion");
+const pestanas = barra.querySelector(".pestanas");
+let ajuste = 0;
+
+function ajustarBarra() {
+  cancelAnimationFrame(ajuste);
+  ajuste = requestAnimationFrame(() => {
+    barra.classList.remove("navegacion--dos-filas");
+    barra.classList.toggle("navegacion--dos-filas", pestanas.scrollWidth > pestanas.clientWidth + 1);
+  });
+}
+
+// Cambia el ancho de las pestañas al cambiar la ventana, el puntaje, el nombre de la cuenta o los indicadores.
+new ResizeObserver(ajustarBarra).observe(pestanas);
 
 const TEXTOS_EN_VIVO = {
   conectando: "Conectando en vivo…",
@@ -183,7 +214,8 @@ async function cargarCatalogos() {
   pantallas.admin.alCargarCatalogos();
 }
 
-// Si había una sesión guardada, se pregunta a la API quién es: el rol pudo cambiar.
+// Si había una sesión guardada, se pregunta a la API quién es: el rol pudo cambiar. Después arranca el
+// juego, que pregunta si participa a quien todavía no lo decidió.
 async function confirmarSesion() {
   if (!sesion.activa()) return;
   try {
@@ -193,6 +225,7 @@ async function confirmarSesion() {
     // Un 401 ya cerró la sesión; sin conexión, se conserva la que había.
   }
   pintarSesion();
+  if (sesion.activa()) contexto.juego.iniciar();
 }
 
 document.querySelector(".navegacion").addEventListener("click", (evento) => {

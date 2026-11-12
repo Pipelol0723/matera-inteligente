@@ -142,6 +142,17 @@ export const obtenerRed = (opciones) => privada("/red", opciones);
 // Las mediciones no se escriben desde el front: llegan del sensor y se ven aquí en vivo (tiempo-real.js).
 export const obtenerHistorial = (id, limite) => privada(`/plantas/${id}/historial?limite=${limite}`);
 
+// ---- juego (corte 3) ----
+
+// Todo lo calcula la API: la matera Tamagotchi de cada planta, los puntos, los movimientos y la tabla.
+export const obtenerMascotas = (opciones) => privada("/juego/materas", opciones);
+export const obtenerPuntaje = (opciones) => privada("/juego/puntaje", opciones);
+export const obtenerParticipacion = (opciones) => privada("/juego/participacion", opciones);
+export const obtenerTabla = (opciones) => privada("/juego/tabla", opciones);
+// El apodo solo viaja al participar; si sirve (largo, caracteres, que no se repita) lo decide la API.
+export const elegirParticipacion = (participa, apodo) =>
+  privada("/juego/participacion", conJson("PUT", participa ? { participa: true, apodo } : { participa: false }));
+
 // ---- administración ----
 
 export const obtenerUsuarios = () => privada("/admin/usuarios");

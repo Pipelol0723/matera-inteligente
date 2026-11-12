@@ -4,11 +4,16 @@
 // de cada tarjeta lo calculó la API; aquí solo se ubica en pantalla. Desde el front no se escriben mediciones.
 // «Agregar matera» y «Cambiar sensor» abren el asistente que conecta la placa (conectar-sensor.js). El flujo
 // de antes (escribir el código y copiar la clave en config.h) queda en «Conectar a mano».
+// Cada tarjeta muestra además la matera Tamagotchi y sus puntos, tal como los manda GET /juego/materas
+// (juego.js): cuando el juego cambia, solo se vuelve a dibujar esa parte de las tarjetas que cambiaron.
 import { cambiarSensor, eliminarPlanta, obtenerPlantas, registrarPlanta } from "./api.js";
 import { crearAsistente } from "./conectar-sensor.js";
 import { consultarCadaRato, textoConsulta } from "./consulta-periodica.js";
+import { dibujoDeMatera, macetaVacia, rotulosDeMatera } from "./dibujo-planta.js";
 import { dominioVisual, fraccion, porcentaje } from "./escala.js";
-import { capitalizar, colorDeEstado, crear, etiqueta, numero, pastillaEstado, tono, unidad } from "./formato.js";
+import {
+  capitalizar, colorDeEstado, crear, etiqueta, numero, pastillaEstado, puntosConSigno, signoDe, tono, unidad,
+} from "./formato.js";
 import { botonDe, datosDe, fechaCorta, mostrarError, ocupado } from "./formularios.js";
 import { esMasNueva, especieDe, textoOrigen } from "./lecturas.js";
 
@@ -96,6 +101,20 @@ export function crearPantallaMateras(contexto) {
 
   consultarCadaRato(() => !$("pantalla-materas").hidden, actualizar);
 
+  // El juego se consulta aparte (juego.js); aquí solo se vuelve a dibujar la matera de las que cambiaron.
+  contexto.juego.alCambiar((ids) => {
+    for (const id of ids) {
+      const actual = $("materas").querySelector(`[data-planta="${id}"] .matera__mascota`);
+      const planta = plantas.find((p) => p.id === id);
+      if (!actual || !planta) continue;
+      const nueva = mascota(planta);
+      // Se marca un momento solo si cambió el dibujo (no basta con que cambien los puntos).
+      const descripcion = (nodo) => nodo.querySelector("svg")?.getAttribute("aria-label");
+      if (descripcion(actual) !== descripcion(nueva)) nueva.classList.add("matera__mascota--nueva");
+      actual.replaceWith(nueva);
+    }
+  });
+
   contexto.tiempoReal.alRecibir((mensaje) => {
     if ($("pantalla-materas").hidden) return; // al volver a la pantalla se recarga todo
     if (mensaje.tipo === "reconectado") {
@@ -148,6 +167,7 @@ export function crearPantallaMateras(contexto) {
     }
     $("materas-consulta").textContent = textoConsulta();
     pintar();
+    contexto.juego.refrescar(); // una matera nueva tiene su dibujo apenas responda el juego
   }
 
   // La consulta periódica: solo se vuelven a pintar las tarjetas que cambiaron, así no se pierde lo que
@@ -167,6 +187,7 @@ export function crearPantallaMateras(contexto) {
     if (ids(nuevas) !== ids(plantas)) {
       plantas = nuevas;
       pintar();
+      contexto.juego.refrescar();
       return;
     }
     nuevas.forEach((nueva, indice) => {
@@ -220,6 +241,7 @@ export function crearPantallaMateras(contexto) {
         crear("div", { clase: "matera__nombres" },
           crear("p", { clase: "matera__lugar", texto: planta.apodo }),
           crear("p", { clase: "matera__especie", texto: capitalizar(planta.especie) }))),
+      mascota(planta),
       pastillaEstado(medicion?.estado),
       crear("div", { clase: "matera__barras" }, ...barras(medicion, especie)),
       crear("p", { clase: "matera__nota", texto: nota(planta) }));
@@ -231,6 +253,36 @@ export function crearPantallaMateras(contexto) {
     if (abierta === planta.id) nodo.append(formularioSensor(planta));
     nodo.append(acciones(planta));
     return nodo;
+  }
+
+  // La matera Tamagotchi: el dibujo y lo que dice, con los puntos de esta matera. Todo viene de la API;
+  // mientras no responde, se ve la maceta vacía.
+  function mascota(planta) {
+    const matera = contexto.juego.mascotaDe(planta.id);
+    if (!matera) {
+      return crear("div", { clase: "matera__mascota" },
+        macetaVacia({ clase: "matera__planta" }),
+        crear("div", { clase: "matera__juego" }, crear("p", { clase: "matera__cuidado", texto: "Consultando el juego…" })));
+    }
+    const rotulos = rotulosDeMatera(matera);
+    const horas = matera.horasCuidada;
+    const sueno = !matera.dormida ? null : matera.ultimaLectura
+      ? `${capitalizar(rotulos.cara)}: hace rato no le llegan lecturas.`
+      : `${capitalizar(rotulos.cara)}: espera su primera lectura.`;
+    const lineas = [
+      crear("p", { clase: `matera__puntos juego__valor--${signoDe(matera.puntos)}` },
+        crear("span", { clase: "matera__puntos-valor", texto: puntosConSigno(matera.puntos) }),
+        crear("span", { clase: "matera__puntos-unidad", texto: " puntos" })),
+      crear("p", { clase: "matera__etapa", texto: `${rotulos.etapa} · ${rotulos.condicion}` }),
+      crear("p", {
+        clase: "matera__cuidado",
+        texto: `${numero.format(horas)} ${horas === 1 ? "hora" : "horas"} de juego bien cuidada`,
+      }),
+    ];
+    if (sueno) lineas.push(crear("p", { clase: "matera__cuidado", texto: sueno }));
+    return crear("div", { clase: "matera__mascota" },
+      dibujoDeMatera(matera, { clase: "matera__planta" }),
+      crear("div", { clase: "matera__juego" }, ...lineas));
   }
 
   function barras(medicion, especie) {
@@ -370,6 +422,8 @@ export function crearPantallaMateras(contexto) {
       asistente.reanudar(); // si había una placa a medio conectar (también después de recargar la página)
     },
     alCargarCatalogos,
+    // Mientras el equipo está en la red de la placa no hay API: el juego tampoco consulta.
+    sinApi: () => asistente.sinApi(),
     // Al cerrar la sesión: nada de esta cuenta queda para la que entre después en la misma pestaña.
     reiniciar() {
       plantas = [];
