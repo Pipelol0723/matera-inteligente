@@ -106,6 +106,7 @@ La API queda en `http://127.0.0.1:5000/api/v1`. Se puede configurar con variable
 |---|---|
 | `MATERA_HOST` | `127.0.0.1`: solo este PC. Con `0.0.0.0` la API queda abierta a la red, ver [Mediciones de un ESP32](#mediciones-de-un-esp32-en-la-red) |
 | `MATERA_PUERTO` | `5000` |
+| `MATERA_PUERTO_FRONT` | `5500`: con `MATERA_HOST=0.0.0.0`, el front también se acepta desde `http://<ip del PC>:5500` (CORS y WebSocket), para abrirlo desde el celular en la misma red |
 | `MATERA_RUTA_BD` | `backend/datos/matera.sqlite` |
 | `MATERA_ORIGENES_CORS` | `http://localhost:5500,http://127.0.0.1:5500` |
 | `MATERA_DIAS_SESION` | `7`: cuánto dura el token de una sesión |
@@ -399,9 +400,10 @@ En los dos casos el token deja de servir aunque no haya vencido.
 | `DELETE /sesiones/actual` | sesión | 200 · `{mensaje}` |
 | `GET /usuarios/yo` | sesión | 200 · `{id, nombre, correo, rol, plantas}` |
 | `GET /plantas` | sesión | 200 · lista con `sensor` y `ultimaMedicion` |
-| `POST /plantas` | sesión | 201 · `{planta, codigo, clave}`. El cuerpo lleva `{apodo, especie, codigo}`: la matera nace con su sensor, y la clave solo aparece aquí |
+| `POST /plantas` | sesión | 201 · `{planta, codigo, clave}`. El cuerpo lleva `{apodo, especie, codigo}`: la matera nace con su sensor, y la clave solo aparece aquí. Con `huella` opcional (SHA-256 de la clave que creó la placa, 64 caracteres hexadecimales en minúscula) no hay `clave` en la respuesta: la API nunca la ve |
 | `DELETE /plantas/{id}` | sesión | 200 · borra también su sensor y su historial |
-| `PUT /plantas/{id}/sensor` | sesión | 200 · `{planta, codigo, clave}`. Cambia el sensor, o da una clave nueva con el mismo código; el historial se conserva, y la clave anterior y su token dejan de servir |
+| `PUT /plantas/{id}/sensor` | sesión | 200 · `{planta, codigo, clave}` (sin `clave` si el cuerpo trae `huella`). Cambia el sensor, o da una clave nueva con el mismo código; el historial se conserva, y la clave anterior y su token dejan de servir |
+| `GET /red` | sesión | 200 · `{servidores: ["http://<ip>:5000/api/v1", ...]}`: las bases de la API por las que una placa de la red local alcanza este backend (según `MATERA_HOST` y `MATERA_PUERTO`). Si no hay ninguna (host de loopback), trae un `aviso` |
 | `GET /plantas/{id}/historial?limite=30` | sesión | 200 · `{planta, registros}`, el más reciente primero |
 | `POST /dispositivos/{codigo}/token` | la clave del sensor, en el cuerpo `{clave}` | 200 · `{token, venceEn}`: el JWT del sensor. Deja sin efecto el token anterior del mismo sensor |
 | `POST /dispositivos/{codigo}/lecturas` | token del sensor | 201 · `{planta, momento, diagnostico}`. El cuerpo lleva `{dispositivo, momento, lecturas}`; se guarda con la hora del cuerpo y el código como origen, y se avisa en vivo |

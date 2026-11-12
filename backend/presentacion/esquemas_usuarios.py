@@ -92,14 +92,16 @@ def especie_desde_json(cuerpo: Any) -> Especie:
     return Especie(nombre, rangos, cientifico)
 
 
-def planta_desde_json(cuerpo: Any) -> tuple[str, str, str]:
-    """Una matera nueva: su apodo, su especie y el codigo de su sensor."""
+def planta_desde_json(cuerpo: Any) -> tuple[str, str, str, str | None]:
+    """Una matera nueva: su apodo, su especie, el codigo de su sensor y, si la placa creo su clave, la huella."""
     cuerpo = _objeto(cuerpo)
-    return _texto(cuerpo, "apodo"), _texto(cuerpo, "especie"), _texto(cuerpo, "codigo")
+    return _texto(cuerpo, "apodo"), _texto(cuerpo, "especie"), _texto(cuerpo, "codigo"), _huella(cuerpo)
 
 
-def codigo_desde_json(cuerpo: Any) -> str:
-    return _texto(_objeto(cuerpo), "codigo")
+def codigo_desde_json(cuerpo: Any) -> tuple[str, str | None]:
+    """El codigo del sensor y la huella opcional de su clave."""
+    cuerpo = _objeto(cuerpo)
+    return _texto(cuerpo, "codigo"), _huella(cuerpo)
 
 
 def limite_desde_consulta(texto: str | None) -> int:
@@ -146,7 +148,10 @@ def historial_a_json(historial: HistorialPlanta) -> dict[str, Any]:
 
 def sensor_vinculado_a_json(vinculado: SensorVinculado) -> dict[str, Any]:
     """Las unicas respuestas que traen la clave del sensor: crear la matera y cambiarle el sensor."""
-    return {"planta": planta_a_json(vinculado.planta), "codigo": vinculado.codigo.valor, "clave": vinculado.clave}
+    respuesta = {"planta": planta_a_json(vinculado.planta), "codigo": vinculado.codigo.valor}
+    if vinculado.clave is not None:  # con huella, la clave la creo la placa y la API nunca la vio
+        respuesta["clave"] = vinculado.clave
+    return respuesta
 
 
 def medicion_en_vivo_a_json(planta: Planta, registro: RegistroMedicion, diagnostico: Diagnostico) -> dict[str, Any]:
@@ -211,6 +216,23 @@ def _texto(cuerpo: dict, campo: str) -> str:
         raise _invalido(campo, "ausente", f"Falta el campo {campo}.")
     if not isinstance(valor, str):
         raise _invalido(campo, "no_es_texto", f"El campo {campo} debe ser un texto.")
+    return valor
+
+
+_HEXADECIMALES_MINUSCULA = frozenset("0123456789abcdef")
+
+
+def _huella(cuerpo: dict) -> str | None:
+    """La huella SHA-256 de la clave, opcional: 64 caracteres hexadecimales en minuscula."""
+    valor = cuerpo.get("huella")
+    if valor is None:
+        return None
+    if not isinstance(valor, str):
+        raise _invalido("huella", "no_es_texto", "El campo huella debe ser un texto.")
+    if len(valor) != 64 or not set(valor) <= _HEXADECIMALES_MINUSCULA:
+        raise _invalido(
+            "huella", "formato_invalido", "La huella debe tener 64 caracteres hexadecimales en minúscula (SHA-256)."
+        )
     return valor
 
 

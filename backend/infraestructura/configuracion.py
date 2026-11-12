@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
 
+from infraestructura import red_local
 from infraestructura.seguridad import ITERACIONES_RECOMENDADAS
 
 _BACKEND = Path(__file__).resolve().parent.parent
@@ -12,6 +13,13 @@ _BACKEND = Path(__file__).resolve().parent.parent
 # 127.0.0.1 son origenes distintos, por eso van los dos.
 _ORIGENES_POR_DEFECTO = "http://localhost:5500,http://127.0.0.1:5500"
 TABLAS_DE_REFERENCIA = ("bd", "csv")
+
+
+def origenes_de_la_red(host: str, puerto_front: int) -> tuple[str, ...]:
+    """Con la API abierta a la red (0.0.0.0), el front tambien se abre desde el celular: http://<ip>:<puerto>."""
+    if host.strip() != "0.0.0.0":
+        return ()
+    return tuple(f"http://{ip}:{puerto_front}" for ip in red_local.ips_ipv4())
 
 
 @dataclass(frozen=True)
@@ -55,13 +63,16 @@ class Configuracion:
     @classmethod
     def desde_entorno(cls) -> "Configuracion":
         origenes = os.environ.get("MATERA_ORIGENES_CORS", _ORIGENES_POR_DEFECTO)
+        host = os.environ.get("MATERA_HOST", "127.0.0.1").strip()
+        propios = tuple(origen.strip() for origen in origenes.split(",") if origen.strip())
+        de_la_red = origenes_de_la_red(host, int(os.environ.get("MATERA_PUERTO_FRONT", "5500")))
         return cls(
             puerto=int(os.environ.get("MATERA_PUERTO", "5000")),
             ruta_bd=Path(os.environ.get("MATERA_RUTA_BD", _BACKEND / "datos" / "matera.sqlite")),
-            origenes_cors=tuple(origen.strip() for origen in origenes.split(",") if origen.strip()),
+            origenes_cors=propios + tuple(o for o in de_la_red if o not in propios),
             duracion_sesion=timedelta(days=float(os.environ.get("MATERA_DIAS_SESION", "7"))),
             duracion_token_dispositivo=timedelta(hours=float(os.environ.get("MATERA_HORAS_TOKEN_DISPOSITIVO", "24"))),
-            host=os.environ.get("MATERA_HOST", "127.0.0.1").strip(),
+            host=host,
             secreto_jwt=os.environ.get("MATERA_JWT_SECRETO", "").strip() or None,
             tabla_referencia=os.environ.get("MATERA_TABLA_REFERENCIA", "bd").strip().lower(),
             ruta_csv=Path(os.environ["MATERA_RUTA_CSV"]) if os.environ.get("MATERA_RUTA_CSV", "").strip() else None,

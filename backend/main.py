@@ -37,6 +37,7 @@ from dominio.recomendaciones import GeneradorRecomendaciones
 from dominio.reglas import ReglaHibrida
 from dominio.servicio_diagnostico import ServicioDiagnostico
 from infraestructura.configuracion import Configuracion
+from infraestructura.red_local import RedLocal
 from infraestructura.reloj import RelojSistema
 from infraestructura.repositorio_especies_csv import (
     ErrorTablaReferencia,
@@ -65,6 +66,7 @@ from presentacion.rutas import crear_blueprint
 from presentacion.rutas_admin import crear_blueprint_admin
 from presentacion.rutas_dispositivos import crear_blueprint_dispositivos
 from presentacion.rutas_plantas import crear_blueprint_plantas
+from presentacion.rutas_red import crear_blueprint_red
 from presentacion.rutas_usuarios import crear_blueprint_usuarios
 from presentacion.tiempo_real import crear_blueprint_tiempo_real
 
@@ -154,7 +156,11 @@ def construir_app(config: Configuracion) -> Flask:
     # El WebSocket del front registra sus conexiones en los mismos canales que usa el notificador.
     en_vivo = crear_blueprint_tiempo_real(tokens, identificar, canales, config.origenes_cors)
 
-    return crear_app([api, cuentas, administracion, mis_plantas, dispositivos, en_vivo], config)
+    # Conexion: la app le pregunta al backend por que direcciones lo alcanza una placa de la red.
+    red_local = RedLocal(config.host, config.puerto)
+    red = crear_blueprint_red(red_local.servidores, red_local.aviso, autenticacion)
+
+    return crear_app([api, cuentas, administracion, mis_plantas, dispositivos, en_vivo, red], config)
 
 
 @dataclass(frozen=True)

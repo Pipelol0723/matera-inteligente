@@ -31,8 +31,8 @@ def crear_blueprint_plantas(
     @bp.post("")
     @autenticacion.con_usuario
     def registrar_planta(usuario):
-        apodo, especie, codigo = esquemas_usuarios.planta_desde_json(request.get_json(silent=True))
-        vinculado = registrar.ejecutar(usuario, apodo, especie, codigo)
+        apodo, especie, codigo, huella = esquemas_usuarios.planta_desde_json(request.get_json(silent=True))
+        vinculado = registrar.ejecutar(usuario, apodo, especie, codigo, huella)
         return jsonify(esquemas_usuarios.sensor_vinculado_a_json(vinculado)), 201
 
     @bp.delete("/<int:planta_id>")
@@ -44,8 +44,8 @@ def crear_blueprint_plantas(
     @bp.put("/<int:planta_id>/sensor")
     @autenticacion.con_usuario
     def cambiar_sensor(usuario, planta_id: int):
-        codigo = esquemas_usuarios.codigo_desde_json(request.get_json(silent=True))
-        vinculado = reemplazar_sensor.ejecutar(usuario, planta_id, codigo)
+        codigo, huella = esquemas_usuarios.codigo_desde_json(request.get_json(silent=True))
+        vinculado = reemplazar_sensor.ejecutar(usuario, planta_id, codigo, huella)
         return jsonify(esquemas_usuarios.sensor_vinculado_a_json(vinculado))
 
     @bp.get("/<int:planta_id>/historial")
