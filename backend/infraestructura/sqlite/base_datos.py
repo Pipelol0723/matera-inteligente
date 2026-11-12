@@ -9,6 +9,11 @@ ESQUEMA = _DATOS / "esquema.sql"
 CARGA = _DATOS / "carga.sql"
 RITMOS = _DATOS / "ritmos.sql"
 
+# Segundos que una operacion espera a que otra termine de escribir antes de rendirse con «database is locked».
+# Con los 5 s por defecto, varias placas y pestanas a la vez dieron 500 y lecturas que no sumaron puntos: en
+# Windows cada escritura tarda unos 30 ms en llegar al disco y se hacen fila.
+ESPERA_SI_ESTA_OCUPADA = 30
+
 # Un INTEGER de SQLite tiene 64 bits. Un id de la URL mas grande no existe: se busca como None, no da 500.
 _ENTERO_MAXIMO = 2**63 - 1
 
@@ -52,7 +57,8 @@ class BaseDatos:
 
     @contextmanager
     def conexion(self) -> Iterator[sqlite3.Connection]:
-        conexion = sqlite3.connect(self._ruta)
+        # Si otra conexion esta escribiendo, espera hasta ESPERA_SI_ESTA_OCUPADA en vez de los 5 s de sqlite3.
+        conexion = sqlite3.connect(self._ruta, timeout=ESPERA_SI_ESTA_OCUPADA)
         conexion.row_factory = sqlite3.Row
         conexion.execute("PRAGMA foreign_keys = ON")
         try:

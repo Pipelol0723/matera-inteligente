@@ -322,3 +322,9 @@ def test_borrar_una_planta_borra_su_sensor_y_su_historial(repos):
 
     assert [repos.contar(t) for t in ("planta", "sensor", "medicion", "lectura")] == [0, 0, 0, 0]
     assert repos.historial.ultimo_de(planta.id) is None
+
+
+def test_una_operacion_espera_hasta_30_s_si_otra_esta_escribiendo(tmp_path):
+    """Con los 5 s por defecto de sqlite3 hubo 500 por «database is locked» con varias placas y pestanas a la vez."""
+    with BaseDatos(tmp_path / "matera.sqlite").conexion() as conexion:
+        assert conexion.execute("PRAGMA busy_timeout").fetchone()[0] == 30_000
