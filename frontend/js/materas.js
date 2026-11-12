@@ -16,6 +16,8 @@ import {
 } from "./formato.js";
 import { botonDe, datosDe, fechaCorta, mostrarError, ocupado } from "./formularios.js";
 import { esMasNueva, especieDe, textoOrigen } from "./lecturas.js";
+import { panelDePrueba } from "./modo-prueba.js";
+import { sesion } from "./sesion.js";
 
 export function crearPantallaMateras(contexto) {
   const $ = (id) => document.getElementById(id);
@@ -224,6 +226,9 @@ export function crearPantallaMateras(contexto) {
     const nueva = tarjeta(planta);
     const formularioAbierto = vieja.querySelector(".matera__sensor");
     if (formularioAbierto) nueva.querySelector(".matera__sensor")?.replaceWith(formularioAbierto);
+    // El panel del modo prueba también se conserva, abierto y con lo elegido.
+    const pruebaAbierta = vieja.querySelector(".matera__prueba");
+    if (pruebaAbierta) nueva.querySelector(".matera__prueba")?.replaceWith(pruebaAbierta);
     nueva.classList.add("matera--nueva");
     vieja.replaceWith(nueva);
     if (escribiendo) nueva.querySelector("input")?.focus();
@@ -251,6 +256,12 @@ export function crearPantallaMateras(contexto) {
     if (enVivo && enVivo.momento === medicion?.momento) nodo.append(recomendaciones(enVivo.diagnostico));
     if (abierta === planta.id) nodo.append(formularioSensor(planta));
     nodo.append(acciones(planta));
+    if (sesion.esAdmin()) {
+      nodo.append(panelDePrueba(planta, {
+        mascotaActual: () => contexto.juego.mascotaDe(planta.id),
+        alCambiar: () => contexto.juego.refrescar(),
+      }));
+    }
     return nodo;
   }
 
@@ -279,6 +290,11 @@ export function crearPantallaMateras(contexto) {
       }),
     ];
     if (sueno) lineas.push(crear("p", { clase: "matera__cuidado", texto: sueno }));
+    if (matera.prueba) {
+      const marca = crear("p", { clase: "matera__marca-prueba", texto: "Modo prueba" });
+      marca.title = "Un admin le puso este estado para verlo: no es su estado real.";
+      lineas.unshift(marca);
+    }
     return crear("div", { clase: "matera__mascota" },
       dibujoDeMatera(matera, { clase: "matera__planta" }),
       crear("div", { clase: "matera__juego" }, ...lineas));

@@ -440,6 +440,21 @@ python main.py
 
 **Dónde se ve.** En Mis materas, el dibujo de cada tarjeta (`js/dibujo-planta.js`, un SVG con los colores de `estilos.css` y su descripción accesible). En la cabecera, el puntaje total. En la pantalla Juego, los puntos de cada matera, los últimos 20 movimientos y la tabla. Las rutas están en la [API](#cuentas-plantas-y-sensores-corte-2), y el recorrido de una lectura hasta los puntos, en [`secuencia-puntaje`](docs/diagramas/README.md#secuencia-del-puntaje).
 
+### Modo prueba (solo administradores)
+
+Sirve para mostrar en la demo cada estado de la matera Tamagotchi sin esperar a que la planta llegue a él. En Mis materas, un admin abre «Modo prueba» en una matera suya, elige el tamaño, la condición, la cara, si duerme y el globo, y toca «Ver este estado». «Volver a lo normal» la deja como es.
+
+- **Solo cambia el dibujo:** en la app y en la pantalla de la placa, que lo muestra en su siguiente lectura. Los puntos, las lecturas y el diagnóstico siguen siendo los reales, y no sale ningún aviso.
+- **Rutas:**
+  - `PUT /api/v1/juego/materas/{id}/prueba` con `{"etapa", "condicion", "cara", "dormida", "necesidad"}`;
+  - `DELETE /api/v1/juego/materas/{id}/prueba`.
+  - `GET /juego/materas` y la respuesta 201 a la placa traen el campo `prueba`, que es `null` si la matera se ve como es.
+- **Quién puede usarlo** lo decide el dominio:
+  - si la cuenta no es admin, la API responde `403 PERMISO_DENEGADO` (`Usuario.exigir_admin`);
+  - si la matera es ajena o no existe, responde `404` (`Planta.exigir_dueno`).
+- **Sin cambiar archivos existentes del núcleo:** entra como archivos nuevos (`dominio/modo_prueba.py`, `dominio/puertos_prueba.py` y `aplicacion/modo_prueba.py`), que envuelven `ConsultarMascotas` y `RegistrarLectura` en `main.py`.
+- **Se borra al reiniciar el backend:** el estado de prueba vive en memoria (`infraestructura/estados_prueba_memoria.py`) y no en la base.
+
 ## Conectar una matera
 
 Desde el corte 3, una placa nueva se conecta sin tocar `config.h` ni volver a subir el programa. La placa saca su código de la MAC (`MT-0000-XX`, como siempre), crea su propia clave y abre una red WiFi con un QR en su pantalla. La app se une a esa red, le entrega el WiFi y la dirección del servidor, y crea la matera con el código y la huella de esa clave. Todo lo de la placa (etapas, pantallas, API local en `192.168.4.1`, botón BOOT y cómo compilar) está en [firmware/README.md](firmware/README.md).

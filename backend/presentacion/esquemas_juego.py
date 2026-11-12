@@ -10,8 +10,10 @@ from typing import Any
 
 from dominio.juego import Participacion
 from dominio.mascota import Mascota
+from dominio.modo_prueba import MascotaEnPrueba
 from dominio.resultados_juego import PosicionTabla, PuntajeUsuario
 from presentacion.esquemas import EntradaInvalida
+from presentacion.esquemas_prueba import estado_de_prueba_a_json
 from presentacion.esquemas_usuarios import planta_a_json
 
 
@@ -55,6 +57,8 @@ def mascota_a_json(mascota: Mascota) -> dict[str, Any]:
         "puntos": mascota.puntos,
         "horasCuidada": mascota.horas_cuidada,
         "ultimaLectura": _momento(mascota.ultima_lectura),
+        # Modo prueba: el estado que puso un admin, o null si la matera se dibuja como es.
+        "prueba": estado_de_prueba_a_json(mascota.prueba) if isinstance(mascota, MascotaEnPrueba) else None,
     }
 
 

@@ -13,6 +13,7 @@ from dominio.errores import RangoInvalido
 from dominio.especie import Especie
 from dominio.historial import RegistroMedicion
 from dominio.mascota import necesidad_principal
+from dominio.modo_prueba import ResultadoEnPrueba
 from dominio.parametros import PARAMETROS
 from dominio.plantas import Planta
 from dominio.puertos_entrada import LIMITE_HISTORIAL
@@ -27,6 +28,7 @@ from dominio.resultados import (
 )
 from dominio.usuarios import ResumenUsuario, Rol, Usuario
 from presentacion.esquemas import EntradaInvalida, diagnostico_a_json
+from presentacion.esquemas_prueba import estado_de_prueba_a_json
 
 LIMITE_MAXIMO = 200
 
@@ -179,6 +181,8 @@ def resultado_medicion_a_json(resultado: ResultadoMedicion) -> dict[str, Any]:
         "diagnostico": diagnostico_a_json(resultado.diagnostico),
         # Lo que mas necesita la planta (SED, CALOR...), o null si nada esta fuera de rango. Lo decide el dominio.
         "necesidad": necesidad.value if necesidad is not None else None,
+        # Modo prueba: si un admin puso esta matera en prueba, la placa dibuja esto en vez de lo real.
+        "prueba": estado_de_prueba_a_json(resultado.prueba) if isinstance(resultado, ResultadoEnPrueba) else None,
     }
 
 

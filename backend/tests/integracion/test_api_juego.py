@@ -106,7 +106,8 @@ def test_cada_lectura_aceptada_suma_o_resta_segun_su_estado_y_la_201_trae_la_nec
 
         assert respuesta.status_code == 201
         cuerpo = respuesta.get_json()
-        assert set(cuerpo) == {"planta", "momento", "diagnostico", "necesidad"}
+        assert set(cuerpo) == {"planta", "momento", "diagnostico", "necesidad", "prueba"}
+        assert cuerpo["prueba"] is None  # sin modo prueba
         assert (cuerpo["diagnostico"]["estado"], cuerpo["necesidad"]) == (estado, necesidad)
 
     assert _get(juego, "/juego/puntaje", ana) == {
@@ -151,6 +152,7 @@ def test_con_el_reloj_acelerado_la_matera_crece_de_semilla_a_brote_y_se_marchita
         "puntos": 0,
         "horasCuidada": 0,
         "ultimaLectura": None,
+        "prueba": None,
     }
 
     # El potos llega a brote con 1 dia de juego bien cuidada: 24 horas de juego. Con la placa mandando cada
@@ -172,6 +174,7 @@ def test_con_el_reloj_acelerado_la_matera_crece_de_semilla_a_brote_y_se_marchita
         "puntos": 240,
         "horasCuidada": 24,
         "ultimaLectura": reloj.ahora().isoformat(),
+        "prueba": None,
     }
 
     # Dos minutos despues (8 horas de juego: fuera de la ventana de 6), llega una lectura CRITICO.

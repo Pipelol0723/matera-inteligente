@@ -33,6 +33,7 @@ from aplicacion.juego import (
     ElegirParticipacion,
     PuntuarLectura,
 )
+from aplicacion.modo_prueba import LecturaConPrueba, MascotasConPrueba, PonerEstadoDePrueba, QuitarEstadoDePrueba
 from aplicacion.listar_especies import ListarEspecies
 from aplicacion.listar_parametros import ListarParametros
 from aplicacion.plantas import EliminarPlanta, ListarPlantas, RegistrarPlanta
@@ -47,6 +48,7 @@ from dominio.recomendaciones import GeneradorRecomendaciones
 from dominio.reglas import ReglaHibrida
 from dominio.servicio_diagnostico import ServicioDiagnostico
 from infraestructura.configuracion import Configuracion
+from infraestructura.estados_prueba_memoria import EstadosDePruebaEnMemoria
 from infraestructura.red_local import RedLocal
 from infraestructura.reloj import RelojSistema
 from infraestructura.repositorio_especies_csv import (
@@ -80,6 +82,7 @@ from presentacion.rutas_admin import crear_blueprint_admin
 from presentacion.rutas_dispositivos import crear_blueprint_dispositivos
 from presentacion.rutas_juego import crear_blueprint_juego
 from presentacion.rutas_plantas import crear_blueprint_plantas
+from presentacion.rutas_prueba import crear_blueprint_prueba
 from presentacion.rutas_red import crear_blueprint_red
 from presentacion.rutas_usuarios import crear_blueprint_usuarios
 from presentacion.tiempo_real import crear_blueprint_tiempo_real
@@ -179,7 +182,12 @@ def construir_app(config: Configuracion, reloj: Reloj | None = None) -> Flask:
     canjear = CanjearClaveDispositivo(
         sensores, sensores, plantas, usuarios, secretos, tokens, reloj, config.duracion_token_dispositivo
     )
-    registrar_lectura = RegistrarLectura(sensores, usuarios, diagnosticar_planta, reloj)
+    # Modo prueba (solo admins): un estado de mentira para ver los dibujos, en memoria. Envuelve la lectura
+    # para que la placa lo dibuje, y la consulta de las materas para que lo dibuje la app.
+    estados_prueba = EstadosDePruebaEnMemoria()
+    registrar_lectura = LecturaConPrueba(
+        RegistrarLectura(sensores, usuarios, diagnosticar_planta, reloj), estados_prueba, usuarios
+    )
     dispositivos = crear_blueprint_dispositivos(canjear, registrar_lectura, tokens)
     # El WebSocket del front registra sus conexiones en los mismos canales que usa el notificador.
     en_vivo = crear_blueprint_tiempo_real(tokens, identificar, canales, config.origenes_cors)
@@ -189,8 +197,9 @@ def construir_app(config: Configuracion, reloj: Reloj | None = None) -> Flask:
     red = crear_blueprint_red(red_local.servidores, red_local.aviso, autenticacion)
 
     juego = crear_blueprint_juego(
-        consultar_mascotas=ConsultarMascotas(
-            plantas, historial, movimientos, RitmosCrecimientoSqlite(bd), cuidado, reloj
+        consultar_mascotas=MascotasConPrueba(
+            ConsultarMascotas(plantas, historial, movimientos, RitmosCrecimientoSqlite(bd), cuidado, reloj),
+            estados_prueba,
         ),
         consultar_puntaje=ConsultarPuntaje(movimientos, plantas),
         consultar_participacion=ConsultarParticipacion(jugadores),
@@ -199,7 +208,13 @@ def construir_app(config: Configuracion, reloj: Reloj | None = None) -> Flask:
         autenticacion=autenticacion,
     )
 
-    return crear_app([api, cuentas, administracion, mis_plantas, dispositivos, en_vivo, red, juego], config)
+    modo_prueba = crear_blueprint_prueba(
+        PonerEstadoDePrueba(plantas, estados_prueba), QuitarEstadoDePrueba(plantas, estados_prueba), autenticacion
+    )
+
+    return crear_app(
+        [api, cuentas, administracion, mis_plantas, dispositivos, en_vivo, red, juego, modo_prueba], config
+    )
 
 
 @dataclass(frozen=True)
