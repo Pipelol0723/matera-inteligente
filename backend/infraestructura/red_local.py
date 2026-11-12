@@ -8,7 +8,7 @@ import socket
 
 PREFIJO_API = "/api/v1"
 AVISO_SIN_RED = (
-    "Ninguna placa puede alcanzar este servidor. Arranquelo con MATERA_HOST=0.0.0.0 "
+    "Ninguna placa puede alcanzar este servidor. Arránquelo con MATERA_HOST=0.0.0.0 "
     "(o con la IP de la red) y permita el puerto en el firewall."
 )
 

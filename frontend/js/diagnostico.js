@@ -393,6 +393,12 @@ export function crearPantallaDiagnostico(contexto) {
           : `${capitalizar(rotulos.cara)}: espera su primera lectura.`,
       }));
     }
+    // Modo prueba: el dibujo es el que puso un admin; el diagnóstico de al lado sigue siendo el real.
+    if (matera.prueba) {
+      const marca = crear("p", { clase: "matera__marca-prueba", texto: "Modo prueba" });
+      marca.title = "Un admin le puso este estado para verlo: el diagnóstico de la última lectura es el real.";
+      lineas.unshift(marca);
+    }
     $("diagnostico-juego").replaceChildren(...lineas);
   }
 
