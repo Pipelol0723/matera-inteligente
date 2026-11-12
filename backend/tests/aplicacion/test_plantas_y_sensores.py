@@ -125,6 +125,34 @@ def test_la_matera_nace_con_su_sensor_y_la_clave_sale_una_sola_vez(sistema):
     assert sistema.sensores.de_planta(matera.planta.id).hash_clave == "huella(secreto-1)"
 
 
+def test_registrar_con_huella_guarda_esa_huella_y_no_devuelve_clave(sistema):
+    matera = sistema.registrar.ejecutar(ANA, "Sala", "sansevieria", "MT-0001-AA", huella="huella(abc)")
+
+    assert matera.clave is None
+    assert sistema.sensores.de_planta(matera.planta.id).hash_clave == "huella(abc)"
+
+
+def test_registrar_con_huella_y_canjear_con_la_clave_de_la_placa_funciona(sistema):
+    # La placa creo "abc" y solo paso su huella; la API la reconoce porque compara huellas.
+    huella = GeneradorSecretosFalso().huella("abc")
+    sistema.registrar.ejecutar(ANA, "Sala", "sansevieria", "MT-0001-AA", huella=huella)
+
+    assert sistema.medir("MT-0001-AA", "abc", medicion(30, 800, 22)).planta.apodo == "Sala"
+    with pytest.raises(ClaveSensorInvalida):
+        sistema.canjear.ejecutar("MT-0001-AA", "otra")
+
+
+def test_registrar_con_huella_sigue_validando_especie_apodo_y_sensor_libre(sistema, planta_de_ana):
+    for apodo, especie, codigo, error in [
+        ("Cocina", "cactus", "MT-0002-BB", EspecieNoSoportada),
+        ("sala", "potos", "MT-0002-BB", ApodoRepetido),
+        ("Cocina", "potos", "MT-0001-AA", SensorYaVinculado),
+    ]:
+        with pytest.raises(error):
+            sistema.registrar.ejecutar(ANA, apodo, especie, codigo, huella="huella(abc)")
+    assert len(sistema.listar.ejecutar(ANA)) == 1
+
+
 @pytest.mark.parametrize(
     ("apodo", "especie", "codigo", "error"),
     [
@@ -213,6 +241,26 @@ def test_cambiar_el_sensor_conserva_el_historial_y_la_clave_vieja_deja_de_servir
     sistema.medir("MT-0002-BB", nuevo.clave, medicion(32, 800, 22))
     assert [r.origen for r in sistema.historial.registros] == ["MT-0001-AA", "MT-0002-BB"]
     assert [t.sensor.codigo.valor for t in sistema.listar.ejecutar(ANA)] == ["MT-0002-BB"]
+
+
+def test_cambiar_el_sensor_con_huella_guarda_la_nueva_y_deja_sin_efecto_el_token_anterior(sistema, matera_de_ana):
+    identidad = _identidad(sistema, "MT-0001-AA", matera_de_ana.clave)
+
+    nuevo = sistema.reemplazar.ejecutar(ANA, matera_de_ana.planta.id, "MT-0002-BB", huella="huella(abc)")
+
+    assert nuevo.clave is None
+    assert sistema.sensores.de_planta(matera_de_ana.planta.id).hash_clave == "huella(abc)"
+    with pytest.raises(CredencialDispositivoInvalida):
+        sistema.registrar_lectura.ejecutar(identidad, ReporteDeDispositivo(identidad.codigo, AHORA, medicion(30, 800, 22)))
+    assert sistema.medir("MT-0002-BB", "abc", medicion(30, 800, 22)).planta == matera_de_ana.planta
+
+
+def test_beto_no_cambia_el_sensor_de_ana_ni_con_huella(sistema, planta_de_ana):
+    with pytest.raises(PlantaNoEncontrada):
+        sistema.reemplazar.ejecutar(BETO, planta_de_ana.id, "MT-0002-BB", huella="huella(abc)")
+    with pytest.raises(PlantaNoEncontrada):
+        sistema.reemplazar.ejecutar(BETO, 999, "MT-0002-BB", huella="huella(abc)")
+    assert sistema.codigo_de(planta_de_ana) == "MT-0001-AA"
 
 
 def test_el_codigo_que_se_deja_queda_libre_para_otra_matera(sistema, planta_de_ana):

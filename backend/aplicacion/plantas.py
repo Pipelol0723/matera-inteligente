@@ -45,7 +45,9 @@ class RegistrarPlanta(entrada.RegistrarPlanta):
         self._especies = especies
         self._secretos = secretos
 
-    def ejecutar(self, usuario: Usuario, apodo: str, especie: str, codigo: str) -> SensorVinculado:
+    def ejecutar(
+        self, usuario: Usuario, apodo: str, especie: str, codigo: str, huella: str | None = None
+    ) -> SensorVinculado:
         nueva = Planta(None, usuario.id, apodo, especie)
         codigo_valido = CodigoSensor(codigo)
         if self._especies.rangos_de(nueva.especie) is None:
@@ -55,8 +57,10 @@ class RegistrarPlanta(entrada.RegistrarPlanta):
         if self._sensores.por_codigo(codigo_valido) is not None:
             raise SensorYaVinculado(codigo_valido.valor)
 
-        clave = self._secretos.nuevo()
-        planta = self._registro.guardar_con_sensor(nueva, codigo_valido, self._secretos.huella(clave))
+        # Si la placa creo su clave, la huella llega hecha y la API nunca ve la clave.
+        clave = None if huella is not None else self._secretos.nuevo()
+        huella_guardada = huella if huella is not None else self._secretos.huella(clave)
+        planta = self._registro.guardar_con_sensor(nueva, codigo_valido, huella_guardada)
         return SensorVinculado(planta, codigo_valido, clave)
 
 

@@ -40,11 +40,14 @@ class CuentaUsuario:
 
 @dataclass(frozen=True)
 class SensorVinculado:
-    """La planta con el codigo de su sensor. La clave sale solo de aqui, una vez: la base guarda su huella."""
+    """La planta con el codigo de su sensor. La clave sale solo de aqui, una vez: la base guarda su huella.
+
+    La clave es None cuando la creo la placa y la app solo trajo la huella: la API nunca la conoce.
+    """
 
     planta: Planta
     codigo: CodigoSensor
-    clave: str
+    clave: str | None
 
 
 @dataclass(frozen=True)

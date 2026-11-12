@@ -40,15 +40,19 @@ class ReemplazarSensor(entrada.ReemplazarSensor):
         self._sensores = sensores
         self._secretos = secretos
 
-    def ejecutar(self, usuario: Usuario, planta_id: int, codigo: str) -> SensorVinculado:
+    def ejecutar(
+        self, usuario: Usuario, planta_id: int, codigo: str, huella: str | None = None
+    ) -> SensorVinculado:
         planta = buscar_planta_propia(self._plantas, usuario.id, planta_id)
         codigo_valido = CodigoSensor(codigo)
         en_uso = self._sensores.por_codigo(codigo_valido)
         if en_uso is not None and en_uso.planta_id != planta.id:
             raise SensorYaVinculado(codigo_valido.valor)
 
-        clave = self._secretos.nuevo()
-        self._sensores.reemplazar(planta, Sensor(codigo_valido, planta.id, self._secretos.huella(clave)))
+        # Si la placa creo su clave, la huella llega hecha y la API nunca ve la clave.
+        clave = None if huella is not None else self._secretos.nuevo()
+        huella_guardada = huella if huella is not None else self._secretos.huella(clave)
+        self._sensores.reemplazar(planta, Sensor(codigo_valido, planta.id, huella_guardada))
         return SensorVinculado(planta, codigo_valido, clave)
 
 

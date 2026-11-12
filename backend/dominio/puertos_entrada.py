@@ -89,7 +89,9 @@ class ConsultarCuenta(ABC):
 
 class RegistrarPlanta(ABC):
     @abstractmethod
-    def ejecutar(self, usuario: Usuario, apodo: str, especie: str, codigo: str) -> SensorVinculado: ...
+    def ejecutar(
+        self, usuario: Usuario, apodo: str, especie: str, codigo: str, huella: str | None = None
+    ) -> SensorVinculado: ...
 
 
 class ListarPlantas(ABC):
@@ -106,7 +108,9 @@ class EliminarPlanta(ABC):
 
 class ReemplazarSensor(ABC):
     @abstractmethod
-    def ejecutar(self, usuario: Usuario, planta_id: int, codigo: str) -> SensorVinculado: ...
+    def ejecutar(
+        self, usuario: Usuario, planta_id: int, codigo: str, huella: str | None = None
+    ) -> SensorVinculado: ...
 
 
 class ConsultarHistorial(ABC):
