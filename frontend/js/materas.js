@@ -159,14 +159,27 @@ export function crearPantallaMateras(contexto) {
     pintar();
   }
 
+  // Cambia al cerrar la sesión: una respuesta que llega después ya no se pinta.
+  let generacion = 0;
+
   async function cargar() {
+    const mia = generacion;
+    let nuevas;
     try {
-      plantas = await obtenerPlantas();
-      mostrarError($("error-materas"), null);
+      nuevas = await obtenerPlantas();
     } catch (error) {
-      mostrarError($("error-materas"), error);
+      if (mia === generacion) mostrarError($("error-materas"), error);
       return;
     }
+    if (mia !== generacion) return;
+    mostrarError($("error-materas"), null);
+    // Si mientras se esperaba llegó una medición en vivo de la misma planta, esa es más reciente.
+    const antes = new Map(plantas.map((p) => [p.id, p.ultimaMedicion]));
+    for (const nueva of nuevas) {
+      const vieja = antes.get(nueva.id);
+      if (esMasNueva(vieja, nueva.ultimaMedicion)) nueva.ultimaMedicion = vieja;
+    }
+    plantas = nuevas;
     $("materas-consulta").textContent = textoConsulta();
     pintar();
     contexto.juego.refrescar(); // una matera nueva tiene su dibujo apenas responda el juego
@@ -176,13 +189,15 @@ export function crearPantallaMateras(contexto) {
   // el usuario está escribiendo. Si cambió la lista (una matera nueva o borrada en otra pestaña), se pinta todo.
   async function actualizar() {
     if (asistente.sinApi()) return; // el equipo puede estar en la red de la placa, donde no hay API
+    const mia = generacion;
     let nuevas;
     try {
       nuevas = await obtenerPlantas();
     } catch (error) {
-      mostrarError($("error-materas"), error);
+      if (mia === generacion) mostrarError($("error-materas"), error);
       return;
     }
+    if (mia !== generacion) return;
     mostrarError($("error-materas"), null);
     $("materas-consulta").textContent = textoConsulta();
     const ids = (lista) => lista.map((p) => p.id).join(",");
@@ -446,6 +461,7 @@ export function crearPantallaMateras(contexto) {
     sinApi: () => asistente.sinApi(),
     // Al cerrar la sesión: nada de esta cuenta queda para la que entre después en la misma pestaña.
     reiniciar() {
+      generacion += 1;
       plantas = [];
       $("materas-consulta").textContent = "";
       abierta = null;

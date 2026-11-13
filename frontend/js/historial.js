@@ -48,14 +48,21 @@ export function crearPantallaHistorial(contexto) {
     return [...porClave.values()].sort((a, b) => Date.parse(b.momento) - Date.parse(a.momento)).slice(0, LIMITE);
   }
 
+  // Cambia al cerrar la sesión: una respuesta que llega después ya no se pinta.
+  let generacion = 0;
+
   async function mostrar() {
+    const mia = generacion;
     mostrarError($("error-historial"), null);
+    let respuesta;
     try {
-      plantas = await obtenerPlantas();
+      respuesta = await obtenerPlantas();
     } catch (error) {
-      mostrarError($("error-historial"), error);
+      if (mia === generacion) mostrarError($("error-historial"), error);
       return;
     }
+    if (mia !== generacion) return;
+    plantas = respuesta;
     selector.replaceChildren(...plantas.map((p) => new Option(`${p.apodo} · ${capitalizar(p.especie)}`, p.id)));
     if (plantas.some((p) => p.id === contexto.plantaElegida)) selector.value = String(contexto.plantaElegida);
     $("pantalla-historial").classList.toggle("historial--sin-materas", plantas.length === 0);
@@ -69,16 +76,17 @@ export function crearPantallaHistorial(contexto) {
   }
 
   async function cargarHistorial() {
+    const mia = generacion;
     const pedida = Number(selector.value);
     let historial;
     try {
       historial = await obtenerHistorial(pedida, LIMITE);
     } catch (error) {
-      if (pedida === Number(selector.value)) mostrarError($("error-historial"), error);
+      if (mia === generacion && pedida === Number(selector.value)) mostrarError($("error-historial"), error);
       return;
     }
-    // Si mientras tanto se eligió otra planta, esta respuesta ya no sirve.
-    if (pedida !== Number(selector.value)) return;
+    // Si mientras tanto se eligió otra planta o se cerró la sesión, esta respuesta ya no sirve.
+    if (mia !== generacion || pedida !== Number(selector.value)) return;
     mostrarError($("error-historial"), null);
     $("historial-consulta").textContent = textoConsulta();
     const enVivo = actual?.planta.id === historial.planta.id ? actual.registros : [];
@@ -195,6 +203,7 @@ export function crearPantallaHistorial(contexto) {
 
   // Al cerrar la sesión: nada de esta cuenta queda para la que entre después en la misma pestaña.
   function reiniciar() {
+    generacion += 1;
     plantas = [];
     actual = null;
     selector.replaceChildren();

@@ -129,7 +129,6 @@
   --serie-4-banda: #e6e0ef;
   --grafica-fondo: #fafcf9;
   --grafica-linea: #e6ede4;
-  --anillo-vacio: #e5ece3;
 
   /* La pastilla de puntos de la cabecera */
   --puntos-fondo: #ffffff;
@@ -206,7 +205,6 @@
   --serie-4-banda: #2a2540;
   --grafica-fondo: #121b16;
   --grafica-linea: #24322a;
-  --anillo-vacio: #26342b;
 
   --puntos-fondo: #151f19;
   --puntos-tinta: #e4ede6;
@@ -266,7 +264,6 @@
   --serie-4-banda: #1f1a31;
   --grafica-fondo: #000000;
   --grafica-linea: #1c2620;
-  --anillo-vacio: #1d2721;
 
   --puntos-fondo: #000000;
   --puntos-tinta: #ecf4ee;
@@ -296,7 +293,6 @@
   --barra-fondo: #ffffff;
   --grafica-fondo: #f6fbf2;
   --grafica-linea: #ddeccf;
-  --anillo-vacio: #dcebd2;
 
   --puntos-fondo: #ffd95a;
   --puntos-borde: #e2b72a;
@@ -331,7 +327,6 @@
   --barra-fondo: #14251a;
   --grafica-fondo: #112016;
   --grafica-linea: #234030;
-  --anillo-vacio: #24402f;
 
   --puntos-fondo: #f5cf55;
   --puntos-borde: #c99f22;
@@ -360,7 +355,6 @@
   --acento-texto: #8ee8b0;
   --acento-suave: #0f2a1a;
   --grafica-linea: #18291e;
-  --anillo-vacio: #1a2c20;
 
   --puntos-fondo: #f5cf55;
   --puntos-borde: #c99f22;

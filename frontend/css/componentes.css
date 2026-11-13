@@ -261,11 +261,6 @@ code {
   background: var(--superficie-suave);
 }
 
-.boton-secundario--lleno {
-  border-color: var(--acento);
-  color: var(--acento-texto);
-}
-
 .boton-contorno {
   min-height: 34px;
   padding: 6px 14px;
@@ -371,8 +366,7 @@ a.boton-secundario {
 /* ---- campos ---- */
 
 .formulario__campo,
-.selector,
-.campo__entrada {
+.selector {
   width: 100%;
   min-height: 44px;
   padding: 10px 14px;
@@ -390,8 +384,7 @@ a.boton-secundario {
 }
 
 .formulario__campo:focus-visible,
-.selector:focus-visible,
-.campo__entrada:focus-visible {
+.selector:focus-visible {
   outline: none;
   border-color: var(--acento);
   box-shadow: 0 0 0 3px var(--anillo);
@@ -488,12 +481,6 @@ a.boton-secundario {
   border-radius: var(--radio-l);
   padding: var(--esp-5);
   box-shadow: var(--sombra-tarjeta);
-}
-
-.tarjeta--punteada {
-  border-style: dashed;
-  border-color: var(--borde-acento);
-  box-shadow: none;
 }
 
 /* ---- pastillas de estado (SALUDABLE, EN RIESGO, CRÍTICO): el color lo pone formato.js con las variables ---- */

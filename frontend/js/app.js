@@ -61,7 +61,8 @@ const contexto = {
     pintarSesion();
     cargarCatalogos();
     contexto.juego.iniciar();
-    contexto.navegar(destino ?? DESPUES_DE_INGRESAR);
+    // Nunca se vuelve a Ingresar después de ingresar (navegar al mismo #acceso no repinta nada).
+    contexto.navegar(destino && destino !== "acceso" ? destino : DESPUES_DE_INGRESAR);
     destino = null;
   },
   alCerrarSesion() {
@@ -142,6 +143,7 @@ function pintarSesion() {
     pantallas.materas.reiniciar();
     pantallas.historial.reiniciar();
     pantallas.cuenta.reiniciar();
+    pantallas.admin.reiniciar();
     contexto.juego.reiniciar();
     contexto.plantaElegida = null;
     marcarSinSesion();
@@ -188,9 +190,12 @@ function ponerTexto(indicador, id, texto) {
   indicador.setAttribute("aria-label", texto);
 }
 
+// Al vencer la sesión llegan varios 401 a la vez: el primero guarda la pantalla en la que estaba la persona,
+// y los siguientes (que ya ven #acceso) no la pisan.
 function sesionVencida() {
   pintarSesion();
-  destino = pantallaPedida();
+  const pedida = pantallaPedida();
+  if (pedida !== "acceso") destino = pedida;
   location.replace("#acceso");
 }
 

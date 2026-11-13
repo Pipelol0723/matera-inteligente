@@ -14,16 +14,20 @@ export function crearPantallaAdmin() {
   const dialogo = $("dialogo-eliminar");
   const formularioEliminar = $("form-eliminar");
   let aEliminar = null; // la cuenta del diálogo «¿Eliminar la cuenta?»
+  // Cambia al cerrar la sesión: una respuesta que llega después ya no se pinta.
+  let generacion = 0;
 
   async function mostrar() {
+    const mia = generacion;
     mostrarError($("error-admin"), null);
     let usuarios;
     try {
       usuarios = await obtenerUsuarios();
     } catch (error) {
-      mostrarError($("error-admin"), error);
+      if (mia === generacion) mostrarError($("error-admin"), error);
       return;
     }
+    if (mia !== generacion) return;
     pintarCifras(usuarios);
     $("filas-usuarios").replaceChildren(...usuarios.map(fila));
   }
@@ -138,6 +142,15 @@ export function crearPantallaAdmin() {
     // Al salir de Administración (también al cerrar la sesión), el diálogo no queda abierto encima de otra pantalla.
     ocultar() {
       if (dialogo.open) dialogo.close();
+    },
+    // Al cerrar la sesión no quedan en la página los nombres ni los correos de las cuentas.
+    reiniciar() {
+      generacion += 1;
+      if (dialogo.open) dialogo.close();
+      aEliminar = null;
+      $("filas-usuarios").replaceChildren();
+      $("admin-cifras").replaceChildren();
+      mostrarError($("error-admin"), null);
     },
   };
 }

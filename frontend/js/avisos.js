@@ -18,6 +18,10 @@ const GUARDADO = "matera.juego.avisados";
 const clave = () => `${GUARDADO}.${sesion.usuario()?.id ?? "nadie"}`;
 const MAXIMO_GUARDADOS = 200;
 const MAXIMO_EN_PAGINA = 3;
+// En el celular los avisos tapan la pantalla: se ve uno a la vez.
+const MAXIMO_EN_CELULAR = 1;
+// Un aviso se va solo a los 10 s, salvo mientras el mouse o el foco están sobre él.
+const DURACION_AVISO_MS = 10000;
 const VIBRACION = [200, 100, 200];
 
 const TEXTOS = {
@@ -126,7 +130,20 @@ export function crearAvisos({ raiz, alVer, alCambiarPermiso }) {
   function enPagina(matera, titulo, detalle) {
     const nodo = crear("div", { clase: `aviso aviso--${matera.aviso === "SE_MARCHITO" ? "marchita" : "critica"}` });
     nodo.setAttribute("role", "alert");
-    const quitar = () => nodo.remove();
+    let temporizador = 0;
+    const quitar = () => {
+      clearTimeout(temporizador);
+      nodo.remove();
+    };
+    const esperar = () => {
+      clearTimeout(temporizador);
+      temporizador = setTimeout(quitar, DURACION_AVISO_MS);
+    };
+    const pausar = () => clearTimeout(temporizador);
+    nodo.addEventListener("pointerenter", pausar);
+    nodo.addEventListener("pointerleave", esperar);
+    nodo.addEventListener("focusin", pausar);
+    nodo.addEventListener("focusout", esperar);
     const acciones = [boton("Ver materas", "boton-contorno", () => {
       quitar();
       alVer();
@@ -146,7 +163,9 @@ export function crearAvisos({ raiz, alVer, alCambiarPermiso }) {
       crear("div", { clase: "aviso__cuerpo" }, ...textos, crear("div", { clase: "aviso__acciones" }, ...acciones)),
       cerrar);
     raiz.prepend(nodo);
-    while (raiz.children.length > MAXIMO_EN_PAGINA) raiz.lastElementChild.remove();
+    esperar();
+    const maximo = globalThis.matchMedia?.("(max-width: 759.98px)").matches ? MAXIMO_EN_CELULAR : MAXIMO_EN_PAGINA;
+    while (raiz.children.length > maximo) raiz.lastElementChild.remove();
   }
 
   // Solo con un clic de la persona: el navegador muestra su propia pregunta.

@@ -48,7 +48,11 @@ export function crearPantallaCuenta(contexto) {
     mostrarExito($("exito-jugador"), textoExito(respuesta));
   }
 
+  // Cambia al cerrar la sesión: una respuesta que llega después ya no se pinta ni toca la sesión.
+  let generacion = 0;
+
   async function mostrar() {
+    const mia = generacion;
     mostrarError($("error-cuenta"), null);
     // Mientras responde la API, lo que ya se sabe de la sesión; la cantidad de plantas llega con la respuesta.
     pintarPerfil(sesion.usuario(), null);
@@ -58,9 +62,10 @@ export function crearPantallaCuenta(contexto) {
     try {
       cuenta = await obtenerMiCuenta();
     } catch (error) {
-      mostrarError($("error-cuenta"), error);
+      if (mia === generacion) mostrarError($("error-cuenta"), error);
       return;
     }
+    if (mia !== generacion) return;
     const { plantas, ...usuario } = cuenta;
     sesion.actualizarUsuario(usuario);
     contexto.alCambiarUsuario();
@@ -88,16 +93,17 @@ export function crearPantallaCuenta(contexto) {
   }
 
   async function mostrarJugador() {
+    const mia = generacion;
     mostrarError($("error-jugador"), null);
     mostrarExito($("exito-jugador"), null);
     let participacion;
     try {
       participacion = await contexto.juego.cargarParticipacion();
     } catch (error) {
-      mostrarError($("error-jugador"), error);
+      if (mia === generacion) mostrarError($("error-jugador"), error);
       return;
     }
-    if (participacion) pintarJugador(participacion);
+    if (mia === generacion && participacion) pintarJugador(participacion);
   }
 
   const ESTADOS = {
@@ -126,6 +132,7 @@ export function crearPantallaCuenta(contexto) {
 
   // Al cerrar la sesión: nada de esta cuenta queda en la pantalla.
   function reiniciar() {
+    generacion += 1;
     pintarPerfil(null);
     $("jugador-estado").textContent = "";
     $("jugador-insignia").hidden = true;
