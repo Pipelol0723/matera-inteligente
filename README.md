@@ -517,8 +517,8 @@ Antes de empezar:
 
 **Si un camino falla.** Los errores de la placa llegan con su código, igual por los dos caminos:
 - `401 CLAVE_INCORRECTA` dice cuántos intentos quedan, y se corrige la clave sin volver a la lista de placas.
-- `429 DEMASIADOS_INTENTOS` (5 claves equivocadas) bloquea la placa 60 s: el botón espera con la cuenta atrás.
-- Si la placa corta la conexión (2 minutos sin pedidos, o un corte), el siguiente pedido se reconecta solo a la misma placa.
+- `429 DEMASIADOS_INTENTOS` (5 claves equivocadas) bloquea la placa 60 s: el botón espera con la cuenta atrás de `detalle.segundos`.
+- Si la placa corta la conexión (20 s sin un pedido con la clave correcta, 2 minutos sin pedidos después, o un corte), el siguiente pedido se reconecta solo a la misma placa.
 - Cerrar la lista de placas sin elegir no es un error: se puede volver a buscar.
 - Con el Bluetooth apagado o caído, el asistente lo dice y ofrece **seguir por la red de la placa**. Se conserva lo ya escrito: el apodo, la clave de la pantalla (que es la misma de la red) y la red y la clave del WiFi. Desde la red de la placa también se puede pasar a Bluetooth.
 

@@ -4,6 +4,7 @@
 #include <esp_bt.h>
 #include <esp_task_wdt.h>
 
+#include "ajustes.h"
 #include "api_local.h"
 #include "lector_json.h"
 
@@ -21,7 +22,7 @@ const size_t MAX_ID = 32;
 const unsigned long ESPERA_PEDIDO_MS = 3000;  // un pedido a medias se descarta si en 3 s no llega otro pedazo
 const int MAX_FALLIDOS = 5;                   // claves equivocadas seguidas antes del bloqueo
 const unsigned long BLOQUEO_MS = 60000;
-const unsigned long INACTIVIDAD_MS = 120000;  // sin un pedido con la clave en 2 minutos, se corta
+// Los plazos sin pedidos con la clave (BLE_SIN_CLAVE_MS y BLE_INACTIVIDAD_MS) estan en ajustes.h.
 const unsigned long ESPERA_TROZO_MS = 2000;   // la cola de salida llena mas que esto: se abandona la respuesta
 const unsigned long ENVIO_MAXIMO_MS = 10000;
 const unsigned long DEMORA_CORTE_MS = 300;    // entre responder y cortar la conexion
@@ -54,7 +55,11 @@ uint8_t numeroRespuesta = 0;
 int fallidos = 0;
 bool bloqueada = false;
 unsigned long bloqueadaDesde = 0;
-unsigned long ultimoPedidoValido = 0;
+// El plazo de la conexion cuenta desde aqui: al conectarse y despues de cada pedido con la clave.
+unsigned long plazoDesde = 0;
+// La conexion ya mando un pedido con la clave de la pantalla. Hasta entonces tiene BLE_SIN_CLAVE_MS: asi
+// alguien que se conecta y no manda nada (o solo claves malas) no ocupa la unica conexion por 2 minutos.
+bool claveValidada = false;
 bool cortarPronto = false;
 unsigned long cortarDesde = 0;
 
@@ -217,6 +222,14 @@ String sobre(const String &op, const String &id, const RespuestaLocal &respuesta
   return texto;
 }
 
+// El 429 del bloqueo: los segundos que faltan van en el mensaje y en "detalle": {"segundos": N}.
+RespuestaLocal demasiadosIntentos(unsigned long segundos) {
+  return apiLocalErrorConEspera(429, "DEMASIADOS_INTENTOS",
+                                "Demasiadas claves equivocadas: espere " + String(segundos) +
+                                    " s y vuelva a intentarlo.",
+                                segundos);
+}
+
 // La clave, el bloqueo y la operacion. Las reglas de cada operacion estan en api_local.
 RespuestaLocal resolver(const String &pedido, const String &op) {
   if (pedido.length() > MAX_PEDIDO_LOCAL || !jsonEsObjeto(pedido)) {
@@ -224,9 +237,10 @@ RespuestaLocal resolver(const String &pedido, const String &op) {
                          "La placa no entendió el pedido: debe ser un objeto JSON de 1024 bytes como máximo.");
   }
   if (bloqueada) {
-    const unsigned long faltan = (BLOQUEO_MS - (millis() - bloqueadaDesde) + 999) / 1000;
-    return apiLocalError(429, "DEMASIADOS_INTENTOS",
-                         "Demasiadas claves equivocadas: espera " + String(faltan) + " s y vuelve a intentarlo.");
+    // bluetoothAtender() levanta el bloqueo antes de atender, asi que faltan entre 1 y 60 s. Si el plazo se
+    // cumplio justo entre medio, se dice 1 s: la resta sin signo no puede dar la vuelta.
+    const unsigned long pasaron = millis() - bloqueadaDesde;
+    return demasiadosIntentos(pasaron >= BLOQUEO_MS ? 1 : (BLOQUEO_MS - pasaron + 999) / 1000);
   }
   String clave;
   jsonTexto(pedido, "clave", clave);
@@ -241,24 +255,24 @@ RespuestaLocal resolver(const String &pedido, const String &op) {
       cortarDesde = millis();
       Serial.printf("Bluetooth: %d claves equivocadas seguidas. No atiende pedidos durante %lu s.\n", fallidos,
                     BLOQUEO_MS / 1000);
-      return apiLocalError(429, "DEMASIADOS_INTENTOS",
-                           "Demasiadas claves equivocadas: espera " + String(BLOQUEO_MS / 1000) +
-                               " s y vuelve a intentarlo.");
+      return demasiadosIntentos(BLOQUEO_MS / 1000);
     }
     Serial.printf("Bluetooth: pedido con una clave equivocada (%d de %d).\n", fallidos, MAX_FALLIDOS);
-    return apiLocalError(401, "CLAVE_INCORRECTA",
-                         "La clave no es la que muestra la pantalla de la placa. Quedan " +
-                             String(MAX_FALLIDOS - fallidos) + " intentos.",
+    const int quedan = MAX_FALLIDOS - fallidos;  // de 1 a 4: con 0 ya se bloqueo arriba
+    String intentos = "Queda 1 intento.";
+    if (quedan != 1) intentos = "Quedan " + String(quedan) + " intentos.";
+    return apiLocalError(401, "CLAVE_INCORRECTA", "La clave no es la que muestra la pantalla de la placa. " + intentos,
                          "clave");
   }
   fallidos = 0;
-  ultimoPedidoValido = millis();
+  claveValidada = true;
+  plazoDesde = millis();
   if (op == "info") return apiLocalInfo();
   if (op == "configurar") return apiLocalConfigurar(pedido);
   if (op == "estado") return apiLocalEstado();
   if (op == "cerrar") return apiLocalCerrar();
   return apiLocalError(400, "PARAMETRO_INVALIDO",
-                       op.length() > 0 ? "La operación «" + op + "» no existe: usa info, configurar, estado o cerrar."
+                       op.length() > 0 ? "La operación «" + op + "» no existe: use info, configurar, estado o cerrar."
                                        : String("Falta la operación: info, configurar, estado o cerrar."),
                        "op");
 }
@@ -275,10 +289,13 @@ void atender(const String &pedido) {
 
 // Pasa lo escrito por el celular a `pendiente` y atiende cada pedido completo.
 void recibir() {
-  static uint8_t copia[MAX_ENTRADA];
+  // Un byte mas para el 0 del final: en el core 2.0.14, String::concat(const char *, largo) copia largo + 1
+  // bytes (cuenta con ese 0). Sin el, con MAX_ENTRADA bytes pendientes leia uno fuera de la copia.
+  static uint8_t copia[MAX_ENTRADA + 1];
   portENTER_CRITICAL(&cerrojo);
   const size_t llegaron = enEntrada;
   memcpy(copia, entrada, llegaron);
+  copia[llegaron] = 0;
   enEntrada = 0;
   const bool desbordada = entradaDesbordada;
   entradaDesbordada = false;
@@ -326,6 +343,7 @@ void olvidarConexion() {
   portEXIT_CRITICAL(&cerrojo);
   pendiente = "";
   cortarPronto = false;
+  claveValidada = false;  // cada conexion nueva tiene que volver a mandar la clave
 }
 
 // La pila NimBLE, el servidor, el servicio y el anuncio. Una sola vez: con NimBLE 1.4.3 y el core 2.0.14,
@@ -422,7 +440,7 @@ void bluetoothAtender() {
   if (conexionNueva) {
     conexionNueva = false;
     olvidarConexion();
-    ultimoPedidoValido = millis();
+    plazoDesde = millis();
     estabaConectado = true;
     Serial.println("Bluetooth: se conectó un celular.");
   }
@@ -455,9 +473,12 @@ void bluetoothAtender() {
     }
     return;
   }
-  if (millis() - ultimoPedidoValido >= INACTIVIDAD_MS) {
-    ultimoPedidoValido = millis();
-    cortar("2 minutos sin un pedido con la clave");
+  // Sin la clave, BLE_SIN_CLAVE_MS desde que se conecto; con la clave, BLE_INACTIVIDAD_MS desde el ultimo
+  // pedido con ella. Asi la unica conexion no queda tomada por alguien que no tiene la matera enfrente.
+  const unsigned long plazo = claveValidada ? BLE_INACTIVIDAD_MS : BLE_SIN_CLAVE_MS;
+  if (millis() - plazoDesde >= plazo) {
+    plazoDesde = millis();
+    cortar((String(plazo / 1000) + (claveValidada ? " s sin un pedido con la clave" : " s sin mandar la clave")).c_str());
     return;
   }
   recibir();

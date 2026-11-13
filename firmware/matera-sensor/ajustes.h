@@ -47,3 +47,14 @@
 #ifndef LUX_SIN_LUZ
 #define LUX_SIN_LUZ 50
 #endif
+
+// ---- Bluetooth del modo de conexion ----
+// La placa atiende una conexion a la vez. Una conexion que todavia no mando un pedido con la clave de la
+// pantalla se corta a los 20 s: quien se conecta sin la clave no puede quedarse con ella. Despues de una
+// clave valida, el plazo pasa a 2 minutos sin pedidos con la clave (la app pide «estado» cada 45 s).
+#ifndef BLE_SIN_CLAVE_MS
+#define BLE_SIN_CLAVE_MS 20000UL
+#endif
+#ifndef BLE_INACTIVIDAD_MS
+#define BLE_INACTIVIDAD_MS 120000UL
+#endif

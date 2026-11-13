@@ -202,7 +202,7 @@ function alNotificar(vista) {
 - **Web Bluetooth (Chrome o Edge, con HTTPS o `localhost`):** `navigator.bluetooth.requestDevice({filters: [{namePrefix: "Matera-"}], optionalServices: ["4d540001-d5b8-499f-bad6-c70b14aebec3"]})`, o con `filters: [{services: [...]}]`. Después `startNotifications()` en `respuesta`, el evento `characteristicvaluechanged` con `event.target.value`, y `writeValueWithResponse()` en `pedido`, de a 20 bytes. Web Bluetooth no dice el MTU, y no hace falta: la placa parte las respuestas.
 - **Capacitor (`@capacitor-community/bluetooth-le`):** `BleClient.requestDevice` con el mismo filtro (`namePrefix` y `optionalServices`), `BleClient.startNotifications(id, SERVICIO, RESPUESTA, alNotificar)` y `BleClient.write(id, SERVICIO, PEDIDO, pedazo)` por cada pedazo (un `DataView`).
 - **En el front:** este contrato (pedazos, trozos, la clave y mantener la conexión) está una sola vez en `frontend/js/canal-bluetooth.js` (`CanalBluetooth`), y el adaptador de Chrome, en `canal-bluetooth-web.js`. El asistente los usa a través del puerto `CanalPlaca`, igual que la red propia (ver «Conectar una matera» en el README principal).
-- **Probado** desde el PC con `bleak` (Python, Windows 11, MTU 255): `info` con y sin clave, la clave en mayúsculas, `estado`, una operación inexistente, algo que no es JSON, `configurar` con datos inválidos, pedidos de hasta 1000 bytes en pedazos, el bloqueo con 5 claves equivocadas, el corte a los 2 minutos sin pedidos, y abrir y cerrar el modo de conexión 5 veces seguidas (con conexiones entre medio) sin perder RAM. Falta probarlo desde un celular (nRF Connect, Chrome y la app).
+- **Probado** desde el PC con `bleak` (Python, Windows 11, MTU 255): `info` con y sin clave, la clave en mayúsculas, `estado`, una operación inexistente, algo que no es JSON, `configurar` con datos inválidos, pedidos de hasta 1000 bytes en pedazos, el bloqueo con 5 claves equivocadas, el corte a los 2 minutos sin pedidos, y abrir y cerrar el modo de conexión 5 veces seguidas (con conexiones entre medio) sin perder RAM. Falta probarlo desde un celular (nRF Connect, Chrome y la app). Después se agregaron el corte a los 20 s sin la clave, `detalle.segundos` en el 429 y «Queda 1 intento»: compilan y la app los prueba contra una placa falsa en Node, pero todavía no se probaron en la placa.
 
 ### Errores propios del Bluetooth
 
@@ -210,17 +210,27 @@ Además de los de la API local (`SOLICITUD_INVALIDA`, `PARAMETRO_INVALIDO`, `SIN
 
 | `http` | `error` | Cuándo |
 |---|---|---|
-| 401 | `CLAVE_INCORRECTA`, con `detalle.campo` = `clave` | Falta la clave o no es la de la pantalla. El mensaje dice cuántos intentos quedan. |
-| 429 | `DEMASIADOS_INTENTOS` | Hubo 5 claves equivocadas seguidas: la placa corta la conexión y durante 60 s responde esto a todo, aunque la clave sea la correcta. El mensaje dice cuántos segundos faltan. |
+| 401 | `CLAVE_INCORRECTA`, con `detalle.campo` = `clave` | Falta la clave o no es la de la pantalla. El mensaje dice cuántos intentos quedan («Quedan 4 intentos.», …, «Queda 1 intento.»). |
+| 429 | `DEMASIADOS_INTENTOS`, con `detalle.segundos` | Hubo 5 claves equivocadas seguidas: la placa corta la conexión y durante 60 s responde esto a todo, aunque la clave sea la correcta. `detalle.segundos` es un entero, de 1 a 60, con lo que falta para que vuelva a atender, y el mensaje dice lo mismo. |
+
+Por ejemplo, la quinta clave equivocada:
+
+```json
+{"op":"info","id":"5","http":429,"cuerpo":{"error":"DEMASIADOS_INTENTOS","mensaje":"Demasiadas claves equivocadas: espere 60 s y vuelva a intentarlo.","detalle":{"segundos":60}}}
+```
+
+La app arma la cuenta atrás con `detalle.segundos`. Las primeras versiones del firmware con Bluetooth no lo mandaban (solo lo decían en el mensaje); con una de ellas, `canal-bluetooth.js` lee el número del mensaje. La ruta HTTP de la red propia no tiene este bloqueo: ahí la protege la clave WPA2 y el límite de un solo cliente.
 | 400 | `PARAMETRO_INVALIDO`, con `detalle.campo` = `op` | Falta `op`, o no es `info`, `configurar`, `estado` ni `cerrar`. |
 | 400 | `SOLICITUD_INVALIDA` | No es un objeto JSON, pasa de 1024 bytes o quedó a medias 3 s sin otro pedazo. Va sin `op` ni `id`. |
 
 ### Seguridad
 
-- **La clave de la pantalla.** Cada pedido lleva los 8 caracteres de la red propia (sin importar mayúsculas). Sin ella la placa no entrega ni el código ni la huella, ni acepta una red: solo quien tiene la matera enfrente la configura. La clave cambia cada vez que se abre el modo de conexión, y se compara sin cortar en la primera letra distinta.
+- **La clave de la pantalla.** Cada pedido lleva los 8 caracteres de la red propia (sin importar mayúsculas). Sin ella la placa no responde a quien se conecta: no entrega el código ni la huella, ni acepta una red. La clave cambia cada vez que se abre el modo de conexión, y se compara sin cortar en la primera letra distinta. Eso no significa que solo quien tiene la matera enfrente sepa lo que pasa: como el enlace no va cifrado (ver abajo), alguien que escucha en silencio a pocos metros se lleva también lo que responde `info` (el código y la huella), además de la clave de la pantalla y la del WiFi.
 - **Intentos:** 5 claves equivocadas seguidas cortan la conexión y bloquean los pedidos 60 s, para cualquiera. Con unos 40 bits de clave y 5 intentos por minuto, adivinarla no es posible.
-- **Una conexión a la vez**, y si en 2 minutos no llega un pedido con la clave, la placa corta la conexión: nadie puede quedarse conectado para no dejar entrar al dueño. Mientras espera, la app pide `estado` cada pocos segundos; si la conexión se corta, se vuelve a conectar.
-- **El enlace no va cifrado.** La placa no pide emparejar (sería un diálogo más en el celular, y cada sistema lo maneja distinto con Web Bluetooth), así que lo que viaja por Bluetooth, incluidas la clave de la pantalla y la del WiFi, va en claro: alguien con un analizador de BLE a pocos metros podría leerlo. Es un nivel parecido al de la red propia, cuya clave WPA2 de 8 caracteres también se puede atacar si se captura el saludo. Si hiciera falta más, el paso siguiente es exigir LE Secure Connections (características con `WRITE_ENC`).
+- **Una conexión a la vez, con plazo.** Una conexión que no manda un pedido con la clave en 20 s (`BLE_SIN_CLAVE_MS`, en `ajustes.h`) se corta, y no cuentan los pedidos con una clave equivocada. Después de una clave válida, el plazo pasa a 2 minutos sin pedidos con la clave (`BLE_INACTIVIDAD_MS`); mientras tanto la app pide `estado` cada 45 s, y si la conexión se corta, la vuelve a abrir sola. Así, quien se conecta sin la clave no se queda con la única conexión. No se puede evitar del todo: un programa que vuelve a conectarse apenas lo cortan puede ganarle el turno al dueño una y otra vez. Para eso queda de respaldo la red propia (el QR), que la placa abre al mismo tiempo.
+- **El enlace no va cifrado.** La placa no pide emparejar (sería un diálogo más en el celular, y cada sistema lo maneja distinto con Web Bluetooth), así que lo que viaja por Bluetooth, incluidas la clave de la pantalla y la del WiFi, va en claro: alguien con un analizador de BLE a pocos metros podría leerlo. Es un nivel parecido al de la red propia, cuya clave WPA2 de 8 caracteres también se puede atacar si se captura el saludo.
+- **Una placa falsa (suplantación).** Sin emparejamiento, la app no puede comprobar que le habla a la placa de verdad. Un aparato que se anuncia como `Matera-XXXXXX` con el mismo UUID de servicio recibe la clave de la pantalla en el primer pedido y, con `configurar`, la clave del WiFi. Además puede responder en `info` su propio código y su propia huella: la app crearía la matera con ellos, y sus lecturas llegarían de un sensor que no es la placa. Elegir en la lista el nombre que muestra la pantalla no basta, porque el falso puede usar el mismo nombre.
+- **La protección de fondo** para las dos últimas es emparejar con LE Secure Connections y una clave numérica (*passkey*) que muestra la pantalla OLED, con las características en modo cifrado (`WRITE_ENC`). Está pendiente de decidir: por ahora queda como limitación conocida.
 
 ### Probar con nRF Connect (Android)
 

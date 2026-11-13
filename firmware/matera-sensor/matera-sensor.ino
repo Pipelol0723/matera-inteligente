@@ -251,10 +251,10 @@ void olvidarRed(bool claveNueva) {
   hayEstado = false;
   WiFi.disconnect();
   abrirRedPropia(true);
-  cambiarEtapa(Etapa::SIN_RED, claveNueva ? "clave nueva: elige el WiFi en la app" : "red olvidada: elige el WiFi en la app");
+  cambiarEtapa(Etapa::SIN_RED, claveNueva ? "clave nueva: elija el WiFi en la app" : "red olvidada: elija el WiFi en la app");
   mensajeTitulo = claveNueva ? "Clave nueva" : "Red olvidada";
   mensajeDestacado = codigo;
-  mensajePie = claveNueva ? "usa «Cambiar sensor» en la app" : "la clave del sensor se conserva";
+  mensajePie = claveNueva ? "use «Cambiar sensor» en la app" : "la clave del sensor se conserva";
   mensajeHasta = millis() + 4000;
   hayMensaje = true;
 }
@@ -775,7 +775,7 @@ void actualizarPantalla() {
 String detalleParaApp() {
   switch (etapa) {
     case Etapa::SIN_RED:
-      return detalle.length() > 0 ? detalle : String("sin red guardada: elige el WiFi en la app");
+      return detalle.length() > 0 ? detalle : String("sin red guardada: elija el WiFi en la app");
     case Etapa::CONECTANDO:
       if (detalle.length() > 0) return "Conectando a «" + conexion.red + "»: " + detalle;
       return "Conectando a «" + conexion.red + "»";

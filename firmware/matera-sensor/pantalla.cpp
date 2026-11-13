@@ -312,8 +312,8 @@ void pantallaBoot(unsigned long apretadoMs, unsigned long olvidarMs, unsigned lo
   const unsigned long segundos = apretadoMs / 1000;
   const char *pie_;
   if (apretadoMs < olvidarMs) pie_ = "a los 5 s olvida la red; a los 15 s, la clave";
-  else if (apretadoMs < claveMs) pie_ = "suelta: olvida la red. A los 15 s: clave nueva";
-  else pie_ = "suelta: crea una clave nueva";
+  else if (apretadoMs < claveMs) pie_ = "suelte: olvida la red. A los 15 s: clave nueva";
+  else pie_ = "suelte: crea una clave nueva";
   if (!empezar("boot|" + String(segundos) + "|" + pie_)) return;
   centrado(LETRA, 12, "Botón BOOT");
   centrado(NEGRITA, 29, String(segundos) + " s");

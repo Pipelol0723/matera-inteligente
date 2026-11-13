@@ -9,7 +9,8 @@
 //                       "detalle": "..."}
 //   cerrar      -> 204 sin cuerpo (409 SIN_RED si la placa todavia no tiene red)
 // Los errores son {"error": "CODIGO", "mensaje": "texto para la persona"}; en un 400 tambien va
-// "detalle": {"campo": "..."}.
+// "detalle": {"campo": "..."}, y en el 429 DEMASIADOS_INTENTOS del Bluetooth, "detalle": {"segundos": N},
+// lo que falta para que la placa vuelva a atender.
 #pragma once
 
 #include <Arduino.h>
@@ -30,6 +31,10 @@ const int MAX_REDES = 15;
 
 // {"error": "CODIGO", "mensaje": "..."}, y el campo que hay que corregir en un 400.
 RespuestaLocal apiLocalError(int http, const char *error, const String &mensaje, const char *campo = nullptr);
+
+// {"error": "CODIGO", "mensaje": "...", "detalle": {"segundos": N}}: cuantos segundos faltan para volver a
+// intentar (el 429 de un bloqueo). La app arma su cuenta atras con ese numero, no con el texto.
+RespuestaLocal apiLocalErrorConEspera(int http, const char *error, const String &mensaje, unsigned long segundos);
 
 // Al abrir el modo de conexion: el codigo y la huella que entrega info. Olvida lo pendiente.
 void apiLocalIniciar(const String &codigo, const String &huella);

@@ -86,7 +86,7 @@ void inicio() {
            "<!doctype html><html lang=\"es\"><head><meta charset=\"utf-8\">"
            "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>" + titulo +
            "</title></head><body style=\"font-family:sans-serif;margin:2em\"><h1>" + titulo +
-           "</h1><p>Esta es la red de la placa. Vuelve a la app de la matera para terminar de conectarla.</p>"
+           "</h1><p>Esta es la red de la placa. Vuelva a la app de la matera para terminar de conectarla.</p>"
            "</body></html>");
 }
 

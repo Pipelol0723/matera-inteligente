@@ -168,6 +168,11 @@ RespuestaLocal apiLocalError(int http, const char *error, const String &mensaje,
   return {http, cuerpo};
 }
 
+RespuestaLocal apiLocalErrorConEspera(int http, const char *error, const String &mensaje, unsigned long segundos) {
+  return {http, String("{\"error\":") + jsonComillas(error) + ",\"mensaje\":" + jsonComillas(mensaje) +
+                    ",\"detalle\":{\"segundos\":" + String(segundos) + "}}"};
+}
+
 void apiLocalIniciar(const String &codigo, const String &huella) {
   codigoPlaca = codigo;
   huellaPlaca = huella;

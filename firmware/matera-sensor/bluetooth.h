@@ -16,8 +16,9 @@
 //              respuesta (0 a 255, da la vuelta), el indice del trozo (desde 0) y el total de trozos.
 // Seguridad: cada pedido lleva la clave de 8 caracteres de la pantalla, la de la red propia. Sin ella no
 // se entrega ni el codigo ni la huella. Con 5 claves equivocadas seguidas, la placa corta la conexion y no
-// atiende pedidos durante 60 s. Una conexion a la vez; si en 2 minutos no llega un pedido con la clave, la
-// placa corta la conexion.
+// atiende pedidos durante 60 s. Una conexion a la vez: si no manda un pedido con la clave en 20 s
+// (BLE_SIN_CLAVE_MS), la placa la corta; despues de una clave valida, el plazo es de 2 minutos sin pedidos
+// con la clave (BLE_INACTIVIDAD_MS). Los dos estan en ajustes.h.
 #pragma once
 
 #include <Arduino.h>

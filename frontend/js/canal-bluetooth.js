@@ -6,8 +6,9 @@
 //   - la respuesta {"op","id","http","cuerpo"} llega en trozos, uno por notificación, con 3 bytes de
 //     cabecera (número de respuesta, índice y total). Se juntan los bytes y recién ahí se lee el UTF-8;
 //   - las notificaciones se activan antes del primer pedido (lo hace el transporte al abrirse);
-//   - la placa corta la conexión si en 2 minutos no llega un pedido con la clave: mientras la clave sirve,
-//     se le pide «estado» cada 45 s sin uso.
+//   - la placa corta una conexión que en 20 s no manda un pedido con la clave, y después, si en 2 minutos no
+//     llega otro: mientras la clave sirve, se le pide «estado» cada 45 s sin uso. Si corta, el siguiente
+//     pedido vuelve a conectarse solo.
 // Un pedido a la vez: la placa junta los bytes en orden y el navegador no acepta dos escrituras juntas.
 // Cada adaptador solo pone su transporte: abrirTransporte, escribirPedazo, cerrarTransporte y conectado.
 import { CanalPlaca, CONEXION_CANCELADA, errorDeLaPlaca, fallaDelCanal } from "./canal-placa.js";
@@ -70,9 +71,18 @@ export class JuntadorDeRespuestas {
 const cortado = (mensaje = "Se cortó la conexión por Bluetooth con la placa. Acérquese a la matera y vuelva a intentarlo.") =>
   fallaDelCanal("BLUETOOTH_CORTADO", mensaje);
 
-// Con 429, la placa dice en su mensaje cuántos segundos faltan («... espera 60 s ...»). Solo se lee para
-// mostrar la cuenta atrás: el bloqueo lo decide la placa.
-const SEGUNDOS_EN_EL_MENSAJE = /(\d+)\s*s\b/;
+// Con 429, la placa manda cuántos segundos faltan en detalle.segundos. Una placa con el firmware anterior
+// solo lo decía en el mensaje («... espera 60 s ...»): entonces se lee de ahí, un número de 1 a 4 cifras
+// seguido de «s» suelta. Solo sirve para la cuenta atrás: el bloqueo lo decide la placa.
+const SEGUNDOS_EN_EL_MENSAJE = /\b(\d{1,4})\s?s\b/;
+
+export function segundosDeEspera(cuerpo) {
+  const delDetalle = cuerpo?.detalle?.segundos;
+  if (Number.isInteger(delDetalle) && delDetalle > 0) return delDetalle;
+  const mensaje = typeof cuerpo?.mensaje === "string" ? cuerpo.mensaje : "";
+  const delMensaje = Number(SEGUNDOS_EN_EL_MENSAJE.exec(mensaje)?.[1]);
+  return delMensaje > 0 ? delMensaje : null;
+}
 
 export class CanalBluetooth extends CanalPlaca {
   constructor(opciones) {
@@ -245,7 +255,7 @@ export class CanalBluetooth extends CanalPlaca {
 
   errorDe(http, cuerpo) {
     if (http === 429 && cuerpo?.error === "DEMASIADOS_INTENTOS") {
-      const segundos = Number(SEGUNDOS_EN_EL_MENSAJE.exec(cuerpo.mensaje ?? "")?.[1]) || null;
+      const segundos = segundosDeEspera(cuerpo);
       return errorDeLaPlaca(http, {
         error: cuerpo.error,
         mensaje: segundos
