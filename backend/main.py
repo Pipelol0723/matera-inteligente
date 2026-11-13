@@ -33,7 +33,13 @@ from aplicacion.juego import (
     ElegirParticipacion,
     PuntuarLectura,
 )
-from aplicacion.modo_prueba import LecturaConPrueba, MascotasConPrueba, PonerEstadoDePrueba, QuitarEstadoDePrueba
+from aplicacion.modo_prueba import (
+    EliminarPlantaYSuPrueba,
+    LecturaConPrueba,
+    MascotasConPrueba,
+    PonerEstadoDePrueba,
+    QuitarEstadoDePrueba,
+)
 from aplicacion.listar_especies import ListarEspecies
 from aplicacion.listar_parametros import ListarParametros
 from aplicacion.plantas import EliminarPlanta, ListarPlantas, RegistrarPlanta
@@ -170,10 +176,14 @@ def construir_app(config: Configuracion, reloj: Reloj | None = None) -> Flask:
 
     # Las mediciones solo llegan del sensor, por el caso de uso de la 5.3, que reutiliza el servicio del corte 1.
     diagnosticar_planta = DiagnosticarPlantaDeUsuario(plantas, servicio, historial, notificador)
+    # Modo prueba (solo admins): un estado de mentira para ver los dibujos, en memoria. Envuelve la lectura
+    # para que la placa lo dibuje, la consulta de las materas para que lo dibuje la app, y el borrado de una
+    # matera para que su prueba no quede suelta.
+    estados_prueba = EstadosDePruebaEnMemoria()
     mis_plantas = crear_blueprint_plantas(
         registrar=RegistrarPlanta(plantas, plantas, sensores, especies, secretos),
         listar=ListarPlantas(plantas, sensores, historial),
-        eliminar=EliminarPlanta(plantas, plantas),
+        eliminar=EliminarPlantaYSuPrueba(EliminarPlanta(plantas, plantas), estados_prueba),
         reemplazar_sensor=ReemplazarSensor(plantas, sensores, secretos),
         consultar_historial=ConsultarHistorial(plantas, historial),
         autenticacion=autenticacion,
@@ -182,9 +192,6 @@ def construir_app(config: Configuracion, reloj: Reloj | None = None) -> Flask:
     canjear = CanjearClaveDispositivo(
         sensores, sensores, plantas, usuarios, secretos, tokens, reloj, config.duracion_token_dispositivo
     )
-    # Modo prueba (solo admins): un estado de mentira para ver los dibujos, en memoria. Envuelve la lectura
-    # para que la placa lo dibuje, y la consulta de las materas para que lo dibuje la app.
-    estados_prueba = EstadosDePruebaEnMemoria()
     registrar_lectura = LecturaConPrueba(
         RegistrarLectura(sensores, usuarios, diagnosticar_planta, reloj), estados_prueba, usuarios
     )

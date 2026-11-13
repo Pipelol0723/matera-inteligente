@@ -18,8 +18,8 @@ const ENLACES_VISTOS = "matera.app.enlaces-vistos"; // en sessionStorage: el enl
 
 const TEXTO_NORMAL = "Escriba la dirección de la API que muestra Mi cuenta en la web, o escanee su QR con la cámara " +
   "del celular. El celular y el PC tienen que estar en la misma red (por ejemplo, el PC unido al hotspot del celular).";
-const TEXTO_DEL_ENLACE = "Un QR o un enlace propone este servidor. Revise que sea el suyo antes de guardarlo: la app " +
-  "le mandará a esa dirección su correo y su contraseña.";
+const TEXTO_DEL_ENLACE = "Un QR o un enlace propone el servidor de abajo. Compárelo con la dirección escrita en Mi " +
+  "cuenta de la web, en su PC, antes de guardarlo: la app le mandará a ese servidor su correo y su contraseña.";
 
 export function iniciarServidorApp() {
   if (!EN_APP) return;
@@ -47,6 +47,9 @@ export function iniciarServidorApp() {
     obligatorio = !API_BASE;
     cancelar.hidden = obligatorio;
     $("servidor-texto").textContent = propuesta ? TEXTO_DEL_ENLACE : TEXTO_NORMAL;
+    // El equipo propuesto, en grande y fuera del campo: en un campo de una línea no se distingue bien.
+    $("servidor-propuesto").textContent = propuesta ? new URL(propuesta).host : "";
+    $("servidor-propuesto").hidden = !propuesta;
     campo.value = propuesta || API_BASE;
     mostrarError(error, null);
     if (!dialogo.open) dialogo.showModal();

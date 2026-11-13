@@ -104,3 +104,34 @@ def test_un_cuerpo_que_no_es_objeto_da_400(api):
     matera = Matera(api, token)
     respuesta = api.pedir("PUT", f"/juego/materas/{matera.planta['id']}/prueba", token, json=[1, 2])
     assert es_error(respuesta, 400, "SOLICITUD_INVALIDA")
+
+
+def test_una_matera_nueva_con_el_id_de_una_borrada_no_hereda_la_prueba(api):
+    # SQLite reutiliza el id mas alto: la matera de B recibe el id de la que borro A.
+    ana = api.admin()
+    sala = Matera(api, ana)
+    planta_id = sala.planta["id"]
+    assert api.pedir("PUT", f"/juego/materas/{planta_id}/prueba", ana, json=PRUEBA).status_code == 200
+    assert api.pedir("DELETE", f"/plantas/{planta_id}", ana).status_code == 200
+
+    bea = api.admin(nombre="Bea", correo="bea@correo.co")
+    cocina = Matera(api, bea, apodo="Cocina", codigo="MT-0002-AA")
+    assert cocina.planta["id"] == planta_id
+    assert _mascota(api, bea, planta_id)["prueba"] is None
+    assert cocina.leer(SALUDABLE).get_json()["prueba"] is None
+
+
+def test_el_adaptador_guarda_la_prueba_con_su_dueno():
+    from dominio.plantas import Planta
+    from dominio.modo_prueba import EstadoDePrueba
+    from dominio.estados import EstadoGlobal
+    from dominio.mascota import Condicion, EtapaCrecimiento
+    from infraestructura.estados_prueba_memoria import EstadosDePruebaEnMemoria
+
+    estado = EstadoDePrueba(EtapaCrecimiento.SEMILLA, Condicion.SANA, EstadoGlobal.SALUDABLE, False, None)
+    estados = EstadosDePruebaEnMemoria()
+    estados.guardar(Planta(id=1, usuario_id=7, apodo="Sala", especie="potos"), estado)
+    assert estados.de_planta(Planta(id=1, usuario_id=7, apodo="Sala", especie="potos")) is estado
+    assert estados.de_planta(Planta(id=1, usuario_id=8, apodo="Otra", especie="potos")) is None
+    estados.quitar(1)
+    assert estados.de_planta(Planta(id=1, usuario_id=7, apodo="Sala", especie="potos")) is None

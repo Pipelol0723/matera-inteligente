@@ -1,9 +1,12 @@
-"""Casos de uso del modo prueba (corte 3). Solo agregan: envuelven ConsultarMascotas y RegistrarLectura.
+"""Casos de uso del modo prueba (corte 3). Solo agregan: envuelven ConsultarMascotas, RegistrarLectura y
+EliminarPlanta.
 
 Poner y quitar exigen un ADMIN (Usuario.exigir_admin) y una matera suya
 (buscar_planta_propia, con Planta.exigir_dueno): una ajena da el mismo 404 que
 una inexistente. Al consultar, la prueba solo se aplica si el dueno sigue
-siendo admin: si pierde el rol, sus materas vuelven a verse como son.
+siendo admin: si pierde el rol, sus materas vuelven a verse como son. Al borrar
+una matera se borra su prueba, y el puerto la guarda con su dueno: una matera
+nueva que recibe el id de una borrada no hereda nada.
 """
 from aplicacion.plantas import buscar_planta_propia
 from dominio import puertos_entrada, puertos_juego, puertos_prueba
@@ -25,7 +28,7 @@ class PonerEstadoDePrueba(puertos_prueba.PonerEstadoDePrueba):
     def ejecutar(self, usuario: Usuario, planta_id: int, estado: EstadoDePrueba) -> EstadoDePrueba:
         usuario.exigir_admin()
         planta = buscar_planta_propia(self._plantas, usuario.id, planta_id)
-        self._estados.guardar(planta.id, estado)
+        self._estados.guardar(planta, estado)
         return estado
 
 
@@ -54,7 +57,7 @@ class MascotasConPrueba(puertos_juego.ConsultarMascotas):
         return [self._con_prueba(mascota) for mascota in mascotas]
 
     def _con_prueba(self, mascota: Mascota) -> Mascota:
-        estado = self._estados.de_planta(mascota.planta.id)
+        estado = self._estados.de_planta(mascota.planta)
         return estado.aplicar(mascota) if estado is not None else mascota
 
 
@@ -68,7 +71,7 @@ class LecturaConPrueba(puertos_entrada.RegistrarLectura):
 
     def ejecutar(self, identidad: IdentidadDispositivo, reporte: ReporteDeDispositivo) -> ResultadoMedicion:
         resultado = self._interno.ejecutar(identidad, reporte)
-        estado = self._estados.de_planta(resultado.planta.id)
+        estado = self._estados.de_planta(resultado.planta)
         if estado is None:
             return resultado
         dueno = self._cuentas.por_id(resultado.planta.usuario_id)
@@ -80,3 +83,15 @@ class LecturaConPrueba(puertos_entrada.RegistrarLectura):
             registro=resultado.registro,
             prueba=estado,
         )
+
+
+class EliminarPlantaYSuPrueba(puertos_entrada.EliminarPlanta):
+    """Borra la matera como siempre y, si estaba en prueba, olvida esa prueba."""
+
+    def __init__(self, interno: puertos_entrada.EliminarPlanta, estados: EstadosDePrueba):
+        self._interno = interno
+        self._estados = estados
+
+    def ejecutar(self, usuario: Usuario, planta_id: int) -> None:
+        self._interno.ejecutar(usuario, planta_id)
+        self._estados.quitar(planta_id)

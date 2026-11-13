@@ -2,6 +2,7 @@
 from abc import ABC, abstractmethod
 
 from dominio.modo_prueba import EstadoDePrueba
+from dominio.plantas import Planta
 from dominio.usuarios import Usuario
 
 
@@ -26,13 +27,17 @@ class QuitarEstadoDePrueba(ABC):
 
 
 class EstadosDePrueba(ABC):
-    """El estado de prueba de cada matera, por el id de la planta."""
+    """El estado de prueba de cada matera, guardado junto con su dueno.
+
+    SQLite puede reutilizar el id de una planta borrada: por eso de_planta solo
+    devuelve el estado si la planta sigue siendo del mismo dueno que lo puso.
+    """
 
     @abstractmethod
-    def de_planta(self, planta_id: int) -> EstadoDePrueba | None: ...
+    def de_planta(self, planta: Planta) -> EstadoDePrueba | None: ...
 
     @abstractmethod
-    def guardar(self, planta_id: int, estado: EstadoDePrueba) -> None: ...
+    def guardar(self, planta: Planta, estado: EstadoDePrueba) -> None: ...
 
     @abstractmethod
     def quitar(self, planta_id: int) -> None: ...

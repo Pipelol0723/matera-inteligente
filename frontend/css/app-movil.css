@@ -115,3 +115,17 @@
     width: min(200px, 70vw);
   }
 }
+
+/* El servidor que propone un QR o un enlace, en grande para compararlo con el de Mi cuenta en la web. */
+.servidor__propuesto {
+  margin: 0;
+  padding: 10px 14px;
+  border: var(--borde-ancho) solid var(--borde-acento);
+  border-radius: var(--radio-m);
+  background: var(--superficie-suave);
+  font-family: var(--mono);
+  font-size: 1.25rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  color: var(--tinta);
+}

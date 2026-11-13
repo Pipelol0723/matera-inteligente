@@ -21,11 +21,12 @@ class EstadosEnDiccionario(EstadosDePrueba):
     def __init__(self):
         self.estados = {}
 
-    def de_planta(self, planta_id):
-        return self.estados.get(planta_id)
+    def de_planta(self, planta):
+        dueno, estado = self.estados.get(planta.id, (None, None))
+        return estado if dueno == planta.usuario_id else None
 
-    def guardar(self, planta_id, estado):
-        self.estados[planta_id] = estado
+    def guardar(self, planta, estado):
+        self.estados[planta.id] = (planta.usuario_id, estado)
 
     def quitar(self, planta_id):
         self.estados.pop(planta_id, None)
@@ -124,15 +125,30 @@ def test_poner_y_quitar():
     plantas = PlantasFijas({1: _planta(dueno=7)})
     admin = _usuario(7, Rol.ADMIN)
     PonerEstadoDePrueba(plantas, estados).ejecutar(admin, 1, PRUEBA)
-    assert estados.de_planta(1) is PRUEBA
+    assert estados.de_planta(_planta(dueno=7)) is PRUEBA
     QuitarEstadoDePrueba(plantas, estados).ejecutar(admin, 1)
-    assert estados.de_planta(1) is None
+    assert estados.de_planta(_planta(dueno=7)) is None
 
 
 def test_la_consulta_aplica_la_prueba_solo_si_quien_pregunta_es_admin():
     estados = EstadosEnDiccionario()
-    estados.guardar(1, PRUEBA)
+    estados.guardar(_planta(dueno=7), PRUEBA)
     mascota = _mascota(_planta(dueno=7))
     consulta = MascotasConPrueba(MascotasFijas([mascota]), estados)
     assert consulta.ejecutar(_usuario(7, Rol.ADMIN))[0].cara is EstadoGlobal.CRITICO
     assert consulta.ejecutar(_usuario(7, Rol.USUARIO)) == [mascota]
+
+
+def test_borrar_la_matera_borra_su_prueba():
+    from aplicacion.modo_prueba import EliminarPlantaYSuPrueba
+    from dominio.puertos_entrada import EliminarPlanta
+
+    class EliminarFijo(EliminarPlanta):
+        def ejecutar(self, usuario, planta_id):
+            self.borrada = planta_id
+
+    estados = EstadosEnDiccionario()
+    estados.guardar(_planta(dueno=7), PRUEBA)
+    interno = EliminarFijo()
+    EliminarPlantaYSuPrueba(interno, estados).ejecutar(_usuario(7, Rol.ADMIN), 1)
+    assert interno.borrada == 1 and estados.estados == {}

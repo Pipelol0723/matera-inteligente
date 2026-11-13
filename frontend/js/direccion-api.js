@@ -63,7 +63,9 @@ function esEnlaceDeLaApp(texto) {
 }
 
 // La dirección que propone un enlace de la app, ya normalizada; null si el texto no es un enlace de la app o
-// si lo que trae no es una dirección http(s).
+// si lo que trae no es una dirección http(s). Un enlace o un QR lo puede fabricar cualquiera: sin cifrar
+// (http://) solo se acepta un equipo de la red local; para un servidor de afuera, el enlace debe traer https://.
+// Escrita a mano, la persona puede poner la que quiera.
 export function direccionDelEnlace(texto) {
   let url;
   try {
@@ -72,5 +74,19 @@ export function direccionDelEnlace(texto) {
     return null;
   }
   if (url.protocol !== `${ESQUEMA_APP}:` || url.hostname !== HOST_DEL_ENLACE) return null;
-  return normalizarHttp(url.searchParams.get("api")?.trim() ?? "");
+  const direccion = normalizarHttp(url.searchParams.get("api")?.trim() ?? "");
+  if (!direccion) return null;
+  const propuesta = new URL(direccion);
+  return propuesta.protocol === "https:" || esDeLaRedLocal(propuesta.hostname) ? direccion : null;
+}
+
+// El equipo es este mismo o una IP de una red local: 10/8, 172.16/12, 192.168/16, 169.254/16 o 100.64/10
+// (la de los celulares que comparten datos y la de Tailscale).
+export function esDeLaRedLocal(nombre) {
+  if (nombre === "localhost") return true;
+  const partes = nombre.split(".");
+  if (partes.length !== 4 || !partes.every((parte) => /^\d{1,3}$/.test(parte) && Number(parte) <= 255)) return false;
+  const [a, b] = partes.map(Number);
+  return a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)
+    || (a === 169 && b === 254) || (a === 100 && b >= 64 && b <= 127);
 }
