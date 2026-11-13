@@ -1,13 +1,18 @@
 ﻿{
-    "appId":  "co.edu.usergioarboleda.matera",
-    "appName":  "Matera",
-    "webDir":  "../frontend",
-    "plugins":  {
-                    "CapacitorHttp":  {
-                                          "enabled":  true
-                                      }
-                },
-    "android":  {
-                    "allowMixedContent":  true
-                }
+  "appId": "co.edu.usergioarboleda.matera",
+  "appName": "Matera",
+  "webDir": "../frontend",
+  "loggingBehavior": "none",
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_matera",
+      "iconColor": "#2E7D32"
+    }
+  },
+  "android": {
+    "allowMixedContent": true
+  }
 }

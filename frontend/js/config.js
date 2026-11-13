@@ -1,11 +1,17 @@
 // El front se sirve desde otro origen que el backend (RA2), por eso la URL va completa.
-// La API se busca en el mismo equipo desde el que se abrió el front: en el PC es localhost, y desde un
-// celular de la misma red es la IP del PC (con el backend arrancado con MATERA_HOST=0.0.0.0).
-const EQUIPO = globalThis.location?.hostname || "127.0.0.1";
-export const API_BASE = `http://${EQUIPO}:5000/api/v1`;
+// En la web, la API se busca en el mismo equipo desde el que se abrió el front: en el PC es localhost, y desde
+// un celular de la misma red es la IP del PC (con el backend arrancado con MATERA_HOST=0.0.0.0).
+// En la app Android la página vive en el celular (https://localhost), donde no está la API: su dirección la
+// elige la persona la primera vez (servidor-app.js) y queda guardada en el celular. Hasta entonces es "".
+import { leerDireccionGuardada } from "./direccion-api.js";
+import { EN_APP } from "./plataforma.js";
 
-// Con el front abierto en este mismo PC, la API sigue respondiendo aunque el PC cambie de WiFi.
-export const API_EN_ESTE_EQUIPO = esLoopback(EQUIPO);
+const EQUIPO = globalThis.location?.hostname || "127.0.0.1";
+export const API_BASE = EN_APP ? leerDireccionGuardada() ?? "" : `http://${EQUIPO}:5000/api/v1`;
+
+// Con la API en este mismo equipo, sigue respondiendo aunque el equipo cambie de WiFi (en el PC, el front en
+// localhost; en la app, solo si la API está en el propio celular).
+export const API_EN_ESTE_EQUIPO = esLoopback(equipoDe(API_BASE));
 
 // La API local de la placa: solo responde en su propia red WiFi (Matera-…), mientras se conecta.
 const PLACA_POR_DEFECTO = "http://192.168.4.1";
@@ -26,6 +32,14 @@ function placaPedida() {
     return url.protocol === "http:" && (esLoopback(url.hostname) || esRedDeLaPlaca(url.hostname)) ? url.origin : null;
   } catch {
     return null;
+  }
+}
+
+function equipoDe(base) {
+  try {
+    return new URL(base).hostname;
+  } catch {
+    return "";
   }
 }
 

@@ -4,6 +4,7 @@
 import { cerrarSesion, obtenerMiCuenta } from "./api.js";
 import { crear, inicialDe } from "./formato.js";
 import { botonDe, mostrarError, mostrarExito, ocupado } from "./formularios.js";
+import { pintarQrDelServidor, quitarQrDelServidor } from "./qr-servidor.js";
 import { sesion } from "./sesion.js";
 
 // En una pastilla, en mayúsculas como los estados.
@@ -52,6 +53,7 @@ export function crearPantallaCuenta(contexto) {
     // Mientras responde la API, lo que ya se sabe de la sesión; la cantidad de plantas llega con la respuesta.
     pintarPerfil(sesion.usuario(), null);
     mostrarJugador();
+    pintarQrDelServidor(); // en la web: el QR para la app del celular
     let cuenta;
     try {
       cuenta = await obtenerMiCuenta();
@@ -134,6 +136,7 @@ export function crearPantallaCuenta(contexto) {
     mostrarError($("error-cuenta"), null);
     mostrarError($("error-jugador"), null);
     mostrarExito($("exito-jugador"), null);
+    quitarQrDelServidor();
   }
 
   return { mostrar, reiniciar };

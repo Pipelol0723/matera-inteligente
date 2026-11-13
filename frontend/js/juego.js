@@ -6,7 +6,7 @@
 // sesión y en cualquier pantalla, porque el puntaje de la cabecera y los avisos se ven en todas; y con cada
 // mensaje del WebSocket (tiempo-real.js). El backend guarda los puntos antes de avisar por el WebSocket.
 import { elegirParticipacion, obtenerMascotas, obtenerParticipacion, obtenerPuntaje, obtenerTabla } from "./api.js";
-import { crearAvisos, estadoPermiso } from "./avisos.js";
+import { crearAvisos, estadoPermiso, textoDelPermisoEnLaApp } from "./avisos.js";
 import { consultarCadaRato, textoConsulta } from "./consulta-periodica.js";
 import { dibujoDeMatera, macetaVacia } from "./dibujo-planta.js";
 import { capitalizar, crear, puntos, puntosConSigno, rotuloDeEstado, signoDe } from "./formato.js";
@@ -279,7 +279,7 @@ export function crearJuego(contexto) {
 
   function pintarPermiso() {
     const estado = estadoPermiso();
-    $("juego-permiso").textContent = PERMISOS[estado];
+    $("juego-permiso").textContent = textoDelPermisoEnLaApp?.(estado) ?? PERMISOS[estado];
     $("activar-notificaciones").hidden = estado !== "pendiente";
   }
 

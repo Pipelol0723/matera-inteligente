@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ícono chico de las notificaciones (avisos de las materas): un brote en una maceta, en un solo color,
+     como pide Android para la barra de estado. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M11.25,13L11.25,9.6C8.6,9.6 6.6,7.8 6.6,5.2C9.3,5.2 11.25,6.9 11.25,9.3L11.25,8.5C11.25,6.1 13.1,4.4 15.6,4.4C15.6,6.8 13.7,8.5 12.75,8.6L12.75,13L18.5,13L17,20.6L7,20.6L5.5,13Z" />
+</vector>

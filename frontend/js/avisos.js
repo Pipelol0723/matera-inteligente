@@ -8,6 +8,8 @@
 //   del navegador (Notification API). El permiso se pide con un botón, nunca al cargar la página.
 // - Si no (por ejemplo, el celular que abre el front por la red local, en http): un aviso dentro de la
 //   página, y el celular vibra si el navegador lo permite.
+// - En la app Android: una notificación del celular (avisos-nativos.js), con el mismo permiso pedido con el botón.
+import { notificacionesNativas as nativas } from "./avisos-nativos.js";
 import { dibujoDeMatera, globoDe } from "./dibujo-planta.js";
 import { crear, rotuloDeEstado } from "./formato.js";
 import { sesion } from "./sesion.js";
@@ -27,12 +29,16 @@ const HORA = new Intl.DateTimeFormat("es-CO", { hour: "2-digit", minute: "2-digi
 
 // «sin-contexto» (http fuera de este equipo), «no-soportado», «pendiente», «concedido» o «bloqueado».
 export function estadoPermiso() {
+  if (nativas.disponible) return nativas.estado();
   if (!globalThis.isSecureContext) return "sin-contexto";
   if (!("Notification" in globalThis)) return "no-soportado";
   if (Notification.permission === "granted") return "concedido";
   if (Notification.permission === "denied") return "bloqueado";
   return "pendiente";
 }
+
+// En la app, el texto de la pantalla Juego para cada estado del permiso (null en el navegador).
+export const textoDelPermisoEnLaApp = nativas.disponible ? nativas.texto : null;
 
 function leer() {
   try {
@@ -57,6 +63,7 @@ function escribir(lista) {
 export function crearAvisos({ raiz, alVer, alCambiarPermiso }) {
   let avisados = null;
   let dueno = null; // el usuario de la lista en memoria
+  if (nativas.disponible) nativas.alCambiar(() => alCambiarPermiso?.(estadoPermiso()));
 
   // La lista es de la cuenta con sesión; si cambió la cuenta, se vuelve a leer. Otra pestaña pudo avisar
   // desde la última vez: se relee siempre y se mezcla.
@@ -89,7 +96,7 @@ export function crearAvisos({ raiz, alVer, alCambiarPermiso }) {
     const detalle = [globoDe(matera.necesidad), matera.ultimaLectura && HORA.format(new Date(matera.ultimaLectura))]
       .filter(Boolean)
       .join(" · ");
-    if (estadoPermiso() === "concedido" && notificar(titulo, detalle, clave)) return;
+    if (estadoPermiso() === "concedido" && notificar(titulo, detalle, clave, matera)) return;
     enPagina(matera, titulo, detalle);
     // El navegador solo deja vibrar después de que la persona tocó la página (por ejemplo, al ingresar).
     if (navigator.userActivation?.hasBeenActive === false) return;
@@ -100,7 +107,8 @@ export function crearAvisos({ raiz, alVer, alCambiarPermiso }) {
     }
   }
 
-  function notificar(titulo, cuerpo, clave) {
+  function notificar(titulo, cuerpo, clave, matera) {
+    if (nativas.disponible) return nativas.mostrar(titulo, cuerpo, clave, { alVer, siFalla: () => enPagina(matera, titulo, cuerpo) });
     try {
       const notificacion = new Notification(titulo, { body: cuerpo, tag: clave, lang: "es" });
       notificacion.addEventListener("click", () => {
@@ -143,7 +151,8 @@ export function crearAvisos({ raiz, alVer, alCambiarPermiso }) {
 
   // Solo con un clic de la persona: el navegador muestra su propia pregunta.
   async function pedirPermiso() {
-    if (estadoPermiso() === "pendiente") {
+    if (nativas.disponible) await nativas.pedir();
+    else if (estadoPermiso() === "pendiente") {
       try {
         await Notification.requestPermission();
       } catch {

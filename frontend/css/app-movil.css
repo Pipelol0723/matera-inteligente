@@ -1,0 +1,117 @@
+/* La app Android y la web que la apunta: la línea «Servidor» de Ingresar (solo en la app), la tarjeta «App del
+   celular» de Mi cuenta (solo en la web, con el QR) y la tarjeta «Servidor» de Mi cuenta (solo en la app).
+   Solo usan las variables de variables.css: siguen a los dos estilos y a los cuatro temas. */
+
+/* ---- Ingresar, en la app: a qué servidor le habla ---- */
+
+.servidor-linea {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px 10px;
+  margin: 2px 14px 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--borde-suave);
+  font-size: 0.82rem;
+  color: var(--tenue);
+}
+
+.servidor-linea__direccion {
+  font-family: var(--mono);
+  font-size: 0.95em;
+  color: var(--tinta);
+  overflow-wrap: anywhere;
+}
+
+/* ---- Mi cuenta ---- */
+
+/* El QR a la izquierda y la dirección a la derecha; en el celular, uno debajo del otro. */
+.cuenta-app__contenido {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 20px;
+}
+
+/* El QR siempre en negro sobre blanco (también en los temas oscuros): así lo leen todas las cámaras. */
+.cuenta-app__qr {
+  flex: none;
+  width: 168px;
+  padding: 6px;
+  border: 1px solid var(--borde-suave);
+  border-radius: var(--radio-l);
+  background: #ffffff;
+}
+
+.cuenta-app__qr svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.cuenta-app__textos {
+  display: flex;
+  flex: 1 1 180px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cuenta-app__textos .formulario__etiqueta {
+  margin: 0;
+}
+
+.cuenta-app__direccion {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  font-weight: 650;
+  color: var(--tinta);
+  overflow-wrap: anywhere;
+}
+
+.cuenta-app__otras {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.cuenta-app__otras .formulario__ayuda {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.cuenta-app__otras .boton-contorno {
+  font-family: var(--mono);
+}
+
+/* «Abrir en la app» solo sirve en el celular (la web abierta allí, con la app instalada). */
+.cuenta-app__abrir {
+  margin-top: 4px;
+  text-decoration: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .cuenta-app__abrir {
+    display: none;
+  }
+}
+
+:root[data-estilo="juego"] .cuenta-app__qr {
+  border: var(--borde-ancho) solid var(--borde);
+  box-shadow: 0 3px 0 var(--borde-sombra);
+}
+
+@media (max-width: 759.98px) {
+  .cuenta-app__contenido {
+    justify-content: center;
+  }
+
+  .cuenta-app__qr {
+    width: min(200px, 70vw);
+  }
+}

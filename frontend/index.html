@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="css/diagnostico.css">
   <link rel="stylesheet" href="css/asistente.css">
   <link rel="stylesheet" href="css/modo-prueba.css">
+  <link rel="stylesheet" href="css/app-movil.css">
   <!-- Clásico y sin defer: pone el estilo y el tema en <html> antes de pintar (ver js/apariencia.js). -->
   <script src="js/apariencia.js"></script>
   <script type="module" src="js/app.js"></script>
@@ -274,6 +275,11 @@
         <button type="submit" class="boton-primario acceso__enviar">Crear cuenta</button>
         <p class="acceso__cambiar">¿Ya tiene cuenta? <button type="button" class="enlace" data-acceso-ir="ingresar">Ingrese</button></p>
       </form>
+      <!-- Solo en la app Android (servidor-app.js): a qué servidor le habla, y cómo cambiarlo. -->
+      <p id="acceso-servidor" class="servidor-linea" hidden>
+        <span class="servidor-linea__texto">Servidor: <span id="acceso-servidor-direccion" class="servidor-linea__direccion"></span></span>
+        <button id="acceso-servidor-cambiar" type="button" class="enlace">Cambiar</button>
+      </p>
     </section>
   </main>
 
@@ -322,6 +328,37 @@
         </div>
         <p class="formulario__ayuda">Profesional es sobrio; Juego es de Tamagotchi, con más color y la planta en grande. Automático usa Juego en el celular y Profesional en pantallas anchas.</p>
         <div class="apariencia__opciones" data-apariencia-lugar="cuenta"></div>
+      </section>
+      <!-- En la web: el QR para apuntar la app Android a este servidor (qr-servidor.js). -->
+      <section id="cuenta-app" class="tarjeta cuenta__tarjeta cuenta__app" aria-labelledby="cuenta-app-titulo" hidden>
+        <div class="cuenta__cabecera">
+          <span class="cuenta__icono" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="2.8" width="11" height="18.4" rx="2.4"/><path d="M10.5 5.6h3"/><path d="M11 18.2h2"/></svg></span>
+          <h2 id="cuenta-app-titulo" class="formulario__titulo">App del celular</h2>
+        </div>
+        <p class="formulario__ayuda">Con la app Matera instalada, apunte la cámara del celular a este QR: la app se abre y le propone este servidor. Si la cámara no ofrece abrirla, escriba la dirección en la app.</p>
+        <div class="cuenta-app__contenido">
+          <div id="cuenta-app-qr" class="cuenta-app__qr" hidden></div>
+          <div class="cuenta-app__textos">
+            <p class="formulario__etiqueta">Dirección de la API</p>
+            <p id="cuenta-app-direccion" class="cuenta-app__direccion"></p>
+            <a id="cuenta-app-abrir" class="boton-contorno cuenta-app__abrir" hidden>Abrir en la app</a>
+            <div id="cuenta-app-otras" class="cuenta-app__otras" hidden></div>
+          </div>
+        </div>
+        <p id="cuenta-app-aviso" class="formulario__ayuda" hidden></p>
+        <div id="error-cuenta-app" class="tarjeta-error" role="alert" hidden></div>
+      </section>
+      <!-- En la app Android: a qué servidor le habla, y cómo cambiarlo (servidor-app.js). -->
+      <section id="cuenta-servidor" class="tarjeta cuenta__tarjeta" aria-labelledby="cuenta-servidor-titulo" hidden>
+        <div class="cuenta__cabecera">
+          <span class="cuenta__icono" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4" width="17" height="6.5" rx="1.8"/><rect x="3.5" y="13.5" width="17" height="6.5" rx="1.8"/><path d="M7.5 7.25h.01M7.5 16.75h.01"/></svg></span>
+          <h2 id="cuenta-servidor-titulo" class="formulario__titulo">Servidor</h2>
+        </div>
+        <p class="formulario__ayuda">La app le habla a la API en esta dirección. Si el PC cambió de red, o va a usar otro, cámbiela: al cambiarla se cierra la sesión.</p>
+        <p id="cuenta-servidor-direccion" class="cuenta-app__direccion"></p>
+        <div class="acciones">
+          <button id="cuenta-servidor-cambiar" type="button" class="boton-contorno">Cambiar servidor</button>
+        </div>
       </section>
     </div>
   </main>
@@ -535,6 +572,25 @@
       <div class="acciones dialogo__acciones">
         <button id="eliminar-confirmar" type="submit" class="boton-secundario boton-secundario--peligro">Eliminar la cuenta</button>
         <button id="eliminar-cancelar" type="button" class="boton-secundario">Cancelar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- App Android: la dirección de la API (servidor-app.js). La primera vez no se puede cerrar sin elegirla. -->
+  <dialog id="dialogo-servidor" class="dialogo" aria-labelledby="servidor-titulo" aria-describedby="servidor-texto">
+    <form id="form-servidor" class="dialogo__cuerpo" novalidate>
+      <p class="ceja">App Matera</p>
+      <h2 id="servidor-titulo" class="formulario__titulo">¿Dónde está el servidor?</h2>
+      <p id="servidor-texto" class="formulario__ayuda"></p>
+      <div class="dialogo__apodo">
+        <label class="formulario__etiqueta" for="servidor-direccion">Dirección de la API</label>
+        <input id="servidor-direccion" name="direccion" class="formulario__campo" type="url" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="10.34.101.124">
+        <p class="formulario__ayuda">Basta con la IP del PC: el puerto 5000 y /api/v1 se agregan solos.</p>
+      </div>
+      <div id="error-servidor" class="tarjeta-error" role="alert" hidden></div>
+      <div class="acciones dialogo__acciones">
+        <button id="servidor-guardar" type="submit" class="boton-primario">Probar y guardar</button>
+        <button id="servidor-cancelar" type="button" class="boton-secundario">Cancelar</button>
       </div>
     </form>
   </dialog>

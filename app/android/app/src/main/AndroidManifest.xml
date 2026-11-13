@@ -1,5 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application
         android:allowBackup="true"
@@ -23,6 +24,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- El QR de Mi cuenta (web): co.edu.usergioarboleda.matera://servidor?api=<dirección de la API>.
+                 La app lo recibe con @capacitor/app y le pregunta a la persona si usa ese servidor. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="co.edu.usergioarboleda.matera" android:host="servidor" />
+            </intent-filter>
+
         </activity>
 
         <provider
@@ -36,20 +46,32 @@
         </provider>
     </application>
 
-    <!-- Permissions -->
+    <!-- Permisos -->
 
+    <!-- La API va por HTTP en la red local (CapacitorHttp y el WebSocket). -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Bluetooth (Android 12 o mas): buscar la placa sin pedir ubicacion, y conectarse -->
-    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <!-- Bluetooth en Android 11 o menos (minSdk 24) -->
+    <!-- Bluetooth (Android 12 o más): buscar la placa sin pedir ubicación (neverForLocation) y conectarse.
+         Se piden la primera vez que se busca la placa, desde el asistente. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" tools:targetApi="s" />
+    <!-- Bluetooth en Android 11 o menos (minSdk 24): ahí buscar por Bluetooth exige la ubicación. El plugin las
+         declara sin límite; aquí se reemplazan para que en Android 12 o más no exista el permiso de ubicación. -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30"
+        tools:node="replace" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" android:maxSdkVersion="30"
+        tools:node="replace" />
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
 
-    <!-- Notificaciones (Android 13 o mas) -->
+    <!-- Notificaciones (Android 13 o más): los avisos de las materas. Se pide al activar los avisos. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-</manifest>
 
+    <!-- Los avisos son inmediatos, nunca programados: sin alarmas exactas, sin volver a programarlos al
+         reiniciar el celular y sin despertarlo. local-notifications los declara; aquí se quitan. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" tools:node="remove" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" tools:node="remove" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" tools:node="remove" />
+</manifest>

@@ -9,6 +9,7 @@ import { crearPantallaEspecies } from "./especies.js";
 import { crearPantallaHistorial } from "./historial.js";
 import { crearJuego } from "./juego.js";
 import { crearPantallaMateras } from "./materas.js";
+import { iniciarServidorApp } from "./servidor-app.js";
 import { sesion } from "./sesion.js";
 import { crearTiempoReal } from "./tiempo-real.js";
 
@@ -258,3 +259,4 @@ pintarSesion();
 mostrarPantalla();
 cargarCatalogos();
 confirmarSesion();
+iniciarServidorApp(); // solo en la app Android: la dirección de la API (la primera vez la pide)
