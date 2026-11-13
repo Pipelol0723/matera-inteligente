@@ -46,8 +46,10 @@ frontend/            HTML, CSS y JavaScript estáticos, servidos aparte
   css/especies.css   el catálogo de especies y el formulario para agregar una
   css/historial.css  el historial de una matera
   css/admin.css      la administración de cuentas
+  css/app-movil.css  la tarjeta del QR para la app (web) y la del servidor (app), y la línea «Servidor» de Ingresar
   js/apariencia.js   el estilo y el tema elegidos, antes de pintar (se recuerdan en este equipo)
-  js/config.js       dónde está la API (en el mismo equipo desde el que se abrió el front) y la placa
+  js/config.js       dónde está la API (en la web, el mismo equipo que abrió el front; en la app, la guardada) y la placa
+  js/plataforma.js   si el front corre en el navegador o dentro de la app Android, y sus plugins nativos
   js/api.js          peticiones a la API, con el token en las rutas privadas
   js/app.js          arranque, navegación y pantallas que exigen sesión
   js/sesion.js       token de la sesión, en sessionStorage
@@ -62,18 +64,28 @@ frontend/            HTML, CSS y JavaScript estáticos, servidos aparte
   js/dibujo-planta.js  el dibujo SVG de la matera Tamagotchi (etapa, condición, cara y globo)
   js/participacion.js  la pregunta de participar en la tabla de posiciones
   js/avisos.js       los avisos del juego: notificación del navegador o aviso dentro de la página
+  js/avisos-nativos.js  en la app Android, los mismos avisos como notificaciones del celular
   js/conectar-sensor.js  el asistente «Conectar sensor»: lleva una placa nueva a su WiFi y a su matera
   js/canal-placa.js  el puerto CanalPlaca: lo que el asistente le pide a la placa (info, configurar, estado, cerrar)
   js/canal-red-placa.js     su adaptador por la red propia de la placa (HTTP en 192.168.4.1)
   js/canal-bluetooth.js     el contrato Bluetooth LE: pedidos en pedazos de 20 bytes y respuestas en trozos
   js/canal-bluetooth-web.js su adaptador por Web Bluetooth (Chrome o Edge)
+  js/canal-bluetooth-nativo.js  su adaptador por el Bluetooth de la app Android
+  js/ble-nativo.js   los métodos de BleClient que usa ese adaptador, sobre el plugin nativo
   js/canales-placa.js       qué canales ofrece el asistente: el punto de composición del lado del cliente
+  js/direccion-api.js  la dirección de la API en la app: guardarla, normalizarla y el enlace del QR
+  js/servidor-app.js la app Android: pedir, probar y cambiar la dirección de la API, y recibir el enlace del QR
+  js/qr.js           un generador mínimo de códigos QR, sin librerías de afuera
+  js/qr-servidor.js  en la web, el QR de Mi cuenta para apuntar la app a este servidor
   js/historial.js    historial de una planta
   js/admin.js        administración de cuentas
   js/formularios.js  errores de la API en los formularios
   js/lecturas.js     texto de unas lecturas y de su origen
   js/escala.js       la escala de cada parámetro: dónde van la banda óptima y la marca del valor
   js/formato.js      textos, colores y ayudas para crear nodos
+app/                 la app Android: el mismo front dentro de una WebView, con Capacitor (ver «La app móvil»)
+  capacitor.config.json  webDir ../frontend, CapacitorHttp y la configuración de los plugins
+  android/           el proyecto Android (Gradle), con su AndroidManifest.xml; lo que se compila no se sube
 firmware/
   matera-sensor/     el programa de la ESP32: su código y su clave, la red propia con el QR, la pantalla
                      y las lecturas (ver firmware/README.md)
@@ -178,7 +190,7 @@ La API queda en `http://127.0.0.1:5000/api/v1`. Se puede configurar con variable
 | `MATERA_PUERTO` | `5000` |
 | `MATERA_PUERTO_FRONT` | `5500`: con `MATERA_HOST=0.0.0.0`, el front también se acepta desde `http://<ip del PC>:5500` (CORS y WebSocket), para abrirlo desde el celular en la misma red |
 | `MATERA_RUTA_BD` | `backend/datos/matera.sqlite` |
-| `MATERA_ORIGENES_CORS` | `http://localhost:5500,http://127.0.0.1:5500` |
+| `MATERA_ORIGENES_CORS` | `http://localhost:5500,http://127.0.0.1:5500`. Para el WebSocket de la app Android se agrega `https://localhost` (ver [La app móvil](#la-app-móvil)) |
 | `MATERA_DIAS_SESION` | `7`: cuánto dura el token de una sesión |
 | `MATERA_HORAS_TOKEN_DISPOSITIVO` | `24`: cuánto dura el token de un sensor; después, el sensor vuelve a canjear su clave |
 | `MATERA_JWT_SECRETO` | Sin valor: el secreto con que se firman los JWT se genera la primera vez y se guarda junto a la base (`matera.sqlite.secreto-jwt`, que Git ignora). Así un reinicio no cierra las sesiones. Si se pierde, todos vuelven a ingresar. |
@@ -486,9 +498,9 @@ Antes de empezar:
 - La placa y el PC van en el mismo WiFi, de 2,4 GHz y con salida a internet (la placa toma la hora por NTP).
 
 **El recorrido del asistente.** «Agregar matera» pide apodo y especie y abre el asistente «Conectar sensor» (`js/conectar-sensor.js`); «Cambiar sensor», en una tarjeta, abre el mismo asistente y conserva el historial. Son seis pasos:
-1. **Preparar.** Mientras el equipo sigue en su WiFi, la app pide `GET /red` y anota a qué direcciones mandará la placa sus lecturas (como máximo 4). Si la lista viene vacía (el backend escucha solo en `127.0.0.1`), muestra el aviso de la API y no sigue. Después se elige el camino: **por Bluetooth** (el recomendado: el equipo no deja su WiFi) o **por la red de la placa**. Bluetooth solo se ofrece si el navegador tiene Web Bluetooth: Chrome o Edge, con el front en `localhost` o con HTTPS. Si no, el asistente dice por qué y ofrece solo la red de la placa.
+1. **Preparar.** Mientras el equipo sigue en su WiFi, la app pide `GET /red` y anota a qué direcciones mandará la placa sus lecturas (como máximo 4). Si la lista viene vacía (el backend escucha solo en `127.0.0.1`), muestra el aviso de la API y no sigue. Después se elige el camino: **por Bluetooth** (el recomendado: el equipo no deja su WiFi) o **por la red de la placa**. Bluetooth solo se ofrece si el navegador tiene Web Bluetooth: Chrome o Edge, con el front en `localhost` o con HTTPS. Si no, el asistente dice por qué y ofrece solo la red de la placa. En la app Android, Bluetooth se ofrece siempre, con el Bluetooth del celular (ver [La app móvil](#la-app-móvil)).
 2. **Encontrar la placa** (por Bluetooth) **o unirse a ella** (por su red). La pantalla de la matera muestra un QR con su red (`Matera-` y el código, por ejemplo `Matera-5500BA`) y una clave WPA2 de 8 caracteres, nueva cada vez.
-   - Por Bluetooth se escribe esa clave en la app, el navegador muestra la lista de placas cercanas y se elige la que se llama como la red. La app pide `info` con la clave.
+   - Por Bluetooth se escribe esa clave en la app, el navegador (o Android, en la app) muestra la lista de placas cercanas y se elige la que se llama como la red. La app pide `info` con la clave.
    - Por la red de la placa, se escanea el QR con la cámara del celular, o en el PC se elige esa red y se escribe la clave. La app encuentra la placa sola en `http://192.168.4.1` (`GET /info`).
    - En los dos casos la placa responde su código, la huella de su clave y las redes que ve.
 3. **Elegir el WiFi.** La red y su clave van directo a la placa (`configurar`), con las direcciones del paso 1. La app sigue sus etapas con `estado`: `conectando`, `buscando-servidor` y `esperando-matera`. La placa prueba cada dirección primero sin la clave, y solo se la manda a la que responde como la API.
@@ -499,8 +511,9 @@ Antes de empezar:
 **Dos caminos, un puerto.** Es puertos y adaptadores también del lado del cliente. El asistente solo conoce el puerto `CanalPlaca` (`js/canal-placa.js`), con las cuatro operaciones de la API local de la placa: `info`, `configurar`, `estado` y `cerrar`. Cada adaptador lo hereda y lo traduce a su transporte:
 - `RedDeLaPlaca` (`js/canal-red-placa.js`): HTTP en `192.168.4.1`.
 - `BluetoothWeb` (`js/canal-bluetooth-web.js`): Web Bluetooth. El contrato común de Bluetooth está en `CanalBluetooth` (`js/canal-bluetooth.js`): cada pedido se escribe en pedazos de 20 bytes, sin escrituras largas; la respuesta llega en trozos con 3 bytes de cabecera y se junta antes de leer el UTF-8; las notificaciones se activan antes del primer pedido, y mientras la clave sirve se pide `estado` cada 45 s para que la placa no corte la conexión.
+- `BluetoothNativo` (`js/canal-bluetooth-nativo.js`): el Bluetooth de la app Android, con el plugin `@capacitor-community/bluetooth-le`. Hereda de `CanalBluetooth` y solo pone su transporte: `initialize` con `androidNeverForLocation`, la lista de Android filtrada por el servicio de la placa, `connect` con su aviso de desconexión, las notificaciones de la respuesta antes del primer pedido y escrituras con respuesta de 20 bytes. Traduce los errores del plugin a los del canal (`CONEXION_CANCELADA`, `BLUETOOTH_APAGADO`, `BLUETOOTH_NO_DISPONIBLE` y `BLUETOOTH_CORTADO`).
 
-`js/canales-placa.js` es el punto de composición, como `main.py` en el backend: dice qué adaptadores se ofrecen y en qué orden. El asistente no importa ninguno. Cada canal declara si deja la red (mientras tanto no hay API) y si pide la clave de la pantalla, y el asistente solo mira eso. Así, `BluetoothNativo` (la app Android con Capacitor) hereda de `CanalBluetooth`, pone su transporte y se agrega a esa lista, sin tocar el asistente.
+`js/canales-placa.js` es el punto de composición, como `main.py` en el backend: dice qué adaptadores se ofrecen y en qué orden. El asistente no importa ninguno. Cada canal declara si deja la red (mientras tanto no hay API) y si pide la clave de la pantalla, y el asistente solo mira eso. En el navegador la lista es `BluetoothWeb` y `RedDeLaPlaca`; en la app, `BluetoothNativo` y `RedDeLaPlaca` (su WebView no tiene Web Bluetooth). El asistente es el mismo en los dos: agregar la app no lo cambió.
 
 **Si un camino falla.** Los errores de la placa llegan con su código, igual por los dos caminos:
 - `401 CLAVE_INCORRECTA` dice cuántos intentos quedan, y se corrige la clave sin volver a la lista de placas.
@@ -526,7 +539,7 @@ El avance se guarda en `sessionStorage`, porque al cambiar de red la página pue
 Por la red local el front va en http, así que el celular no muestra notificaciones del navegador: los avisos del juego aparecen dentro de la página y el celular vibra.
 
 **Límites conocidos.**
-- **El celular que hace de hotspot no puede unirse a la red de la placa.** Por Bluetooth sí funciona, si el navegador lo permite. Si no, el asistente se usa desde el PC (con el front en `localhost`, la app sigue alcanzando la API al cambiar de red) o desde el celular de otra persona.
+- **El celular que hace de hotspot no puede unirse a la red de la placa.** Por Bluetooth sí funciona, si el navegador lo permite, y siempre desde la app Android. Si no, el asistente se usa desde el PC (con el front en `localhost`, la app sigue alcanzando la API al cambiar de red) o desde el celular de otra persona.
 - **Web Bluetooth necesita HTTPS o `localhost`.** Con el front abierto desde el celular por `http://<IP del PC>:5500`, el navegador no lo ofrece y queda la red de la placa. En Windows, el Bluetooth de Chrome a veces no conecta: el asistente reintenta y, si sigue fallando, ofrece la red de la placa.
 - **El enlace Bluetooth no va cifrado**, igual que la red propia con su clave de 8 caracteres (ver «Seguridad» en el README del firmware).
 - **Apagar los datos móviles** mientras el celular está en la red de la placa: con ellos encendidos, Android puede mandar las peticiones por los datos y no llegar a `192.168.4.1`.
@@ -537,11 +550,22 @@ Por la red local el front va en http, así que el celular no muestra notificacio
 
 **El respaldo: «Conectar a mano».** Es el enlace del formulario de Mis materas y de los primeros pasos del asistente. Se escribe el código del sensor y la API crea la clave y la muestra una sola vez, como en la fase 2. Sirve para el simulador (`--clave=`) y para las placas con el programa de la fase 2, que llevan el código y la clave en `config.h`. El programa actual ya no usa `CODIGO_SENSOR` ni `CLAVE_SENSOR`: su `config.h` es opcional y solo ajusta pines, los valores del LDR y una red de respaldo para desarrollo.
 
-## App Android (en preparación)
+## La app móvil
 
-La app es el mismo front dentro de una WebView nativa (Capacitor), en la carpeta `app/`. Por ahora es solo el proyecto y un APK de depuración que abre el front; falta la dirección del servidor, el Bluetooth nativo y las notificaciones. `webDir` apunta a `../frontend`: el front no se copia a mano.
+La app Android es el mismo front dentro de una WebView nativa, con Capacitor, en la carpeta `app/`. `webDir` apunta a `../frontend`: el front no se copia a mano, y la web y la app son el mismo código. La página vive en el celular (`https://localhost`) y la API sigue en el PC, así que se mantiene RA2, y ninguna regla pasa al JavaScript.
 
-Paquete `co.edu.usergioarboleda.matera`, Capacitor 8.6.0 con `@capacitor-community/bluetooth-le` 8.3.0 y `@capacitor/local-notifications` 8.3.1. `CapacitorHttp` está activado, porque la app se sirve desde `https://localhost` y la API es `http://<IP del PC>:5000`.
+Paquete `co.edu.usergioarboleda.matera`, Capacitor 8.6.0 con `@capacitor-community/bluetooth-le` 8.3.0, `@capacitor/local-notifications` 8.3.1 y `@capacitor/app` 8.1.2 (el enlace del QR). En la app solo cambian algunos adaptadores, y cada uno pregunta a `js/plataforma.js` si está en la app:
+
+| Qué | En la web | En la app |
+|---|---|---|
+| La dirección de la API | El mismo equipo que abrió el front, puerto 5000 (`config.js`) | La que elige la persona la primera vez (`servidor-app.js`) |
+| Bluetooth con la placa | `BluetoothWeb` (Chrome o Edge) | `BluetoothNativo`, con el Bluetooth del celular |
+| Avisos de las materas | Notificación del navegador, o un aviso en la página | Notificación de Android (`avisos-nativos.js`), o un aviso en la pantalla |
+| Peticiones a la API | `fetch` del navegador, con CORS | `fetch` nativo (`CapacitorHttp`): sin CORS ni contenido mixto |
+
+El front no usa empaquetador, así que los plugins se usan por el puente que Capacitor pone en la página (`window.Capacitor.Plugins`). `BleClient` del plugin de Bluetooth importa `@capacitor/core` por su nombre y no se puede cargar sin empaquetador: `js/ble-nativo.js` tiene los métodos que se usan, con las mismas firmas, su cola y la conversión a hexadecimal del plugin nativo.
+
+### Compilar e instalar
 
 Desde PowerShell, en una copia fuera de OneDrive y con ruta corta (Gradle lo pide):
 
@@ -552,10 +576,61 @@ npm install                             # la primera vez
 npx cap sync android                    # copia el front y los plugins al proyecto
 cd android
 .\gradlew.bat assembleDebug             # APK en app\build\outputs\apk\debug\app-debug.apk
+adb devices                             # el celular, con la depuración USB activa y el diálogo aceptado
 adb install -r app\build\outputs\apk\debug\app-debug.apk
 ```
 
-Los permisos de Bluetooth (`BLUETOOTH_SCAN` con `neverForLocation` y `BLUETOOTH_CONNECT`) y `POST_NOTIFICATIONS` ya están en el `AndroidManifest.xml`. Lo que se genera al compilar (`build/`, `.gradle/`, `node_modules/` y los APK) no se sube.
+- Se instala **sin `-g`**: así los permisos se piden como los vería cualquiera, en el momento en que se usan.
+- El APK de depuración se firma con la llave de depuración de siempre. El `versionCode` de `app/android/app/build.gradle` sube con cada APK que se reparte.
+- Lo que se genera al compilar (`build/`, `.gradle/`, `node_modules/`, `assets/public/` y los APK) no se sube.
+
+### Apuntarla al servidor
+
+**La primera vez** la app pregunta dónde está la API. Basta con la IP del PC (`10.34.101.124`): el puerto 5000 y `/api/v1` se agregan solos. También acepta la dirección completa, otro puerto o `https`. Antes de guardarla, la prueba: pide `GET /parametros` sin token y espera el 401 en JSON de la API (R7), así que no hace falta una cuenta ni se escribe nada. La dirección queda guardada en el celular. Se ve y se cambia en Ingresar («Servidor: … · Cambiar») y en Mi cuenta (tarjeta «Servidor»). Cambiarla cierra la sesión, porque el token es de la otra API.
+
+**El QR de Mi cuenta.** En la web, Mi cuenta tiene la tarjeta «App del celular». Muestra un QR con el enlace `co.edu.usergioarboleda.matera://servidor?api=<dirección de la API>`:
+- La dirección sale de `GET /red`, con la de la ruta por defecto primero. Las otras direcciones del PC (como máximo 4) quedan como botones, por si el celular está en otra red.
+- Con la cámara del celular se abre la app, y la app **pregunta** si usa ese servidor. Un enlace así puede venir de cualquier página o QR, y la app le mandaría a ese servidor el correo y la contraseña: por eso nunca lo cambia sola.
+- Si la cámara no ofrece abrir la app, la dirección está escrita al lado, para escribirla.
+- En un celular con la app instalada, «Abrir en la app» hace lo mismo sin la cámara.
+- El QR lo dibuja `js/qr.js`, un generador mínimo escrito en el proyecto (sin CDN ni librerías de afuera). Se comprobó decodificándolo con OpenCV.
+
+### El backend para la app
+
+- Como siempre para la red: `MATERA_HOST=0.0.0.0` y el puerto 5000 abierto en el firewall.
+- **HTTP sin cifrar:** las peticiones salen por `CapacitorHttp`, así que no hay CORS ni bloqueo por contenido mixto. El manifiesto permite tráfico sin cifrar, porque la API va por `http` en la red local. `js/plataforma.js` hace que ese `fetch` nativo respete la cancelación, como el del navegador: así se cumplen los plazos de 15 s de la API y los de la placa.
+- **El WebSocket no pasa por `CapacitorHttp`.** La WebView lo abre con `Origin: https://localhost`, y el backend rechaza los orígenes que no conoce (403 `ORIGEN_NO_PERMITIDO`). Para tener las mediciones en vivo en la app, se agrega ese origen:
+
+  ```powershell
+  $env:MATERA_HOST = "0.0.0.0"
+  $env:MATERA_ORIGENES_CORS = "http://localhost:5500,http://127.0.0.1:5500,https://localhost"
+  python main.py
+  ```
+
+  Sin eso, la app funciona igual con la consulta cada 10 s (R6), y el indicador dice «En vivo: reconectando…». El `ws://` desde una página `https` se permite porque la app tiene `allowMixedContent`; la WebView solo avisa que está desaconsejado.
+
+### Notificaciones
+
+- Los avisos `PASO_A_CRITICO` y `SE_MARCHITO` salen con `@capacitor/local-notifications`, en un canal propio («Avisos de las materas»). Son inmediatos, nunca programados (`isExactNotification: false`).
+- El permiso de Android 13 (`POST_NOTIFICATIONS`) se pide solo cuando la persona toca «Activar notificaciones» en Juego, o «Avisarme con notificaciones» en un aviso. Tocar la notificación lleva a Mis materas.
+- **MagicOS (y otros Android) cierran las apps en segundo plano**, así que los avisos llegan mientras la app está abierta. La pantalla Juego explica cómo dejarla sin optimizar.
+
+### Permisos
+
+| Permiso | Para qué |
+|---|---|
+| `INTERNET` | La API y el WebSocket |
+| `BLUETOOTH_SCAN` (con `neverForLocation`) y `BLUETOOTH_CONNECT` | Android 12 o más: buscar la placa y conectarse. Se piden la primera vez que se busca la placa |
+| `BLUETOOTH`, `BLUETOOTH_ADMIN`, `ACCESS_FINE_LOCATION` y `ACCESS_COARSE_LOCATION` | Solo Android 11 o menos (`maxSdkVersion` 30), que exige la ubicación para buscar por Bluetooth |
+| `POST_NOTIFICATIONS` | Los avisos de las materas |
+
+Los plugins declaran además `SCHEDULE_EXACT_ALARM`, `RECEIVE_BOOT_COMPLETED` y `WAKE_LOCK`, para notificaciones programadas: se quitan en el manifiesto con `tools:node="remove"`, porque aquí no se programa nada.
+
+### Límites conocidos
+
+- La sesión va en `sessionStorage`, como en la web: si Android cierra la app, se vuelve a ingresar.
+- Los registros de Capacitor están apagados (`loggingBehavior: "none"`). Así ni la clave de la pantalla de la placa ni la del WiFi salen por la consola ni por `adb logcat`.
+- La red de la placa (el otro camino del asistente) también se ofrece en la app, pero el celular que hace de hotspot no puede unirse a ella: ahí se usa Bluetooth.
 ## Pruebas
 
 Desde la carpeta `backend/`:
