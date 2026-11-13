@@ -7,7 +7,8 @@
 %% Desde la fase 2 (R7) todas las rutas del front exigen el JWT de usuario: consultar especies y diagnosticar tambien piden sesion,
 %% y el visitante solo crea su cuenta e inicia sesion.
 %% Los casos del sensor se declaran primero para que sus flechas "incluye" no crucen otros casos.
-%% Corte 3 (borde grueso): el juego (la matera Tamagotchi, los puntos y la tabla) y el asistente que conecta una placa.
+%% Corte 3 (borde grueso): el juego (la matera Tamagotchi, los puntos y la tabla), el asistente que conecta una placa
+%% (por Bluetooth o por su red, en la web o en la app Android) y el modo prueba del administrador.
 flowchart LR
     sensor["Sensor<br/>(ESP32 o simulador)"]
     visitante["Visitante"]
@@ -28,11 +29,12 @@ flowchart LR
         uc17(["Ver mis materas Tamagotchi<br/>y mis puntos, con sus avisos"])
         uc6(["Crear una matera con su sensor y borrarla"])
         uc8(["Cambiar el sensor de una matera"])
-        uc20(["Conectar una placa con el asistente,<br/>al crear la matera o cambiarle el sensor<br/>(QR de la placa y WiFi, sin tocar código)"])
+        uc20(["Conectar una placa con el asistente,<br/>al crear la matera o cambiarle el sensor<br/>(por Bluetooth o por la red de la placa,<br/>en la web o en la app, sin tocar código)"])
         uc9(["Ver el historial de una planta"])
         uc10(["Ver mi cuenta y cerrar sesión"])
         uc13(["Administrar usuarios"])
         uc14(["Agregar especies<br/>(con la tabla en CSV, 409)"])
+        uc22(["Modo prueba: ponerle a su matera un estado<br/>de mentira y volver a lo normal"])
         uc18(["Elegir si participo en la tabla,<br/>con un apodo de jugador"])
         uc19(["Ver la tabla de posiciones<br/>(solo si participo)"])
     end
@@ -62,6 +64,8 @@ flowchart LR
     admin -->|también es| usuario
     admin --- uc13
     admin --- uc14
+    admin --- uc22
+    uc22 -.->|cambia el dibujo de| uc17
 
     classDef actor fill:#ffffff,stroke:#56665b,stroke-width:1.5px,color:#16231b
     classDef caso fill:#f5f8f4,stroke:#7b887f,color:#16231b
@@ -73,3 +77,5 @@ flowchart LR
     class uc13,uc14 soloAdmin
     classDef nuevo3 fill:#dbeae0,stroke:#2e6a4e,stroke-width:4px,color:#16231b
     class uc17,uc18,uc19,uc20,uc21 nuevo3
+    classDef soloAdmin3 fill:#16231b,stroke:#6fcf96,stroke-width:4px,color:#ffffff
+    class uc22 soloAdmin3

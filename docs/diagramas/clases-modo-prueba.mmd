@@ -1,0 +1,176 @@
+%% El modo prueba del corte 3: un admin le pone a una matera suya un estado de mentira para ver como se dibuja.
+%% Todo esta en archivos nuevos: dominio/modo_prueba.py y puertos_prueba.py; aplicacion/modo_prueba.py;
+%% presentacion/rutas_prueba.py y esquemas_prueba.py; infraestructura/estados_prueba_memoria.py.
+%% MascotasConPrueba y LecturaConPrueba son decoradores: implementan el mismo puerto que envuelven
+%% (ConsultarMascotas y RegistrarLectura) y main.py los pone en lugar del caso de uso original, que no cambia.
+%% Colores por capa (sin namespace, para que se lea): verde dominio, amarillo aplicacion, morado presentacion,
+%% azul infraestructura.
+%% Borde grueso: se agrego en el corte 3. Borde medio: corte 2 (ya existia). Borde fino: corte 1.
+%% El puerto de entrada lleva el prefijo puertos_prueba. y el caso de uso que lo hereda va sin prefijo.
+classDiagram
+    direction TB
+
+    class rutas_prueba {
+        <<módulo>>
+        +crear_blueprint_prueba(poner, quitar, autenticacion) Blueprint
+        las dos rutas con Autenticacion.con_usuario
+    }
+    class esquemas_prueba {
+        <<módulo>>
+        +estado_de_prueba_desde_json(cuerpo) EstadoDePrueba
+        +estado_de_prueba_a_json(estado) dict o None
+        solo revisa la forma: 400 si un valor no existe
+    }
+
+    class pp_PonerEstadoDePrueba["puertos_prueba.PonerEstadoDePrueba"] {
+        <<interface>>
+        +ejecutar(usuario, planta_id, estado) EstadoDePrueba
+    }
+    class pp_QuitarEstadoDePrueba["puertos_prueba.QuitarEstadoDePrueba"] {
+        <<interface>>
+        +ejecutar(usuario, planta_id)
+    }
+    class pj_ConsultarMascotas["puertos_juego.ConsultarMascotas"] {
+        <<interface>>
+        +ejecutar(usuario) list~Mascota~
+    }
+    class entrada_RegistrarLectura["entrada.RegistrarLectura"] {
+        <<interface>>
+        +ejecutar(identidad, reporte) ResultadoMedicion
+    }
+
+    class PonerEstadoDePrueba {
+        -plantas: ConsultaPlantas
+        -estados: EstadosDePrueba
+        +ejecutar(usuario, planta_id, estado) EstadoDePrueba
+    }
+    class QuitarEstadoDePrueba {
+        -plantas: ConsultaPlantas
+        -estados: EstadosDePrueba
+        +ejecutar(usuario, planta_id)
+    }
+    class MascotasConPrueba {
+        -interno: ConsultarMascotas
+        -estados: EstadosDePrueba
+        +ejecutar(usuario) list~Mascota~
+    }
+    class LecturaConPrueba {
+        -interno: RegistrarLectura
+        -estados: EstadosDePrueba
+        -cuentas: ConsultaCuentas
+        +ejecutar(identidad, reporte) ResultadoMedicion
+    }
+
+    class EstadosDePrueba {
+        <<interface>>
+        +de_planta(planta_id) EstadoDePrueba o None
+        +guardar(planta_id, estado)
+        +quitar(planta_id)
+    }
+    class ConsultaPlantas {
+        <<interface>>
+        +por_id(planta_id) Planta o None
+    }
+    class ConsultaCuentas {
+        <<interface>>
+        +por_id(usuario_id) Usuario o None
+    }
+    class EstadosDePruebaEnMemoria {
+        -estados: dict planta_id → EstadoDePrueba
+        -candado: Lock
+        +de_planta(planta_id) EstadoDePrueba o None
+        +guardar(planta_id, estado)
+        +quitar(planta_id)
+    }
+
+    class EstadoDePrueba {
+        +etapa: EtapaCrecimiento
+        +condicion: Condicion
+        +cara: EstadoGlobal
+        +dormida: bool
+        +necesidad: Necesidad o None
+        +aplicar(mascota: Mascota) MascotaEnPrueba
+    }
+    class Mascota {
+        +planta: Planta
+        +etapa · condicion · cara
+        +dormida · necesidad · aviso
+        +puntos · horas_cuidada · ultima_lectura
+    }
+    class MascotaEnPrueba {
+        +prueba: EstadoDePrueba o None
+    }
+    class ResultadoMedicion {
+        +planta: Planta
+        +diagnostico: Diagnostico
+        +registro: RegistroMedicion
+    }
+    class ResultadoEnPrueba {
+        +prueba: EstadoDePrueba o None
+    }
+    class Usuario {
+        +es_admin() bool
+        +exigir_admin()
+    }
+    class Planta {
+        +id: int
+        +usuario_id: int
+        +exigir_dueno(usuario_id)
+    }
+
+    rutas_prueba ..> pp_PonerEstadoDePrueba : PUT /juego/materas/{id}/prueba
+    rutas_prueba ..> pp_QuitarEstadoDePrueba : DELETE /juego/materas/{id}/prueba
+    rutas_prueba ..> esquemas_prueba
+    esquemas_prueba ..> EstadoDePrueba : arma
+
+    pp_PonerEstadoDePrueba <|.. PonerEstadoDePrueba
+    pp_QuitarEstadoDePrueba <|.. QuitarEstadoDePrueba
+    pj_ConsultarMascotas <|.. MascotasConPrueba
+    entrada_RegistrarLectura <|.. LecturaConPrueba
+    MascotasConPrueba --> pj_ConsultarMascotas : interno
+    LecturaConPrueba --> entrada_RegistrarLectura : interno
+
+    PonerEstadoDePrueba --> EstadosDePrueba : guardar
+    QuitarEstadoDePrueba --> EstadosDePrueba : quitar
+    MascotasConPrueba --> EstadosDePrueba : de_planta
+    LecturaConPrueba --> EstadosDePrueba : de_planta
+    PonerEstadoDePrueba --> ConsultaPlantas
+    QuitarEstadoDePrueba --> ConsultaPlantas
+    LecturaConPrueba --> ConsultaCuentas : ¿el dueño es admin?
+    PonerEstadoDePrueba ..> Usuario : exigir_admin()
+    PonerEstadoDePrueba ..> Planta : exigir_dueno()
+    EstadosDePrueba <|.. EstadosDePruebaEnMemoria
+
+    MascotasConPrueba ..> EstadoDePrueba : aplicar()
+    EstadoDePrueba ..> MascotaEnPrueba : crea
+    Mascota <|-- MascotaEnPrueba
+    ResultadoMedicion <|-- ResultadoEnPrueba
+    MascotaEnPrueba --> EstadoDePrueba : prueba
+    ResultadoEnPrueba --> EstadoDePrueba : prueba
+    LecturaConPrueba ..> ResultadoEnPrueba : crea
+
+    note for EstadoDePrueba "Solo cambia el dibujo: puntos, horas bien cuidada,<br>última lectura y diagnóstico quedan reales, y aviso es None.<br>Si duerme, no hay globo (como en CuidadoDeMascota)."
+    note for MascotasConPrueba "Decorador: implementa el mismo puerto que envuelve.<br>main.py los pone en lugar de ConsultarMascotas<br>y RegistrarLectura, que no cambian. La prueba solo<br>se aplica si el dueño sigue siendo admin."
+    note for EstadosDePruebaEnMemoria "En la memoria del servidor, no en la base:<br>reiniciar el backend lo borra."
+
+    style rutas_prueba fill:#E1D5E7,stroke:#6a3d80,stroke-width:4px,color:#16231b
+    style esquemas_prueba fill:#E1D5E7,stroke:#6a3d80,stroke-width:4px,color:#16231b
+    style pp_PonerEstadoDePrueba fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style pp_QuitarEstadoDePrueba fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style pj_ConsultarMascotas fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style entrada_RegistrarLectura fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style PonerEstadoDePrueba fill:#FFF2CC,stroke:#8a6d12,stroke-width:4px,color:#16231b
+    style QuitarEstadoDePrueba fill:#FFF2CC,stroke:#8a6d12,stroke-width:4px,color:#16231b
+    style MascotasConPrueba fill:#FFF2CC,stroke:#8a6d12,stroke-width:4px,color:#16231b
+    style LecturaConPrueba fill:#FFF2CC,stroke:#8a6d12,stroke-width:4px,color:#16231b
+    style EstadosDePrueba fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style ConsultaPlantas fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style ConsultaCuentas fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style EstadosDePruebaEnMemoria fill:#DAE8FC,stroke:#2f5f99,stroke-width:4px,color:#16231b
+    style EstadoDePrueba fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style Mascota fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style MascotaEnPrueba fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style ResultadoMedicion fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style ResultadoEnPrueba fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style Usuario fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style Planta fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b

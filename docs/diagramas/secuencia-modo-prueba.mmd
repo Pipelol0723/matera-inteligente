@@ -1,0 +1,75 @@
+%% Secuencia del corte 3 (implementada): el modo prueba. Un admin le pone a una matera suya un estado de mentira
+%% para mostrar en la demo cada dibujo, en la app y en la pantalla de la placa, y despues la vuelve a lo normal.
+%% Entra sin modificar archivos del nucleo: dominio/modo_prueba.py, dominio/puertos_prueba.py y
+%% aplicacion/modo_prueba.py son nuevos. MascotasConPrueba y LecturaConPrueba envuelven a ConsultarMascotas y a
+%% RegistrarLectura e implementan sus mismos puertos; main.py los conecta. Solo cambia el dibujo: los puntos, las
+%% lecturas y el diagnostico siguen siendo los reales, y no sale ningun aviso.
+sequenceDiagram
+    autonumber
+    actor AD as Admin
+    participant F as Front<br/>(js/modo-prueba.js y juego.js)
+    participant RP as rutas_prueba.py<br/>(presentación)
+    participant PP as PonerEstadoDePrueba y<br/>QuitarEstadoDePrueba<br/>(aplicación, modo_prueba.py)
+    participant D as Usuario y Planta<br/>(dominio)
+    participant EP as EstadosDePruebaEnMemoria<br/>(infraestructura, puerto<br/>EstadosDePrueba)
+    participant MC as rutas_juego.py y<br/>MascotasConPrueba<br/>(envuelve ConsultarMascotas)
+    participant ESP as Placa ESP32
+    participant LC as rutas_dispositivos.py y<br/>LecturaConPrueba<br/>(envuelve RegistrarLectura)
+
+    rect rgb(238, 248, 238)
+        Note over AD,EP: poner el estado de prueba
+        AD ->> F: «Modo prueba» en una matera suya: tamaño, condición,<br/>cara, si duerme y el globo, y «Ver este estado»
+        F ->> RP: PUT /api/v1/juego/materas/{id}/prueba, con el JWT<br/>{etapa: "FLORECIDA", condicion: "MARCHITA",<br/>cara: "CRITICO", dormida: false, necesidad: "SED"}
+        Note over RP: Autenticacion.con_usuario da el Usuario, y esquemas_prueba<br/>arma el EstadoDePrueba: un valor que no existe da 400
+        RP ->> PP: PonerEstadoDePrueba.ejecutar(usuario, planta_id, estado)
+        PP ->> D: usuario.exigir_admin()
+        alt la cuenta no es admin
+            D --x PP: PermisoDenegado
+            PP --x RP: el error
+            RP -->> F: 403 PERMISO_DENEGADO
+        else es admin
+            PP ->> D: buscar_planta_propia: ConsultaPlantas.por_id<br/>y Planta.exigir_dueno(usuario.id)
+            alt la matera es ajena o no existe
+                D --x PP: PlantaNoEncontrada
+                RP -->> F: 404 PLANTA_NO_ENCONTRADA (no revela si existe)
+            else es suya
+                PP ->> EP: guardar(planta.id, estado)
+                RP -->> F: 200 {plantaId, prueba: {...}}
+            end
+        end
+    end
+
+    rect rgb(238, 244, 250)
+        Note over F,MC: la app dibuja la prueba
+        F ->> MC: GET /api/v1/juego/materas (al momento y cada 10 s)
+        MC ->> MC: ConsultarMascotas de siempre: las materas reales
+        MC ->> EP: de_planta(id), solo si el usuario es admin
+        EP -->> MC: EstadoDePrueba
+        Note over MC: EstadoDePrueba.aplicar(mascota) da una MascotaEnPrueba:<br/>etapa, condición, cara, dormida y globo de la prueba,<br/>con los puntos, las horas bien cuidada y la última lectura reales,<br/>y sin aviso
+        MC -->> F: 200 {materas: [{..., etapa, condicion, cara, dormida,<br/>necesidad, aviso: null, prueba: {...}}]}
+        F -->> AD: el dibujo de la prueba, con la marca «Modo prueba»<br/>(en Mis materas y en Diagnóstico)
+    end
+
+    rect rgb(238, 248, 238)
+        Note over ESP,LC: la placa dibuja la prueba en su próxima lectura
+        ESP ->> LC: POST /api/v1/dispositivos/{código}/lecturas, Bearer JWT
+        LC ->> LC: RegistrarLectura de siempre: diagnóstico,<br/>historial, puntos y aviso en vivo reales
+        LC ->> EP: de_planta(planta.id)
+        EP -->> LC: EstadoDePrueba
+        Note over LC: solo si el dueño sigue siendo admin<br/>(ConsultaCuentas.por_id): ResultadoEnPrueba
+        LC -->> ESP: 201 {planta, momento, diagnostico (real), necesidad,<br/>prueba: {etapa, condicion, cara, dormida, necesidad}}
+        Note over ESP: pantallaPrueba: la carita, la etapa y la condición<br/>de la prueba, con la palabra «prueba»
+    end
+
+    rect rgb(238, 244, 250)
+        Note over AD,EP: volver a lo normal
+        AD ->> F: «Volver a lo normal»
+        F ->> RP: DELETE /api/v1/juego/materas/{id}/prueba
+        RP ->> PP: QuitarEstadoDePrueba.ejecutar(usuario, planta_id)
+        PP ->> D: exigir_admin() y exigir_dueno(), como al ponerlo
+        PP ->> EP: quitar(planta.id)
+        RP -->> F: 200 {plantaId, prueba: null, mensaje} (JSON, no un 204 vacío: RA1)
+        Note over F,ESP: GET /juego/materas ya no trae prueba, y la próxima<br/>respuesta 201 a la placa trae "prueba": null: la pantalla vuelve a lo real
+    end
+
+    Note over EP: el estado vive en la memoria del servidor:<br/>reiniciar el backend lo borra

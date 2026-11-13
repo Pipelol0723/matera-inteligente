@@ -7,7 +7,9 @@ Matera inteligente es una API que diagnostica el estado de una planta a partir d
 - **Historial:** solo el sensor escribe en él.
 - **Pantalla del dueño:** se actualiza sola. Consulta la API cada 10 segundos y, además, recibe cada lectura al instante por WebSocket.
 - **Corte 3, el juego:** cada matera es un Tamagotchi. Crece con el tiempo que pasa bien cuidada, se marchita si la descuidan, dice qué necesita y avisa cuando está mal. Cada lectura suma o resta puntos, y quien quiere compite en una tabla de posiciones con un apodo. Ver [La matera Tamagotchi](#la-matera-tamagotchi).
-- **Corte 3, la conexión:** la placa se conecta sola. Muestra un QR con su propia red, la app le entrega el WiFi y la dirección del servidor, y crea la matera con el código y la huella de la clave que creó la placa. Nadie toca `config.h`. Ver [Conectar una matera](#conectar-una-matera).
+- **Corte 3, la conexión:** la placa se conecta sola. Muestra un QR con su propia red y se anuncia por Bluetooth; la app le entrega el WiFi y la dirección del servidor por cualquiera de los dos caminos, y crea la matera con el código y la huella de la clave que creó la placa. Nadie toca `config.h`. Ver [Conectar una matera](#conectar-una-matera).
+- **Corte 3, la app Android:** el mismo front dentro de una app, con Capacitor, que usa el Bluetooth y las notificaciones del celular. Ver [La app móvil](#la-app-móvil).
+- **Corte 3, el modo prueba:** un administrador le pone a una matera suya un estado de mentira para mostrar cada dibujo en la demo, en la app y en la pantalla de la placa. Ver [Modo prueba](#modo-prueba-solo-administradores).
 
 Proyecto de Arquitectura de Software, semestre 2026-03. El corte 1, tal como se entregó, está en el tag `corte-1`. La fase 2 organiza el backend en puertos y adaptadores (arquitectura hexagonal): ver [Arquitectura](#arquitectura-puertos-y-adaptadores). El corte 3 agrega el juego sin modificar ningún archivo del núcleo: ver [La prueba de cambio del corte 3](#la-prueba-de-cambio-del-corte-3).
 
@@ -164,7 +166,21 @@ git diff --name-status b574752 HEAD -- backend/dominio backend/aplicacion
 
 **`GET /red` no pasa por el núcleo.** No tiene ninguna regla de negocio: solo dice por qué direcciones alcanza una placa al servidor. `main.py` le pasa a `presentacion/rutas_red.py` las funciones de `RedLocal` (`infraestructura/red_local.py`), así presentación sigue sin importar infraestructura.
 
-Los diagramas del corte 3 están en [docs/diagramas](docs/diagramas/README.md): `hexagonal`, `clases-juego`, `secuencia-puntaje` y `secuencia-conexion-placa`.
+**El modo prueba también entró solo agregando archivos** (commit `8c44b1d`). `MascotasConPrueba` y `LecturaConPrueba` implementan los mismos puertos que envuelven (`ConsultarMascotas` y `RegistrarLectura`), y `main.py` los pone en lugar de los casos de uso de siempre, que no cambian:
+
+```bash
+git show --name-status 8c44b1d -- backend/dominio backend/aplicacion
+```
+
+```
+A	backend/aplicacion/modo_prueba.py
+A	backend/dominio/modo_prueba.py
+A	backend/dominio/puertos_prueba.py
+```
+
+**El cliente también es puertos y adaptadores.** El asistente que conecta la placa solo conoce el puerto `CanalPlaca` (`frontend/js/canal-placa.js`), y `canales-placa.js` elige sus adaptadores: la red de la placa, Web Bluetooth y el Bluetooth de la app Android. La app entró como un adaptador más, sin cambiar el asistente (ver [Conectar una matera](#conectar-una-matera)).
+
+Los diagramas del corte 3 están en [docs/diagramas](docs/diagramas/README.md): `hexagonal`, `clases-juego`, `clases-modo-prueba`, `secuencia-puntaje`, `secuencia-conexion-placa`, `secuencia-conexion-bluetooth` y `secuencia-modo-prueba`.
 
 ## Requisitos
 
@@ -329,10 +345,42 @@ python simulador/simulador_esp32.py MT-0002-AB --clave=<clave> --casos
 
 ### La demo de la sustentación
 
-**Fase 2.** El enunciado pide cuatro cosas. Las tres primeras se hacen así, desde la raíz del repositorio y con el backend corriendo:
+**Antes de empezar.** Desde `backend/`, el backend abierto a la red, con el reloj de la demo y el origen de la app Android para el WebSocket:
+
+```powershell
+$env:MATERA_HOST = "0.0.0.0"
+$env:MATERA_MINUTOS_POR_DIA_JUEGO = "6"
+$env:MATERA_ORIGENES_CORS = "http://localhost:5500,http://127.0.0.1:5500,https://localhost"
+python main.py
+```
+
+- El front en otra terminal (ver [Ejecutar el front](#ejecutar-el-front)), el puerto 5000 abierto en el firewall y el 5500 si el front se abre desde otro equipo.
+- El PC, el Honor y la placa en el mismo WiFi de 2,4 GHz (el hotspot del celular sirve).
+- Una cuenta admin para el modo prueba (`python crear_admin.py <correo>`) y una matera de **potos** con la placa: con la luz encendida, los rangos del DHT11 le alcanzan para estar SALUDABLE.
+- La app instalada en el Honor (ver [Compilar e instalar](#compilar-e-instalar)) y apuntada al PC con el QR de Mi cuenta.
+
+**Corte 3.** Lo nuevo se muestra así:
+
+1. **La matera Tamagotchi con el reloj acelerado.** Con 6 minutos por día, una hora de juego dura 15 segundos, lo mismo que tarda la placa entre una lectura y otra: un potos bien cuidado llega a brote a los 6 minutos. Para verla decaer sin esperar, se usa el simulador sobre otra matera de potos con `--fuera-de-rango 1`: con esa especie, la mayoría de esas lecturas salen CRITICO. La cara se pone triste, llega el aviso «pasó a CRÍTICO» y, cuando el promedio de las 6 horas de juego queda por debajo de −5, «se marchitó» (ver [La matera Tamagotchi](#la-matera-tamagotchi)).
+2. **Cada estado, con el modo prueba.** Con la cuenta admin, en Mis materas, «Modo prueba» en la matera de la placa: por ejemplo FLORECIDA, MARCHITA, cara CRÍTICO y globo SED, y «Ver este estado». La app lo dibuja al momento, con la marca «Modo prueba», y la pantalla de la placa en su próxima lectura (como mucho 15 s). Los puntos y el diagnóstico siguen siendo los reales. «Volver a lo normal» la deja como es (ver [Modo prueba](#modo-prueba-solo-administradores)). Una cuenta que no es admin recibe `403 PERMISO_DENEGADO`, aunque llame a la API directo (con `$api` y `$beto` del punto 3 de «Lo de siempre», más abajo):
+
+   ```powershell
+   $prueba = @{ etapa = "SEMILLA"; condicion = "SANA"; cara = "SALUDABLE"; dormida = $false; necesidad = $null } | ConvertTo-Json
+   try { Invoke-RestMethod -Method Put "$api/juego/materas/1/prueba" -Headers @{ Authorization = "Bearer $beto" } -ContentType "application/json" -Body $prueba } catch { $_.ErrorDetails.Message }
+   ```
+
+   Lo decide `Usuario.exigir_admin`, en el dominio.
+3. **La tabla de posiciones con dos cuentas.** Una participa con un apodo y la otra no. La que no participa no aparece en la tabla ni la ve: su pantalla Juego la invita a participar, y `GET /juego/tabla` le responde `403 PARTICIPACION_REQUERIDA`. Lo decide `Participacion.exigir_participacion`, en el dominio.
+4. **La placa se conecta por Bluetooth desde el celular.** Con la placa en su modo de conexión (sin red guardada, o BOOT 5 s), en la app del Honor: «Agregar matera», «Por Bluetooth», la clave de la pantalla, elegir `Matera-…`, el WiFi y su clave. Funciona aunque el Honor sea el hotspot, porque no deja su red (ver [Conectar por Bluetooth](#conectar-por-bluetooth)). Si el Bluetooth falla, el mismo asistente sigue por la red de la placa desde el PC.
+5. **La app en el Honor.** Es el mismo front: Mis materas, el Tamagotchi, el Juego y los avisos como notificaciones de Android (se activan en Juego). Muestra que la app es otro adaptador del cliente: el asistente no cambió, solo se agregó `BluetoothNativo` en `canales-placa.js` (ver [La app móvil](#la-app-móvil)).
+6. **La prueba de cambio del corte 3.** `git show --name-status 1dac8d8 -- backend/dominio backend/aplicacion` solo lista archivos agregados, y lo mismo el modo prueba con `8c44b1d` (ver [La prueba de cambio del corte 3](#la-prueba-de-cambio-del-corte-3)).
+
+Si el profesor confirma que una lectura EN_RIESGO no debe restar, solo cambia la tabla `ReglaDeCuidado.PUNTOS` de `dominio/juego.py` (y sus pruebas).
+
+**Lo de siempre (fase 2).** El enunciado de la fase 2 pide cuatro cosas, que siguen valiendo. Las tres primeras se hacen así, desde la raíz del repositorio y con el backend corriendo:
 
 1. **El simulador enviando lecturas en vivo.** Con Mis materas abierta en el navegador, cada lectura aparece al instante (ver [Simulador del ESP32](#simulador-del-esp32)). Con `--fuera-de-rango` y `--invalidas` se ven también los rechazos.
-2. **El cambio de CSV a BD por configuración.** `exportar_especies_csv.py`, `MATERA_TABLA_REFERENCIA=csv` y reiniciar el backend (ver [Tabla de referencia](#tabla-de-referencia-csv-o-base-de-datos)). El simulador sigue solo cuando el backend vuelve. Agregar una especie en Administración responde `409 TABLA_SOLO_LECTURA`.
+2. **El cambio de CSV a BD por configuración.** `exportar_especies_csv.py`, `MATERA_TABLA_REFERENCIA=csv` y reiniciar el backend (ver [Tabla de referencia](#tabla-de-referencia-csv-o-base-de-datos)). El simulador sigue solo cuando el backend vuelve. Agregar una especie (en Especies, con la cuenta admin) responde `409 TABLA_SOLO_LECTURA`.
 3. **Un acceso a una planta ajena, que falla.** Otra cuenta pide el historial de una matera que no es suya. En PowerShell, con `curl.exe` (viene con Windows):
 
    ```powershell
@@ -345,24 +393,9 @@ python simulador/simulador_esp32.py MT-0002-AB --clave=<clave> --casos
 
    El id 1 es la primera matera de la base, que no es de Beto. La respuesta es `{"error": "PLANTA_NO_ENCONTRADA", ...}` con estado 404, la misma que con un id que no existe (`/plantas/999/historial`): no revela que esa matera exista. Lo decide `Planta.exigir_dueno`, en el dominio.
 
-La cuarta es la pregunta de cambio (MQTT u OAuth), y va en el documento de arquitectura.
-
-**Corte 3.** Lo nuevo se muestra así:
-
-1. **La matera Tamagotchi en vivo.** Desde `backend/`, se arranca el backend abierto a la red y con el reloj de la demo:
-
-   ```powershell
-   $env:MATERA_HOST = "0.0.0.0"
-   $env:MATERA_MINUTOS_POR_DIA_JUEGO = "6"
-   python main.py
-   ```
-
-   Con 6 minutos por día, una hora de juego dura 15 segundos, lo mismo que tarda la placa entre una lectura y otra: un potos bien cuidado llega a brote a los 6 minutos. Para verla decaer sin esperar, se usa el simulador sobre otra matera de potos con `--fuera-de-rango 1`: con esa especie, la mayoría de esas lecturas salen CRITICO. La cara se pone triste, llega el aviso «pasó a CRÍTICO» y, cuando el promedio de las 6 horas de juego queda por debajo de −5, «se marchitó» (ver [La matera Tamagotchi](#la-matera-tamagotchi)).
-2. **La tabla de posiciones con dos cuentas.** Una participa con un apodo y la otra no. La que no participa no aparece en la tabla ni la ve: su pantalla Juego la invita a participar, y `GET /juego/tabla` le responde `403 PARTICIPACION_REQUERIDA`. Lo decide `Participacion.exigir_participacion`, en el dominio.
-3. **La placa que se conecta sola.** «Agregar matera», escanear el QR de la pantalla y elegir el WiFi en la app (ver [Conectar una matera](#conectar-una-matera)). Se hace desde el PC o desde el celular de alguien que no sea el hotspot.
-4. **La prueba de cambio del corte 3.** `git show --name-status 1dac8d8 -- backend/dominio backend/aplicacion` solo lista archivos agregados (ver [La prueba de cambio del corte 3](#la-prueba-de-cambio-del-corte-3)).
-
-Si el profesor confirma que una lectura EN_RIESGO no debe restar, solo cambia la tabla `ReglaDeCuidado.PUNTOS` de `dominio/juego.py` (y sus pruebas).
+La cuarta es la pregunta de cambio (MQTT u OAuth). El análisis va en el documento de arquitectura, que redacta el equipo. Para ubicarla en el código:
+- **MQTT** sería otro adaptador de entrada, al lado de `presentacion/rutas_dispositivos.py`, que llama al mismo puerto `RegistrarLectura`; y, si el aviso también sale por MQTT, otro suscriptor de `NotificadorDiagnosticos` en la lista de `AvisarATodos`, en `main.py`. El núcleo no cambia.
+- **OAuth** cambia quién emite y verifica el token de usuario, en el borde: `Autenticacion.con_usuario` y los puertos `EmisorTokens` y `VerificadorTokens`, que hoy implementa `TokensJwt`. Los casos de uso siguen recibiendo una `IdentidadUsuario`.
 
 ## Ejecutar el front
 
@@ -387,7 +420,7 @@ Tiene dos estilos, Profesional (por defecto en el PC) y Juego (por defecto en el
 | Ingresar / Crear cuenta | pública | Una tarjeta con dos pestañas, Ingresar y Crear cuenta. Al entrar guarda el token y vuelve a la pantalla privada que se había pedido, o a Mis materas. |
 | Mis materas | con sesión | Las materas del usuario con su última medición, que se actualiza sola (ver abajo). «Agregar matera» pide apodo y especie y abre el asistente «Conectar sensor» (ver [Conectar una matera](#conectar-una-matera)); «Cambiar sensor», en cada tarjeta, abre el mismo asistente y conserva el historial. Para el simulador y las placas con el programa de la fase 2 (código y clave en `config.h`) queda «Conectar a mano»: se escribe el código del sensor y la clave se muestra una sola vez (va en `--clave=` o en `config.h`); con el mismo código, da una clave nueva y la anterior deja de servir con su token. Cada tarjeta también permite ver el historial y eliminar la matera. Desde el front no se escriben mediciones. Cada tarjeta muestra además la matera Tamagotchi (ver [La matera Tamagotchi](#la-matera-tamagotchi)) con los puntos de esa matera y sus horas de juego bien cuidada. |
 | Historial | con sesión | El resumen (cuántas mediciones hay en cada estado y la última), la gráfica y la lista de las mediciones de una matera, con el estado que calculó la API en su momento. Se actualiza solo, igual que Mis materas. |
-| Juego | con sesión | Tus puntos: el total, los puntos de cada matera y los últimos 20 movimientos («+10 · sala · SALUDABLE · 14:03:15»); en el celular se ven 10 y «Ver más» muestra el resto. A quien participa le muestra la tabla de posiciones con su fila resaltada; a quien no, lo invita a participar desde Mi cuenta. También dice cómo llegan los avisos y tiene el botón para activar las notificaciones del navegador. |
+| Juego | con sesión | Sus puntos: el total, los puntos de cada matera y los últimos 20 movimientos («+10 · sala · SALUDABLE · 14:03:15»); en el celular se ven 10 y «Ver más» muestra el resto. A quien participa le muestra la tabla de posiciones con su fila resaltada; a quien no, lo invita a participar desde Mi cuenta. También dice cómo llegan los avisos y tiene el botón para activar las notificaciones del navegador. |
 | Mi cuenta | con sesión | Nombre, correo, rol, cantidad de plantas y cerrar sesión. En «Tabla de posiciones», participar con un apodo de jugador, cambiarlo o dejar de participar (`PUT /juego/participacion`); los errores del apodo los responde la API. En «Apariencia», el estilo y el tema. |
 | Administración | solo admin | Las cifras de las cuentas y, en cada una, activar, desactivar, dar o quitar el rol y eliminar (hay que escribir su correo para confirmar). Las especies se agregan en Especies. La pestaña solo aparece para un admin, pero los permisos los revisa la API. |
 
@@ -488,6 +521,7 @@ Sirve para mostrar en la demo cada estado de la matera Tamagotchi sin esperar a 
   - si la matera es ajena o no existe, responde `404` (`Planta.exigir_dueno`).
 - **Sin cambiar archivos existentes del núcleo:** entra como archivos nuevos (`dominio/modo_prueba.py`, `dominio/puertos_prueba.py` y `aplicacion/modo_prueba.py`), que envuelven `ConsultarMascotas` y `RegistrarLectura` en `main.py`.
 - **Se borra al reiniciar el backend:** el estado de prueba vive en memoria (`infraestructura/estados_prueba_memoria.py`) y no en la base.
+- **Diagramas:** [`clases-modo-prueba`](docs/diagramas/README.md#clases-del-modo-prueba) y [`secuencia-modo-prueba`](docs/diagramas/README.md#secuencia-del-modo-prueba).
 
 ## Conectar una matera
 
@@ -549,6 +583,27 @@ Por la red local el front va en http, así que el celular no muestra notificacio
 - La ESP32 no ve las redes de 5 GHz. En el hotspot de un iPhone hay que encender «Maximizar compatibilidad».
 
 **El respaldo: «Conectar a mano».** Es el enlace del formulario de Mis materas y de los primeros pasos del asistente. Se escribe el código del sensor y la API crea la clave y la muestra una sola vez, como en la fase 2. Sirve para el simulador (`--clave=`) y para las placas con el programa de la fase 2, que llevan el código y la clave en `config.h`. El programa actual ya no usa `CODIGO_SENSOR` ni `CLAVE_SENSOR`: su `config.h` es opcional y solo ajusta pines, los valores del LDR y una red de respaldo para desarrollo.
+
+### Conectar por Bluetooth
+
+Es el camino recomendado: el equipo no deja su WiFi, así que sirve aunque el celular sea el hotspot.
+
+| Desde | Qué hace falta |
+|---|---|
+| La app Android | El Bluetooth del celular encendido. La primera vez, Android pide el permiso «Dispositivos cercanos» (ver [Permisos](#permisos)). |
+| Chrome o Edge en el PC | El front en `http://localhost:5500` (Web Bluetooth exige `localhost` o HTTPS) y el Bluetooth del PC encendido. |
+| Chrome en el celular, por `http://<IP del PC>:5500` | No se ofrece, porque no es HTTPS: queda la red de la placa, o la app. |
+
+1. «Agregar matera» (o «Cambiar sensor») y elegir «Por Bluetooth», la opción recomendada.
+2. Escribir la clave de 8 caracteres de la pantalla de la placa (la misma de su red) y tocar «Buscar la placa». En la lista, elegir la que se llama como la red de la pantalla (`Matera-…`).
+3. Elegir el WiFi en la lista que manda la placa y escribir su clave. La placa se une, encuentra el servidor y espera la matera.
+4. La app cierra la conexión, crea la matera con el código y la huella, y espera la primera lectura.
+
+- **Plazos de la placa:** una conexión que en 20 s no manda un pedido con la clave correcta se corta; después de una clave válida, a los 2 minutos sin pedidos (la app pide `estado` cada 45 s). Si se corta, el siguiente pedido se reconecta solo.
+- **Claves equivocadas:** el `401` dice cuántos intentos quedan; a la quinta, el `429` bloquea la placa 60 s y el botón espera con la cuenta atrás de `detalle.segundos`.
+- **El contrato** (el servicio, los pedidos en pedazos de 20 bytes, las respuestas en trozos y los errores) está en [firmware/README.md](firmware/README.md#bluetooth-le), y el recorrido completo, en [`secuencia-conexion-bluetooth`](docs/diagramas/README.md#secuencia-de-la-conexión-por-bluetooth).
+- **Seguridad:** el enlace no va cifrado, y la app no puede comprobar que le habla a la placa de verdad. La protección de fondo, emparejar con una clave numérica que muestre la pantalla, está pendiente de decidir (ver «Seguridad» en el README del firmware).
+- **Lo probado:** el firmware, desde el PC con `bleak`; el canal del front (`CanalBluetooth`, `BluetoothWeb` y `BluetoothNativo`), en Node contra una placa BLE falsa. Falta probarlo de punta a punta desde un celular.
 
 ## La app móvil
 
@@ -631,6 +686,7 @@ Los plugins declaran además `SCHEDULE_EXACT_ALARM`, `RECEIVE_BOOT_COMPLETED` y 
 - La sesión va en `sessionStorage`, como en la web: si Android cierra la app, se vuelve a ingresar.
 - Los registros de Capacitor están apagados (`loggingBehavior: "none"`). Así ni la clave de la pantalla de la placa ni la del WiFi salen por la consola ni por `adb logcat`.
 - La red de la placa (el otro camino del asistente) también se ofrece en la app, pero el celular que hace de hotspot no puede unirse a ella: ahí se usa Bluetooth.
+
 ## Pruebas
 
 Desde la carpeta `backend/`:

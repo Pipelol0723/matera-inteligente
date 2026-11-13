@@ -5,11 +5,12 @@ La fuente de cada diagrama es su archivo `.mmd` (Mermaid). El `.svg` y el `.png`
 Hay diagramas de dos momentos:
 
 - **Corte 1**: el sistema entregado, en el tag `corte-1` (commit `8c37f83`). Estos diagramas quedan como registro del antes y no se actualizan.
-- **Cortes 2 y 3**: el sistema actual, con usuarios, administración, sensores, historial, tiempo real, el juego y la conexión de la placa. Los que llevan `-corte2` en el nombre lo conservan, pero también muestran el corte 3. Se ajustaron al código cuatro veces:
+- **Cortes 2 y 3**: el sistema actual, con usuarios, administración, sensores, historial, tiempo real, el juego y la conexión de la placa. Los que llevan `-corte2` en el nombre lo conservan, pero también muestran el corte 3. Se ajustaron al código cinco veces:
   - El 12 de octubre de 2026, con las cuentas, las plantas y los sensores.
   - El 18 de octubre, cuando la matera pasó a nacer con su sensor, se quitó la medición a mano y se agregó el WebSocket.
   - El 26 de octubre, con la fase 2 hexagonal: los puertos de entrada, los puertos de salida pequeños, los JWT, el canje de la clave del dispositivo y la tabla de referencia en la base o en CSV.
   - El 12 de noviembre, con el corte 3: la matera Tamagotchi, el puntaje y la tabla de posiciones, y la placa que se conecta sola con la huella de su clave.
+  - Al cierre del corte 3: el modo prueba de los administradores, la conexión por Bluetooth, el puerto `CanalPlaca` del cliente y la app Android.
 
   Corresponden uno a uno con el repositorio.
 
@@ -25,6 +26,7 @@ Hay diagramas de dos momentos:
 | [Clases: diagnóstico, plantas y dispositivos](#presentación-y-aplicación-diagnóstico-plantas-y-dispositivos) | [`clases-aplicacion-corte1`](clases-aplicacion-corte1.png) | [`clases-aplicacion`](clases-aplicacion.png) |
 | [Clases: cuentas y administración](#presentación-y-aplicación-cuentas-y-administración) | no existía | [`clases-cuentas`](clases-cuentas.png) |
 | [Clases: el juego](#clases-del-juego) | no existía | [`clases-juego`](clases-juego.png) |
+| [Clases: el modo prueba](#clases-del-modo-prueba) | no existía | [`clases-modo-prueba`](clases-modo-prueba.png) |
 | [Entidad-relación](#entidad-relación) | [`entidad-relacion-corte1`](entidad-relacion-corte1.png) | [`entidad-relacion-corte2`](entidad-relacion-corte2.png) |
 | [Secuencia: un diagnóstico](#secuencia-de-un-diagnóstico) | [`secuencia-diagnostico`](secuencia-diagnostico.png) | igual, con el repositorio de especies que elija la configuración |
 | [Secuencia: lectura de un dispositivo](#secuencia-de-una-lectura-del-dispositivo) | no existía | [`secuencia-medicion-sensor`](secuencia-medicion-sensor.png) |
@@ -33,14 +35,16 @@ Hay diagramas de dos momentos:
 | [Secuencia: el admin agrega una especie](#secuencia-del-admin-que-agrega-una-especie) | no existía | [`secuencia-admin-especie`](secuencia-admin-especie.png) |
 | [Secuencia: una lectura suma puntos](#secuencia-del-puntaje) | no existía | [`secuencia-puntaje`](secuencia-puntaje.png) |
 | [Secuencia: la placa se conecta sola](#secuencia-de-la-conexión-de-una-placa) | no existía | [`secuencia-conexion-placa`](secuencia-conexion-placa.png) |
+| [Secuencia: la conexión por Bluetooth](#secuencia-de-la-conexión-por-bluetooth) | no existía | [`secuencia-conexion-bluetooth`](secuencia-conexion-bluetooth.png) |
+| [Secuencia: el modo prueba](#secuencia-del-modo-prueba) | no existía | [`secuencia-modo-prueba`](secuencia-modo-prueba.png) |
 
 Al final está además la [vista general](#vista-general-diagrama-de-clases-del-backend) de Roger: el backend completo en un solo diagrama de PlantUML.
 
-Los cinco diagramas de clases actuales no llevan sufijo porque muestran los tres cortes a la vez: **borde fino = corte 1, borde medio (2 px) = se agregó en el corte 2, con la fase 2 incluida, y borde grueso (4 px) = se agregó en el corte 3**. Los `-corte1` muestran solo lo del corte 1.
+Los seis diagramas de clases actuales no llevan sufijo porque muestran los tres cortes a la vez: **borde fino = corte 1, borde medio (2 px) = se agregó en el corte 2, con la fase 2 incluida, y borde grueso (4 px) = se agregó en el corte 3**. Los `-corte1` muestran solo lo del corte 1.
 
 ## Convenciones
 
-- **Clases y vista hexagonal:** el color indica la capa. Son los colores del diagrama de clases de Roger: morado para presentación, amarillo para aplicación, verde para dominio y azul para infraestructura.
+- **Clases y vista hexagonal:** el color indica la capa. Son los colores del diagrama de clases de Roger: morado para presentación, amarillo para aplicación, verde para dominio y azul para infraestructura. En la vista hexagonal, el gris es el cliente (`frontend/` y `app/`), que no es una capa del backend.
 - **Lo nuevo del corte 3:** borde grueso (4 px) en las clases, la vista hexagonal y los casos de uso. En los diagramas de clases, el ancho del borde dice el corte: fino el 1, medio el 2 y grueso el 3. En paquetes y en el entidad-relación, Mermaid no deja marcar un archivo o una tabla: lo nuevo dice «corte 3» en su texto.
 - **Paquetes:** conservan los colores del diagrama entregado en el corte 1. En el del corte 2, los nodos nuevos son verdes y punteados.
 - **Casos de uso del corte 2:** gris es un caso del corte 1, verde uno nuevo y oscuro uno exclusivo del administrador.
@@ -63,22 +67,29 @@ Es el backend dibujado como puertos y adaptadores, con los nombres reales de arc
 | Adaptadores de salida | `infraestructura/` |
 | Punto de composición | `main.py` |
 
+- **Más a la izquierda, el cliente (en gris).** También es puertos y adaptadores:
+  - **Dos adaptadores de entrada del cliente:** el navegador y la app Android (`app/`, con Capacitor), que es el mismo `frontend/` dentro de una WebView. Los dos llegan a las mismas pantallas (`js/*.js`), que solo dibujan lo que responde la API.
+  - **El puerto del cliente, `CanalPlaca`** (`js/canal-placa.js`): lo único que el asistente «Conectar sensor» conoce de la placa (`info`, `configurar`, `estado` y `cerrar`).
+  - **Sus tres adaptadores:** `RedDeLaPlaca` (HTTP en `192.168.4.1`, unido a la red de la placa), `BluetoothWeb` (Chrome o Edge) y `BluetoothNativo` (la app). Los dos de Bluetooth heredan `CanalBluetooth`, que tiene el contrato BLE una sola vez.
+  - **`canales-placa.js`** es el punto de composición del cliente, como `main.py` en el backend: elige qué adaptadores se ofrecen y en qué orden. Agregar la app no cambió el asistente.
 - **A la izquierda, los adaptadores de entrada.**
-  - Las rutas del front, el WebSocket y las rutas de los dispositivos.
+  - Las rutas del front, el WebSocket y las rutas de los dispositivos, que reciben a la ESP32 y al simulador.
+  - Las rutas del modo prueba (`rutas_prueba.py`, solo para administradores).
   - Los comandos de consola (`crear_admin.py` y `exportar_especies_csv.py`) y las pruebas unitarias. No están en `presentacion/`, pero cumplen el mismo papel: llaman a un puerto de entrada, igual que una ruta.
 - **Al centro, el núcleo.**
   - Los 21 puertos de entrada de `dominio/puertos_entrada.py`: uno por caso de uso, con su mismo nombre. En el corte 3, `RegistrarPlanta` y `ReemplazarSensor` reciben una huella opcional.
-  - Los 5 puertos de entrada del juego, en `dominio/puertos_juego.py`, un archivo nuevo.
-  - Los casos de uso de `aplicacion/`: cada uno hereda su puerto. Los del juego están en `aplicacion/juego.py`.
-  - Las reglas del dominio, y las del juego en `dominio/juego.py` y `dominio/mascota.py`.
-  - Los 18 puertos de salida de `dominio/puertos.py` y `dominio/puertos_usuarios.py`, y los 3 del juego en `dominio/puertos_juego.py`.
+  - Los 5 puertos de entrada del juego, en `dominio/puertos_juego.py`, y los 2 del modo prueba, en `dominio/puertos_prueba.py`: archivos nuevos.
+  - Los casos de uso de `aplicacion/`: cada uno hereda su puerto. Los del juego están en `aplicacion/juego.py`, y los del modo prueba en `aplicacion/modo_prueba.py`.
+  - Las reglas del dominio, las del juego en `dominio/juego.py` y `dominio/mascota.py`, y las del modo prueba en `dominio/modo_prueba.py`.
+  - Los 18 puertos de salida de `dominio/puertos.py` y `dominio/puertos_usuarios.py`, los 3 del juego en `dominio/puertos_juego.py` y `EstadosDePrueba`, en `dominio/puertos_prueba.py`.
 
   `DiagnosticarPlantaDeUsuario` no tiene puerto de entrada, porque solo lo usa `RegistrarLectura` desde adentro. `PuntuarLectura` y `AvisarATodos` tampoco: no los llama nadie de afuera, sino que implementan el puerto de salida `NotificadorDiagnosticos`. Por eso la flecha punteada va de los casos de uso del juego a los puertos de salida.
-- **A la derecha, los adaptadores de salida:** SQLite (también el del juego, `sqlite/repositorio_juego.py`), el CSV, los JWT y el resto (`seguridad.py`, `reloj.py` y `tiempo_real.py`).
+- **El modo prueba entra con dos decoradores.** `MascotasConPrueba` implementa el puerto `ConsultarMascotas` y envuelve al caso de uso de siempre; `LecturaConPrueba` hace lo mismo con `RegistrarLectura`. `main.py` los pone en lugar de los originales, que no cambian. Por eso hay flechas «implementa» de los casos de uso del modo prueba a los puertos del juego y a los de siempre.
+- **A la derecha, los adaptadores de salida:** SQLite (también el del juego, `sqlite/repositorio_juego.py`), el CSV, los JWT, `EstadosDePruebaEnMemoria` (el estado de prueba, en la memoria del servidor) y el resto (`seguridad.py`, `reloj.py` y `tiempo_real.py`).
 - **`GET /red` no tiene flecha al núcleo.** No tiene ninguna regla de negocio: solo dice por qué direcciones alcanza una placa al servidor. `main.py` le pasa a `rutas_red.py` las funciones de `RedLocal` (`red_local.py`), que no implementa ningún puerto. Así presentación sigue sin importar infraestructura.
 - **Todas las flechas apuntan hacia el núcleo.** Las punteadas dicen «implementa»: la clase de afuera cumple una interfaz de adentro. El núcleo no conoce a ningún adaptador.
-- **Los adaptadores de entrada también usan un puerto de salida: `VerificadorTokens`.** El token se verifica en el borde. Así el caso de uso recibe la identidad y nunca el token. La flecha `verificar_usuario` sale de las rutas del front. Las del juego y el WebSocket hacen lo mismo, y lo dice su caja; `GET /red` también usa `Autenticacion.con_usuario`.
-- **`main.py` es el único que conoce las dos mitades.** Elige el adaptador de cada puerto. Por ejemplo, con `MATERA_TABLA_REFERENCIA` elige SQLite o CSV para la tabla de especies, y le pasa a `DiagnosticarPlantaDeUsuario` un `AvisarATodos([PuntuarLectura, NotificadorWebSocket])` como notificador.
+- **Los adaptadores de entrada también usan un puerto de salida: `VerificadorTokens`.** El token se verifica en el borde. Así el caso de uso recibe la identidad y nunca el token. La flecha `verificar_usuario` sale de las rutas del front. Las del juego, las del modo prueba y el WebSocket hacen lo mismo, y lo dice su caja; `GET /red` también usa `Autenticacion.con_usuario`.
+- **`main.py` es el único que conoce las dos mitades.** Elige el adaptador de cada puerto. Por ejemplo, con `MATERA_TABLA_REFERENCIA` elige SQLite o CSV para la tabla de especies, le pasa a `DiagnosticarPlantaDeUsuario` un `AvisarATodos([PuntuarLectura, NotificadorWebSocket])` como notificador, y entrega a las rutas `MascotasConPrueba` y `LecturaConPrueba` en lugar de los casos de uso que envuelven.
 - Lo comprueba [`tests/dominio/test_arquitectura.py`](../../backend/tests/dominio/test_arquitectura.py):
   - El dominio y la aplicación no importan frameworks, persistencia ni otras capas.
   - Presentación no importa infraestructura.
@@ -117,10 +128,11 @@ Fuente: [`casos-de-uso-corte2.mmd`](casos-de-uso-corte2.mmd).
 - **Corte 3, en borde grueso:**
   - «Reportar una lectura con su hora» también *incluye* «Sumar o restar puntos», que actualiza «Ver mis materas Tamagotchi y mis puntos».
   - El usuario elige si participa en la tabla, con un apodo de jugador, y solo si participa ve la tabla de posiciones.
-  - «Conectar una placa con el asistente» es la forma de crear la matera o cambiarle el sensor sin tocar código. Queda «Conectar a mano» para el simulador y las placas de la fase 2.
+  - «Conectar una placa con el asistente» es la forma de crear la matera o cambiarle el sensor sin tocar código: por Bluetooth o por la red de la placa, desde la web o desde la app Android. Queda «Conectar a mano» para el simulador y las placas de la fase 2.
 - **Casos exclusivos del administrador:**
   - «Administrar usuarios» agrupa listar, desactivar y reactivar, dar y quitar el rol de admin, y eliminar cuentas.
   - «Agregar especies» solo lo puede hacer el admin, y solo con la tabla de referencia en la base: con la copia en CSV, la API responde 409.
+  - «Modo prueba» (corte 3, oscuro con borde grueso): el admin le pone a una matera suya un estado de mentira y la vuelve a lo normal. Solo cambia el dibujo de «Ver mis materas Tamagotchi», en la app y en la pantalla de la placa.
 
 ## Paquetes
 
@@ -154,11 +166,14 @@ Fuente: [`paquetes-corte2.mmd`](paquetes-corte2.mmd).
   - `exportar_especies_csv.py` la regenera a mano.
 - Junto a la base quedan su copia en CSV, salvo que se defina `MATERA_RUTA_CSV`, y el secreto con que se firman los JWT, salvo que se defina `MATERA_JWT_SECRETO`. Con la base por defecto, la copia es el `datos/especies.csv` del repositorio.
 - **`main.py` es la única raíz de composición.** Los comandos de consola piden sus piezas a `main.construir_consola()`.
-- **Corte 3:** cada caja dice en una línea «corte 3:» qué archivos agregó. En `dominio/` y `aplicacion/` el juego solo agrega archivos; la conexión cambia `puertos_entrada.py`, `resultados.py`, `plantas.py` y `sensores.py` (commit `9167a8f`). No hay dependencias nuevas entre capas. La flecha punteada del front a la ESP32 es el asistente, que le habla a la API local de la placa (`192.168.4.1`) solo mientras el equipo está en su red.
+- **Corte 3:** cada caja dice en una línea «corte 3:» qué archivos agregó. En `dominio/` y `aplicacion/` el juego y el modo prueba solo agregan archivos; la conexión cambia `puertos_entrada.py`, `resultados.py`, `plantas.py` y `sensores.py` (commit `9167a8f`). No hay dependencias nuevas entre capas.
+  - La flecha punteada del front a la ESP32 es el asistente, que le habla a la API local de la placa por su red (`192.168.4.1`) o por Bluetooth LE.
+  - `app/` es la app Android: no tiene código propio de la matera, sino que empaqueta `frontend/` con Capacitor (`webDir: ../frontend`). Por eso su flecha va al front y no al backend.
+  - En `frontend/` se agregaron el puerto `CanalPlaca` con sus adaptadores, los módulos que solo trabajan dentro de la app (`plataforma.js`, `avisos-nativos.js`, `servidor-app.js` y `direccion-api.js`), el modo prueba y un CSS por pantalla.
 
 ## Clases
 
-Son cinco diagramas, porque en uno solo no se leían las más de 60 clases. El quinto, `clases-juego`, es el del corte 3. Juntan el diagrama de clases que Roger armó en PlantUML (commits `3987f72` y `6c43769`) con el corte 2.
+Son seis diagramas, porque en uno solo no se leían las más de 60 clases. Los dos últimos, `clases-juego` y `clases-modo-prueba`, son del corte 3. Juntan el diagrama de clases que Roger armó en PlantUML (commits `3987f72` y `6c43769`) con el corte 2.
 
 | Se tomó del diagrama de Roger | Se tomó del diseño o se corrigió contra el código |
 |---|---|
@@ -198,7 +213,7 @@ Fuentes: [`clases-dominio.mmd`](clases-dominio.mmd) (los dos cortes) y [`clases-
 Fuentes: [`clases-puertos.mmd`](clases-puertos.mmd) y [`clases-puertos-corte1.mmd`](clases-puertos-corte1.mmd) ([imagen](clases-puertos-corte1.png)).
 
 - **Todas las flechas van de infraestructura hacia el dominio (RA5, DIP).** El dominio declara la interfaz, e infraestructura la implementa. Este diagrama solo tiene los puertos de salida: los de entrada están en los dos diagramas de aplicación.
-- **Hay 21 puertos de salida, con pocos métodos y nombres de negocio.** En el corte 1 había dos: `ConsultaRangos` y `CatalogoEspecies`. El corte 3 agrega tres, en borde grueso: `MovimientosPuntaje`, `RegistroJugadores` y `RitmosCrecimiento` (`dominio/puertos_juego.py`), con sus clases SQLite en `sqlite/repositorio_juego.py`.
+- **Hay 21 puertos de salida, con pocos métodos y nombres de negocio.** En el corte 1 había dos: `ConsultaRangos` y `CatalogoEspecies`. El corte 3 agrega tres, en borde grueso: `MovimientosPuntaje`, `RegistroJugadores` y `RitmosCrecimiento` (`dominio/puertos_juego.py`), con sus clases SQLite en `sqlite/repositorio_juego.py`. El del modo prueba, `EstadosDePrueba`, con su adaptador en memoria, está en [su propio diagrama](#clases-del-modo-prueba).
   - La fase 2 partió los `Repositorio*` del corte 2. Por ejemplo, `RepositorioUsuarios` quedó como `ConsultaCuentas`, `RegistroCuentas` y `ListadoCuentas`.
   - Cada caso de uso pide solo lo que usa (ISP).
   - Las clases SQLite conservan sus nombres: `RepositorioUsuariosSqlite` implementa los tres.
@@ -294,6 +309,10 @@ Qué puertos usa cada caso de uso (en negrita, lo que ya existía en el corte 1)
 | `ConsultarParticipacion` | `juego.py` | RegistroJugadores |
 | `ElegirParticipacion` | `juego.py` | RegistroJugadores |
 | `ConsultarTablaPosiciones` | `juego.py` | RegistroJugadores, MovimientosPuntaje, ConsultaCuentas |
+| `PonerEstadoDePrueba` | `modo_prueba.py` | ConsultaPlantas, EstadosDePrueba |
+| `QuitarEstadoDePrueba` | `modo_prueba.py` | ConsultaPlantas, EstadosDePrueba |
+| `MascotasConPrueba` (implementa ConsultarMascotas) | `modo_prueba.py` | el ConsultarMascotas que envuelve, EstadosDePrueba |
+| `LecturaConPrueba` (implementa RegistrarLectura) | `modo_prueba.py` | el RegistrarLectura que envuelve, EstadosDePrueba, ConsultaCuentas |
 
 ### Clases del juego
 
@@ -316,6 +335,20 @@ Fuente: [`clases-juego.mmd`](clases-juego.mmd). Solo existe desde el corte 3.
 - **`MovimientosPuntaje.resumen_de` solo agrupa y cuenta** (`ResumenCuidado`): cuántas horas terminaron con cada cantidad de lecturas y suma, y los dos últimos movimientos con sus ventanas. Qué hora fue bien cuidada lo decide el dominio.
 - **`Participacion.exigir_participacion()`** es la regla «quien no participa no ve la tabla» (`ParticipacionRequerida`, 403). `ApodoJugador` compara sin importar mayúsculas (`clave`). `ConsultarTablaPosiciones` vuelve a filtrar con las reglas del dominio aunque el adaptador traiga de más.
 - Los errores del juego heredan de `ErrorDominio`. `presentacion/errores_juego.py` los traduce a 400 `APODO_JUGADOR_INVALIDO`, 403 `PARTICIPACION_REQUERIDA` y 409 `APODO_JUGADOR_REPETIDO`.
+- El modo prueba envuelve a `ConsultarMascotas`: está en [su propio diagrama](#clases-del-modo-prueba).
+
+### Clases del modo prueba
+
+![Clases del modo prueba, corte 3](clases-modo-prueba.png)
+
+Fuente: [`clases-modo-prueba.mmd`](clases-modo-prueba.mmd). Solo existe desde el corte 3.
+
+- **Para qué sirve:** un admin le pone a una matera suya un estado de mentira (tamaño, condición, cara, si duerme y globo) para mostrar cada dibujo en la demo sin esperar a que la planta llegue ahí. Solo cambia el dibujo: los puntos, las lecturas y el diagnóstico siguen siendo los reales, y no sale ningún aviso.
+- **Todo está en archivos nuevos:** `dominio/modo_prueba.py` y `puertos_prueba.py`, `aplicacion/modo_prueba.py`, `presentacion/rutas_prueba.py` y `esquemas_prueba.py`, e `infraestructura/estados_prueba_memoria.py`. En `dominio/` y `aplicacion/` el commit `8c44b1d` solo agrega archivos.
+- **Dos decoradores.** `MascotasConPrueba` implementa el puerto `ConsultarMascotas` y guarda el caso de uso de siempre como `interno`; `LecturaConPrueba` hace lo mismo con `RegistrarLectura`. Primero llaman al interno y después, si la matera está en prueba, cambian lo que se dibuja. `main.py` los pone en lugar de los originales, y ni el caso de uso ni las rutas del juego o de los dispositivos se enteran (abierto/cerrado).
+- **Quién puede usarlo lo decide el dominio.** `PonerEstadoDePrueba` y `QuitarEstadoDePrueba` llaman a `Usuario.exigir_admin()` (403 `PERMISO_DENEGADO`) y a `Planta.exigir_dueno()` (404, igual que una matera inexistente). Al consultar, la prueba solo se aplica si el dueño sigue siendo admin: si pierde el rol, sus materas vuelven a verse como son.
+- **`EstadoDePrueba.aplicar(mascota)`** arma una `MascotaEnPrueba`: las capas de la prueba con los puntos, las horas bien cuidada y la última lectura reales, y `aviso` en `None`. Si duerme, no hay globo, como en `CuidadoDeMascota`. `ResultadoEnPrueba` es la respuesta a una lectura: el diagnóstico real, y `prueba` para la pantalla de la placa.
+- **`EstadosDePruebaEnMemoria`** guarda el estado en un diccionario con candado, en la memoria del servidor: no es un dato de la matera, y reiniciar el backend lo borra. No cambia la base.
 
 ## Entidad-relación
 
@@ -351,6 +384,7 @@ Fuente: [`entidad-relacion-corte2.mmd`](entidad-relacion-corte2.mmd).
   - `JUGADOR`: si respondió la pregunta de la tabla y, si participa, su apodo, único sin importar mayúsculas (`NOCASE`).
   - `RITMO_CRECIMIENTO`: los días de juego de cada etapa, aparte de la tabla de especies del corte 1. Una especie sin fila crece a 1/3/7.
 - **La conexión no cambia la base.** La huella de la clave que creó la placa va en la misma columna `SENSOR.hash_clave`.
+- **El modo prueba tampoco:** el estado de prueba vive en la memoria del servidor.
 - El esquema real está en [`backend/datos/esquema.sql`](../../backend/datos/esquema.sql). Las bases anteriores se migran solas al arrancar el backend (`PRAGMA user_version`), y antes se deja una copia de respaldo al lado.
 - Borrar un usuario o una planta borra en cascada lo que depende de ellos. Las líneas punteadas llegan a `PARAMETRO`, que sigue en el código.
 
@@ -477,6 +511,39 @@ Fuente: [`secuencia-conexion-placa.mmd`](secuencia-conexion-placa.mmd). Corte 3.
 - **La placa, sola:** canjea su clave cada 5 s hasta que la API la reconoce, y manda sus lecturas con el JWT de alcance «lecturas», como en la fase 2. Con la respuesta 201 dibuja su carita.
 - **6. Primera lectura.** La app espera la primera medición de esa placa (`GET /plantas` cada 3 s, o el mensaje del WebSocket).
 - La clave del sensor nunca pasa por la app: solo la huella. Es el esquema de PKCE: primero se registra la huella y después se presenta el secreto.
+- **Por Bluetooth** el recorrido es el mismo, sin dejar el WiFi: está en la [secuencia siguiente](#secuencia-de-la-conexión-por-bluetooth).
+
+### Secuencia de la conexión por Bluetooth
+
+![Secuencia de la conexión por Bluetooth](secuencia-conexion-bluetooth.png)
+
+Fuente: [`secuencia-conexion-bluetooth.mmd`](secuencia-conexion-bluetooth.mmd). Corte 3. Es el mismo asistente (`js/conectar-sensor.js`) que en la secuencia anterior, con otro adaptador del puerto `CanalPlaca`: `BluetoothWeb` en Chrome o Edge, o `BluetoothNativo` en la app Android. Los dos heredan `CanalBluetooth`, y el contrato BLE está en [firmware/README.md](../../firmware/README.md#bluetooth-le).
+
+- **El equipo no deja su WiFi.** Por eso no hay paso «volver a su red»: la app alcanza la API todo el tiempo, y sirve aunque el celular sea el hotspot.
+- **2. Encontrar la placa, con la clave de su pantalla.** La persona escribe la clave antes de buscar. La lista de placas la muestra el navegador o Android, filtrada por el servicio `4d540001-…` o por «Matera-». Las notificaciones de «respuesta» se activan antes del primer pedido.
+  - Cada pedido `{op, clave, id}` se escribe en pedazos de 20 bytes, sin escrituras largas, y la respuesta `{op, id, http, cuerpo}` llega en trozos con 3 bytes de cabecera. `CanalBluetooth` los junta y recién ahí lee el UTF-8.
+  - `bluetooth.cpp` revisa la clave y le pasa la operación a `api_local.cpp`, el mismo que atiende la ruta HTTP: las respuestas son iguales por los dos caminos.
+  - **Las tres salidas del `alt`:** 401 `CLAVE_INCORRECTA` con los intentos que quedan; a la quinta, 429 `DEMASIADOS_INTENTOS` con `detalle.segundos`, que corta la conexión y arma la cuenta atrás del botón; y con la clave correcta, el código, la huella y las redes.
+  - Una conexión que no manda un pedido con la clave en 20 s se corta; después de una clave válida, a los 2 minutos sin pedidos (la app pide `estado` cada 45 s).
+- **3. Elegir el WiFi.** `configurar` lleva la red, su clave y las direcciones de `GET /red`. La placa se une al WiFi con el modo de conexión abierto, prueba el servidor sin su clave (el 400 en JSON dice que es la API) y queda en `esperando-matera`. La app lo sigue con `estado` cada 1,5 s.
+- **4. Cerrar la conexión.** `cerrar` responde 204, y 0,4 s después la placa apaga su red y su Bluetooth. La app olvida la clave de la pantalla.
+- **5 y 6** son los de la secuencia anterior: crear la matera con el código y la huella, el canje cada 5 s hasta que la API reconoce la matera, y la primera lectura.
+- **Lo que no protege:** el enlace no va cifrado y la app no puede comprobar que la placa sea la de verdad (ver «Seguridad» en el README del firmware).
+
+### Secuencia del modo prueba
+
+![Secuencia del modo prueba](secuencia-modo-prueba.png)
+
+Fuente: [`secuencia-modo-prueba.mmd`](secuencia-modo-prueba.mmd). Corte 3. Las clases están en [Clases del modo prueba](#clases-del-modo-prueba).
+
+- **Poner el estado de prueba.** El admin elige en Mis materas el tamaño, la condición, la cara, si duerme y el globo. `PUT /juego/materas/{id}/prueba` pasa por `Autenticacion.con_usuario`, y `esquemas_prueba` arma el `EstadoDePrueba` (400 si un valor no existe).
+  - `PonerEstadoDePrueba` llama a `usuario.exigir_admin()`: si no es admin, 403 `PERMISO_DENEGADO`.
+  - Después busca la matera con `ConsultaPlantas.por_id` y `Planta.exigir_dueno`: una ajena da el mismo 404 que una inexistente.
+  - Si todo está bien, `EstadosDePruebaEnMemoria` la guarda.
+- **La app dibuja la prueba.** `MascotasConPrueba` llama primero a `ConsultarMascotas`, el de siempre, y solo si el usuario es admin busca el estado de prueba y lo aplica. `GET /juego/materas` responde las capas de la prueba, con los puntos reales, `aviso: null` y el campo `prueba`. El front la dibuja con la marca «Modo prueba», en Mis materas y en Diagnóstico.
+- **La placa la dibuja en su próxima lectura.** `LecturaConPrueba` registra la lectura como siempre (diagnóstico, historial, puntos y aviso en vivo, todo real) y, si la matera está en prueba y el dueño sigue siendo admin, la respuesta 201 trae `prueba`. La pantalla de la placa muestra la carita, la etapa y la condición de la prueba, con la palabra «prueba».
+- **Volver a lo normal.** `DELETE /juego/materas/{id}/prueba` revisa lo mismo (admin y dueño) y quita el estado. Responde 200 en JSON, no un 204 vacío (RA1). La próxima consulta y la próxima respuesta a la placa traen `"prueba": null`.
+- **Reiniciar el backend lo borra:** el estado vive en memoria, no en la base.
 
 ---
 

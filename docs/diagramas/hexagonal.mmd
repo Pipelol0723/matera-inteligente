@@ -4,18 +4,35 @@
 %% Todas las flechas apuntan hacia el nucleo: los adaptadores conocen los puertos y el nucleo no conoce
 %% a los adaptadores. Los enlaces invisibles (~~~) solo ordenan el dibujo de izquierda a derecha.
 %% Colores por capa, los mismos de los diagramas de clases: morado presentacion, amarillo aplicacion,
-%% verde dominio y azul infraestructura. Borde grueso: se agrego en el corte 3 (el juego y la conexion).
+%% verde dominio y azul infraestructura. Gris: el cliente (frontend/ y app/), que no es una capa del backend.
+%% Borde grueso: se agrego en el corte 3 (el juego, la conexion, el modo prueba y la app Android).
 %% GET /red no pasa por el nucleo: no tiene regla de negocio, y main.py le pasa a rutas_red.py las funciones
 %% de RedLocal (presentacion no importa infraestructura). Por eso no tiene flecha: lo dicen las dos cajas.
+%% El cliente tambien es puertos y adaptadores: el asistente solo conoce el puerto CanalPlaca, y
+%% canales-placa.js (como main.py) elige sus adaptadores. La web y la app Android son el mismo frontend/.
 flowchart LR
-    NAV["Front en el navegador<br/>(fetch cada 10 s y WebSocket)"]
-    ESP["ESP32 o<br/>simulador/simulador_esp32.py<br/>(HTTP con su JWT)"]
-    MAIN["main.py<br/>único punto de composición:<br/>elige el adaptador de cada puerto<br/>(MATERA_TABLA_REFERENCIA: SQLite o CSV;<br/>AvisarATodos con PuntuarLectura y NotificadorWebSocket;<br/>MATERA_MINUTOS_POR_DIA_JUEGO: el reloj del juego)"]
+    subgraph CLI["Cliente · frontend/ y app/"]
+        direction TB
+        NAV["Navegador<br/>http://&lt;IP del PC&gt;:5500"]
+        APPA["App Android · app/ (Capacitor)<br/>el mismo frontend/ en una WebView<br/>CapacitorHttp · avisos de Android"]
+        PANT["Pantallas · js/*.js<br/>fetch cada 10 s y WebSocket<br/>sin reglas de negocio"]
+        ASIS["Asistente «Conectar sensor»<br/>js/conectar-sensor.js<br/>solo conoce el puerto CanalPlaca"]
+        CP["Puerto del cliente: CanalPlaca<br/>js/canal-placa.js<br/>info · configurar · estado · cerrar"]
+        CPS["canales-placa.js<br/>punto de composición del cliente:<br/>qué canales y en qué orden"]
+        RDP["RedDeLaPlaca<br/>js/canal-red-placa.js<br/>HTTP en 192.168.4.1"]
+        BW["BluetoothWeb<br/>js/canal-bluetooth-web.js<br/>Chrome o Edge<br/>(hereda CanalBluetooth)"]
+        BN["BluetoothNativo<br/>js/canal-bluetooth-nativo.js<br/>la app Android<br/>(hereda CanalBluetooth)"]
+    end
+
+    ESP["ESP32 · firmware/matera-sensor<br/>lecturas con su JWT; mientras se conecta,<br/>su API local por su red y por Bluetooth LE"]
+    SIM["simulador/simulador_esp32.py<br/>(HTTP con su JWT)"]
+    MAIN["main.py<br/>único punto de composición:<br/>elige el adaptador de cada puerto<br/>(MATERA_TABLA_REFERENCIA: SQLite o CSV;<br/>AvisarATodos con PuntuarLectura y NotificadorWebSocket;<br/>MascotasConPrueba y LecturaConPrueba envuelven<br/>ConsultarMascotas y RegistrarLectura;<br/>MATERA_MINUTOS_POR_DIA_JUEGO: el reloj del juego)"]
 
     subgraph ENT["Entrada · presentacion/"]
         direction TB
         RED["GET /red · rutas_red.py<br/>sin puerto: main.py le pasa<br/>las funciones de RedLocal"]
         JUEGO["Rutas del juego<br/>rutas_juego.py · esquemas_juego.py<br/>errores_juego.py<br/>decorador Autenticacion.con_usuario,<br/>el mismo de las rutas del front"]
+        PRUEBAR["Rutas del modo prueba (solo admins)<br/>rutas_prueba.py · esquemas_prueba.py<br/>PUT y DELETE /juego/materas/{id}/prueba<br/>decorador Autenticacion.con_usuario"]
         PRUEBAS["Pruebas unitarias<br/>tests/dominio · tests/aplicacion<br/>(dobles de los puertos de salida,<br/>también los del juego)"]
         CONSOLA["Consola<br/>crear_admin.py<br/>exportar_especies_csv.py"]
         DISP["Rutas de dispositivos<br/>rutas_dispositivos.py<br/>decorador con_dispositivo"]
@@ -25,11 +42,13 @@ flowchart LR
 
     subgraph NUCLEO["Núcleo · dominio/ + aplicacion/"]
         PEJ["Puertos de entrada del juego<br/>dominio/puertos_juego.py<br/><br/>ConsultarMascotas · ConsultarPuntaje<br/>ConsultarParticipacion<br/>ElegirParticipacion<br/>ConsultarTablaPosiciones"]
+        PEP["Puertos de entrada del modo prueba<br/>dominio/puertos_prueba.py<br/><br/>PonerEstadoDePrueba<br/>QuitarEstadoDePrueba"]
         PE["Puertos de entrada<br/>dominio/puertos_entrada.py<br/><br/>DiagnosticarPlanta · ListarEspecies<br/>ListarParametros · RegistrarUsuario<br/>IniciarSesion · CerrarSesion<br/>IdentificarUsuario · ConsultarCuenta<br/>RegistrarPlanta · ListarPlantas<br/>EliminarPlanta · ReemplazarSensor<br/>ConsultarHistorial<br/>CanjearClaveDispositivo · RegistrarLectura<br/>ListarUsuarios · CambiarEstadoUsuario<br/>CambiarRol · EliminarUsuario<br/>AgregarEspecie · ConvertirEnAdministrador<br/><br/>corte 3: RegistrarPlanta y ReemplazarSensor<br/>reciben una huella opcional"]
         CU["Casos de uso · aplicacion/<br/>cada uno hereda el puerto<br/>de su mismo nombre<br/>(más DiagnosticarPlantaDeUsuario)"]
         CUJ["Casos de uso del juego<br/>aplicacion/juego.py: los cinco del juego<br/>y PuntuarLectura<br/>aplicacion/avisos.py: AvisarATodos<br/>(los dos implementan NotificadorDiagnosticos)"]
-        REGLASJ["Reglas del juego<br/>dominio/juego.py · mascota.py<br/><br/>ReglaDeCuidado · ApodoJugador<br/>Participacion.exigir_participacion<br/>CuidadoDeMascota · RitmoCrecimiento<br/>RelojDeJuego · necesidad_principal<br/>(leen EstadoGlobal y RegistroMedicion,<br/>sin cambiar las reglas de antes)"]
-        PSJ["Puertos de salida del juego<br/>dominio/puertos_juego.py<br/><br/>MovimientosPuntaje<br/>RegistroJugadores<br/>RitmosCrecimiento"]
+        CUP["Casos de uso del modo prueba<br/>aplicacion/modo_prueba.py<br/><br/>PonerEstadoDePrueba · QuitarEstadoDePrueba<br/>MascotasConPrueba envuelve ConsultarMascotas<br/>LecturaConPrueba envuelve RegistrarLectura<br/>(implementan esos mismos puertos)"]
+        REGLASJ["Reglas del juego<br/>dominio/juego.py · mascota.py<br/><br/>ReglaDeCuidado · ApodoJugador<br/>Participacion.exigir_participacion<br/>CuidadoDeMascota · RitmoCrecimiento<br/>RelojDeJuego · necesidad_principal<br/>(leen EstadoGlobal y RegistroMedicion,<br/>sin cambiar las reglas de antes)<br/><br/>dominio/modo_prueba.py: EstadoDePrueba.aplicar<br/>MascotaEnPrueba · ResultadoEnPrueba"]
+        PSJ["Puertos de salida del juego<br/>dominio/puertos_juego.py<br/><br/>MovimientosPuntaje<br/>RegistroJugadores<br/>RitmosCrecimiento<br/><br/>dominio/puertos_prueba.py:<br/>EstadosDePrueba"]
         PS["Puertos de salida<br/>dominio/puertos.py · puertos_usuarios.py<br/><br/>ConsultaRangos · CatalogoEspecies<br/>RegistroEspecies · ConsultaCuentas<br/>RegistroCuentas · ListadoCuentas<br/>SesionesAbiertas · ConsultaPlantas<br/>RegistroPlantas · SensoresVinculados<br/>CredencialesSensor · HistorialMediciones<br/>NotificadorDiagnosticos · EmisorTokens<br/>VerificadorTokens · Cifrador<br/>GeneradorSecretos · Reloj"]
         REGLAS["Reglas del dominio<br/>sin Flask, SQLite, CSV, JWT, JSON ni HTTP<br/><br/>Lectura · Medicion · Especie · Rango<br/>ServicioDiagnostico · EvaluadorPlanta<br/>ReglaHibrida · Planta.exigir_dueno<br/>Usuario.exigir_admin<br/>ReporteDeDispositivo<br/>IdentidadUsuario · IdentidadDispositivo"]
     end
@@ -37,6 +56,7 @@ flowchart LR
     subgraph SAL["Salida · infraestructura/"]
         direction TB
         SQLJ["SQLite del juego<br/>sqlite/repositorio_juego.py<br/>MovimientosPuntajeSqlite<br/>RegistroJugadoresSqlite<br/>RitmosCrecimientoSqlite"]
+        MEM["En memoria · estados_prueba_memoria.py<br/>EstadosDePruebaEnMemoria<br/>(se borra al reiniciar el backend)"]
         CSV["CSV · repositorio_especies_csv.py<br/>RepositorioEspeciesCsv<br/>EspeciesDeSoloLectura<br/>RegistroEspeciesConCopiaCsv"]
         JWT["JWT · tokens_jwt.py<br/>TokensJwt (PyJWT)"]
         OTROS["seguridad.py · reloj.py · tiempo_real.py<br/>CifradorPbkdf2 · GeneradorSecretosSeguro<br/>RelojSistema · NotificadorWebSocket"]
@@ -44,15 +64,33 @@ flowchart LR
         REDL["red_local.py · RedLocal<br/>las IPv4 del PC, para GET /red<br/>(no implementa un puerto)"]
     end
 
-    NAV --> FRONT
-    NAV --> JUEGO
-    NAV --> RED
-    NAV --> WS
+    NAV --> PANT
+    APPA --> PANT
+    PANT --> ASIS
+    ASIS --> CP
+    CPS -. "elige los adaptadores" .-> ASIS
+    CP ~~~ RDP
+    CP ~~~ BW
+    CP ~~~ BN
+    RDP -. "implementa" .-> CP
+    BW -. "implementa" .-> CP
+    BN -. "implementa" .-> CP
+    RDP -- "HTTP, unido a su red" --> ESP
+    BW -- "Bluetooth LE" --> ESP
+    BN -- "Bluetooth LE" --> ESP
+
+    PANT --> FRONT
+    PANT --> JUEGO
+    PANT --> PRUEBAR
+    PANT --> RED
+    PANT --> WS
     ESP --> DISP
+    SIM --> DISP
     MAIN -. "conecta los adaptadores<br/>de entrada y de salida" .-> ENT
 
     FRONT --> PE
     JUEGO --> PEJ
+    PRUEBAR --> PEP
     RED ~~~ PEJ
     WS --> PE
     DISP --> PE
@@ -63,22 +101,31 @@ flowchart LR
 
     PE ~~~ CU
     PEJ ~~~ CUJ
+    PEP ~~~ CUP
     CU -. "implementa" .-> PE
     CUJ -. "implementa" .-> PEJ
+    CUP -. "implementa" .-> PEP
+    CUP -. "MascotasConPrueba implementa<br/>ConsultarMascotas" .-> PEJ
+    CUP -. "LecturaConPrueba implementa<br/>RegistrarLectura" .-> PE
     CU --> REGLAS
     CU --> PS
     CUJ --> REGLASJ
     CUJ --> PSJ
     CUJ -- "ConsultaPlantas, HistorialMediciones,<br/>ConsultaCuentas, Reloj" --> PS
     CUJ -. "PuntuarLectura y AvisarATodos<br/>implementan NotificadorDiagnosticos" .-> PS
+    CUP --> REGLASJ
+    CUP -- "EstadosDePrueba" --> PSJ
+    CUP -- "ConsultaPlantas, ConsultaCuentas" --> PS
 
     PSJ ~~~ SQLJ
+    PSJ ~~~ MEM
     PS ~~~ CSV
     PS ~~~ JWT
     PS ~~~ OTROS
     PS ~~~ SQLITE
     SQLITE -. "implementa" .-> PS
     SQLJ -. "implementa" .-> PSJ
+    MEM -. "implementa EstadosDePrueba" .-> PSJ
     CSV -. "implementa" .-> PS
     JWT -. "implementa" .-> PS
     OTROS -. "implementa" .-> PS
@@ -92,16 +139,21 @@ flowchart LR
     classDef aplicacionNuevo fill:#FFF2CC,stroke:#8a6d12,stroke-width:4px,color:#16231b
     classDef dominioNuevo fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
     classDef infraestructuraNuevo fill:#DAE8FC,stroke:#2f5f99,stroke-width:4px,color:#16231b
+    classDef cliente fill:#EEF1EF,stroke:#56655b,stroke-width:2px,color:#16231b
+    classDef clienteNuevo fill:#EEF1EF,stroke:#56655b,stroke-width:4px,color:#16231b
     classDef externo fill:#ffffff,stroke:#8a9a8e,stroke-width:1.5px,color:#16231b
     class FRONT,DISP,WS,CONSOLA,PRUEBAS presentacion
-    class JUEGO,RED presentacionNuevo
+    class JUEGO,RED,PRUEBAR presentacionNuevo
     class CU aplicacion
-    class CUJ aplicacionNuevo
+    class CUJ,CUP aplicacionNuevo
     class PE,REGLAS,PS dominio
-    class PEJ,REGLASJ,PSJ dominioNuevo
+    class PEJ,PEP,REGLASJ,PSJ dominioNuevo
     class SQLITE,CSV,JWT,OTROS infraestructura
-    class SQLJ,REDL infraestructuraNuevo
-    class ESP,NAV,MAIN externo
+    class SQLJ,REDL,MEM infraestructuraNuevo
+    class NAV,PANT cliente
+    class APPA,ASIS,CP,CPS,RDP,BW,BN clienteNuevo
+    class ESP,SIM,MAIN externo
     style NUCLEO fill:#f7fbf6,stroke:#2e6a4e,stroke-width:3px,color:#16231b
     style ENT fill:#fbf8fc,stroke:#c9b8d3,color:#16231b
     style SAL fill:#f6f9fd,stroke:#b9cbe3,color:#16231b
+    style CLI fill:#fafbfa,stroke:#c3cbc5,color:#16231b

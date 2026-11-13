@@ -1,0 +1,102 @@
+%% Secuencia del corte 3 (implementada): el asistente «Conectar sensor» conecta una placa nueva por Bluetooth LE,
+%% desde el navegador (BluetoothWeb, Chrome o Edge) o desde la app Android (BluetoothNativo). Los dos heredan
+%% CanalBluetooth (js/canal-bluetooth.js) y son adaptadores del puerto CanalPlaca: el asistente
+%% (js/conectar-sensor.js) es el mismo que por la red de la placa (ver secuencia-conexion-placa).
+%% El contrato BLE es el de firmware/README.md («Bluetooth LE»): cada pedido {op, clave, id} se escribe en pedazos
+%% de 20 bytes y la respuesta {op, id, http, cuerpo} llega en trozos por notificacion. Las reglas de cada operacion
+%% estan una sola vez en api_local.cpp; bluetooth.cpp solo revisa la clave y traduce.
+%% Por Bluetooth el equipo no deja su WiFi: la app alcanza la API todo el tiempo.
+sequenceDiagram
+    autonumber
+    actor P as Persona
+    participant A as App: asistente «Conectar sensor»<br/>(js/conectar-sensor.js, en el navegador o en la app)
+    participant C as CanalBluetooth<br/>BluetoothWeb (Chrome o Edge) o<br/>BluetoothNativo (app Android)
+    participant M as Placa ESP32<br/>(bluetooth.cpp y api_local.cpp)
+    participant S as API del backend<br/>(Flask, puerto 5000)
+
+    P ->> A: Agregar matera: apodo y especie<br/>(o «Cambiar sensor» en una tarjeta)
+
+    rect rgb(238, 244, 250)
+        Note over A,S: 1. Preparar
+        A ->> S: GET /api/v1/red, con el JWT de usuario
+        S -->> A: 200 {servidores: ["http://<ip del PC>:5000/api/v1", ...]}
+        Note over A: canales-placa.js ofrece primero el Bluetooth:<br/>BluetoothNativo en la app, BluetoothWeb en Chrome o Edge
+    end
+
+    M ->> M: modo de conexión (sin red guardada, o BOOT 5 s): abre su red,<br/>se anuncia como Matera-5500BA con el servicio 4d540001-…<br/>y muestra el QR, el nombre de la red y una clave nueva de 8 caracteres
+
+    rect rgb(238, 248, 238)
+        Note over P,M: 2. Encontrar la placa, con la clave de su pantalla
+        P ->> A: escribe la clave que muestra la pantalla
+        A ->> C: conectar({clave})
+        C ->> P: la lista de placas cercanas (del navegador o de Android),<br/>filtrada por el servicio o por «Matera-»
+        P ->> C: elige Matera-5500BA
+        C ->> M: conexión GATT y notificaciones de «respuesta» activas<br/>(antes del primer pedido)
+        Note over M: una conexión a la vez: si en 20 s no llega un pedido con la clave,<br/>la corta, y después de una clave válida, a los 2 minutos sin pedidos
+        A ->> C: info()
+        C ->> M: {"op":"info","clave","id":"1"}, escrito en pedazos de 20 bytes<br/>en «pedido» (escrituras con respuesta, nunca una larga)
+        Note over M: bluetooth.cpp junta los pedazos hasta cerrar la llave<br/>y compara la clave sin cortar en la primera diferencia
+        alt la clave no es la de la pantalla
+            M -->> C: {"http":401,"cuerpo":{"error":"CLAVE_INCORRECTA",<br/>"mensaje":"… Quedan 4 intentos."}}
+            C -->> A: ErrorApi 401: se corrige la clave sin volver a la lista
+        else quinta clave equivocada seguida
+            M -->> C: {"http":429,"cuerpo":{"error":"DEMASIADOS_INTENTOS",<br/>"detalle":{"segundos":60}}}, y corta la conexión
+            C -->> A: ErrorApi 429 con detalle.segundos:<br/>el botón espera con la cuenta atrás
+        else la clave es correcta
+            M -->> C: notificaciones en trozos: [número, índice, total] + JSON<br/>{"op":"info","id":"1","http":200,"cuerpo":{codigo, huella, redes}}
+            C -->> A: {codigo: "MT-5500-BA", huella: "<64 hex>", redes}<br/>(junta los trozos y recién ahí lee el UTF-8)
+        end
+    end
+
+    rect rgb(238, 244, 250)
+        Note over P,M: 3. Elegir el WiFi
+        P ->> A: elige su WiFi de la lista de la placa y escribe su clave
+        A ->> C: configurar({red, claveRed, servidores})
+        C ->> M: {"op":"configurar","clave","red","claveRed","servidores"}
+        M -->> C: {"http":202,"cuerpo":{"etapa":"conectando"}}
+        M ->> M: guarda la red y los servidores en la NVS y se une al WiFi,<br/>con el modo de conexión todavía abierto
+        M ->> S: POST /api/v1/dispositivos/MT-5500-BA/token con {} (sin la clave)
+        S -->> M: 400 en JSON con su campo error: es la API
+        M ->> S: POST .../token {clave}
+        S -->> M: 401 CLAVE_SENSOR_INVALIDA: la matera todavía no existe
+        loop cada 1,5 s, hasta esperando-matera (y «estado» cada 45 s sin pedidos, para que la placa no corte)
+            A ->> C: estado()
+            C ->> M: {"op":"estado","clave"}
+            M -->> C: {"http":200,"cuerpo":{"etapa","detalle"}}
+        end
+    end
+
+    rect rgb(238, 248, 238)
+        Note over A,M: 4. Cerrar la conexión: el equipo nunca dejó su WiFi
+        A ->> C: cerrar()
+        C ->> M: {"op":"cerrar","clave"}
+        M -->> C: {"http":204,"cuerpo":null}
+        M ->> M: 0,4 s después apaga su red y su Bluetooth (deja de anunciarse)
+        A ->> C: desconectar(): olvida la clave de la pantalla
+    end
+
+    rect rgb(238, 244, 250)
+        Note over A,S: 5. Crear la matera (o cambiar el sensor)
+        A ->> S: POST /api/v1/plantas {apodo, especie, codigo: "MT-5500-BA", huella}<br/>(o PUT /api/v1/plantas/{id}/sensor {codigo, huella})
+        S -->> A: 201 {planta, codigo}, sin clave: la API solo guarda la huella
+    end
+
+    rect rgb(238, 248, 238)
+        Note over M,S: la placa, sola: el canje y las lecturas de la fase 2
+        loop cada 5 s, mientras la API responda 401
+            M ->> S: POST /api/v1/dispositivos/MT-5500-BA/token {clave}
+        end
+        S -->> M: 200 {token, venceEn}: JWT de alcance «lecturas»
+        M ->> S: POST /api/v1/dispositivos/MT-5500-BA/lecturas<br/>Authorization: Bearer, cada 15 s
+        S -->> M: 201 {planta, momento, diagnostico, necesidad, prueba}
+        Note over M: la carita, el apodo, el estado y el globo
+    end
+
+    rect rgb(238, 244, 250)
+        Note over A,S: 6. Primera lectura
+        loop cada 3 s (o al llegar el mensaje del WebSocket)
+            A ->> S: GET /api/v1/plantas
+            S -->> A: la matera con su ultimaMedicion
+        end
+        A -->> P: la primera medición con origen MT-5500-BA y su estado
+    end

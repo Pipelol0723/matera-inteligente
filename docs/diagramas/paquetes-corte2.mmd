@@ -4,17 +4,19 @@
 %% dominio/puertos_entrada.py (lo exige tests/dominio/test_arquitectura.py) y main.py les entrega el caso de uso.
 %% main.py es el unico que conecta las capas, tambien para los comandos de consola (construir_consola).
 %% Corte 3: cada caja agrega una linea "corte 3:" con sus archivos nuevos. No hay dependencias nuevas entre capas.
+%% app/ (la app Android) no tiene codigo propio de la matera: empaqueta frontend/ con Capacitor.
 flowchart TB
-    FRONT["frontend/ · cliente estático servido aparte (puerto 5500)<br/>index.html · css/estilos.css · js/config.js · js/app.js · js/api.js<br/>js/diagnostico.js · js/especies.js · js/escala.js · js/formato.js<br/>nuevos: js/sesion.js · js/acceso.js · js/cuenta.js · js/materas.js<br/>js/tiempo-real.js · js/historial.js · js/admin.js<br/>js/formularios.js · js/lecturas.js · js/consulta-periodica.js<br/>se eliminó js/prototipos.js<br/>corte 3: js/juego.js · js/dibujo-planta.js · js/participacion.js<br/>js/avisos.js · js/conectar-sensor.js"]
-    ESP["ESP32 · firmware/matera-sensor<br/>canjea su clave por un token: POST /api/v1/dispositivos/{codigo}/token<br/>y manda cada lectura con su hora: POST /api/v1/dispositivos/{codigo}/lecturas<br/>corte 3: su código sale de la MAC, crea su clave, abre su red con un QR<br/>y responde una API local en 192.168.4.1 (ver firmware/README.md)"]
+    FRONT["frontend/ · cliente estático servido aparte (puerto 5500)<br/>index.html · css/estilos.css · js/config.js · js/app.js · js/api.js<br/>js/diagnostico.js · js/especies.js · js/escala.js · js/formato.js<br/>nuevos: js/sesion.js · js/acceso.js · js/cuenta.js · js/materas.js<br/>js/tiempo-real.js · js/historial.js · js/admin.js<br/>js/formularios.js · js/lecturas.js · js/consulta-periodica.js<br/>se eliminó js/prototipos.js<br/>corte 3: js/juego.js · js/dibujo-planta.js · js/participacion.js<br/>js/avisos.js · js/conectar-sensor.js · js/modo-prueba.js · js/apariencia.js<br/>el puerto CanalPlaca: js/canal-placa.js · js/canales-placa.js · js/canal-red-placa.js<br/>js/canal-bluetooth.js · js/canal-bluetooth-web.js · js/canal-bluetooth-nativo.js · js/ble-nativo.js<br/>la app: js/plataforma.js · js/avisos-nativos.js · js/servidor-app.js · js/direccion-api.js<br/>js/qr.js · js/qr-servidor.js · fuentes/ y un CSS por pantalla en css/"]
+    APPM["app/ · la app Android, con Capacitor 8.6.0 (corte 3)<br/>capacitor.config.json: webDir ../frontend, el mismo front en una WebView<br/>android/: el proyecto de Gradle y su AndroidManifest.xml<br/>plugins: bluetooth-le, local-notifications y app"]
+    ESP["ESP32 · firmware/matera-sensor<br/>canjea su clave por un token: POST /api/v1/dispositivos/{codigo}/token<br/>y manda cada lectura con su hora: POST /api/v1/dispositivos/{codigo}/lecturas<br/>corte 3: su código sale de la MAC, crea su clave, abre su red con un QR<br/>y responde una API local en 192.168.4.1 y por Bluetooth LE (ver firmware/README.md)"]
     SIM["simulador/simulador_esp32.py · script aparte, en la raíz del repositorio<br/>hace lo mismo que la placa y puede mandar lecturas fuera de rango e inválidas<br/>no importa nada del backend<br/>usa: solo la biblioteca estándar de Python"]
 
     subgraph BACKEND["backend/ (Flask, puerto 5000)"]
         MAIN["main.py · raíz de composición, la única que conecta las capas<br/>nuevos: crear_admin.py · exportar_especies_csv.py<br/>comandos de consola, que piden sus piezas a construir_consola"]
-        PRES["presentacion/<br/>rutas.py · esquemas.py · errores_http.py<br/>nuevos: autenticacion.py · rutas_usuarios.py · rutas_plantas.py<br/>rutas_dispositivos.py · rutas_admin.py · tiempo_real.py<br/>esquemas_usuarios.py · esquemas_dispositivos.py · errores_usuarios.py<br/>se eliminó rutas_sensores.py<br/>corte 3: rutas_juego.py · esquemas_juego.py · errores_juego.py · rutas_red.py<br/>usa: flask, werkzeug, flask-sock"]
-        APP["aplicacion/<br/>diagnosticar_planta.py · listar_especies.py · listar_parametros.py<br/>nuevos: cuentas.py · plantas.py · sensores.py · historial.py<br/>diagnosticar_planta_de_usuario.py · administracion.py<br/>corte 3: juego.py · avisos.py (solo archivos agregados)<br/>cada caso de uso hereda de su puerto de entrada"]
-        DOM["dominio/<br/>los 12 módulos del corte 1 (solo cambió un comentario)<br/>nuevos: usuarios.py · plantas.py · sensores.py · historial.py<br/>identidad.py · reportes.py · resultados.py · errores_usuarios.py<br/>puertos_entrada.py (lo que ofrece el núcleo)<br/>puertos_usuarios.py (lo que necesita de afuera)<br/>corte 3: juego.py · mascota.py · resultados_juego.py<br/>puertos_juego.py · errores_juego.py (solo archivos agregados)<br/>usa: solo la biblioteca estándar de Python"]
-        INFRA["infraestructura/<br/>configuracion.py · servidor_web.py<br/>repositorio_especies_csv.py, que vuelve como copia de solo lectura<br/>nuevos: sqlite/ (base_datos.py · repositorio_usuarios.py · repositorio_plantas.py<br/>repositorio_especies.py · historial_mediciones.py)<br/>seguridad.py · reloj.py · tiempo_real.py · tokens_jwt.py<br/>corte 3: sqlite/repositorio_juego.py · red_local.py<br/>usa: sqlite3, hashlib, secrets, hmac, csv, socket, PyJWT, flask, flask-cors"]
+        PRES["presentacion/<br/>rutas.py · esquemas.py · errores_http.py<br/>nuevos: autenticacion.py · rutas_usuarios.py · rutas_plantas.py<br/>rutas_dispositivos.py · rutas_admin.py · tiempo_real.py<br/>esquemas_usuarios.py · esquemas_dispositivos.py · errores_usuarios.py<br/>se eliminó rutas_sensores.py<br/>corte 3: rutas_juego.py · esquemas_juego.py · errores_juego.py · rutas_red.py<br/>rutas_prueba.py · esquemas_prueba.py<br/>usa: flask, werkzeug, flask-sock"]
+        APP["aplicacion/<br/>diagnosticar_planta.py · listar_especies.py · listar_parametros.py<br/>nuevos: cuentas.py · plantas.py · sensores.py · historial.py<br/>diagnosticar_planta_de_usuario.py · administracion.py<br/>corte 3: juego.py · avisos.py · modo_prueba.py (solo archivos agregados)<br/>cada caso de uso hereda de su puerto de entrada"]
+        DOM["dominio/<br/>los 12 módulos del corte 1 (solo cambió un comentario)<br/>nuevos: usuarios.py · plantas.py · sensores.py · historial.py<br/>identidad.py · reportes.py · resultados.py · errores_usuarios.py<br/>puertos_entrada.py (lo que ofrece el núcleo)<br/>puertos_usuarios.py (lo que necesita de afuera)<br/>corte 3: juego.py · mascota.py · resultados_juego.py<br/>puertos_juego.py · errores_juego.py · modo_prueba.py · puertos_prueba.py (agregados)<br/>y la huella opcional en puertos_entrada.py y resultados.py (commit 9167a8f)<br/>usa: solo la biblioteca estándar de Python"]
+        INFRA["infraestructura/<br/>configuracion.py · servidor_web.py<br/>repositorio_especies_csv.py, que vuelve como copia de solo lectura<br/>nuevos: sqlite/ (base_datos.py · repositorio_usuarios.py · repositorio_plantas.py<br/>repositorio_especies.py · historial_mediciones.py)<br/>seguridad.py · reloj.py · tiempo_real.py · tokens_jwt.py<br/>corte 3: sqlite/repositorio_juego.py · red_local.py · estados_prueba_memoria.py<br/>usa: sqlite3, hashlib, secrets, hmac, csv, socket, PyJWT, flask, flask-cors"]
         SQL["datos/esquema.sql · datos/carga.sql<br/>las tablas y las especies de partida<br/>corte 3: datos/ritmos.sql, el ritmo de crecimiento de cada especie"]
         CSV["datos/especies.csv<br/>copia de solo lectura de la tabla de especies<br/>la usa MATERA_TABLA_REFERENCIA=csv<br/>la escribe exportar_especies_csv.py"]
         TESTS["tests/<br/>dominio/ · aplicacion/ · integracion/<br/>dobles.py · dobles_usuarios.py<br/>corte 3: dobles_juego.py"]
@@ -23,7 +25,8 @@ flowchart TB
 
     FRONT -->|"HTTP + JSON, JWT de usuario (Bearer) en lo privado, y GET /plantas cada 10 s<br/>WebSocket /tiempo-real, token en el primer mensaje"| PRES
     ESP -->|"HTTP + JSON, token del dispositivo (Bearer)"| PRES
-    FRONT -.->|"corte 3, el asistente: la API local de la placa,<br/>solo mientras el equipo está en su red"| ESP
+    FRONT -.->|"corte 3, el asistente: la API local de la placa,<br/>por su red (192.168.4.1) o por Bluetooth LE"| ESP
+    APPM -.->|"webDir: empaqueta el mismo front"| FRONT
     SIM -->|"HTTP + JSON, igual que la placa"| PRES
     PRES -->|"importa los puertos de entrada y los datos del dominio"| DOM
     APP -->|"importa · implementa los puertos de entrada"| DOM
@@ -51,5 +54,5 @@ flowchart TB
     class DOM dominio
     class INFRA infraestructura
     class FRONT,MAIN,TESTS neutro
-    class ESP,SIM,SQL,CSV,BD nuevo
+    class ESP,SIM,SQL,CSV,BD,APPM nuevo
     style BACKEND fill:#fbfcfa,stroke:#c3d3c4,stroke-dasharray:6 4,color:#56655b

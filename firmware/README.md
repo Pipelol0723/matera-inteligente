@@ -212,6 +212,8 @@ Además de los de la API local (`SOLICITUD_INVALIDA`, `PARAMETRO_INVALIDO`, `SIN
 |---|---|---|
 | 401 | `CLAVE_INCORRECTA`, con `detalle.campo` = `clave` | Falta la clave o no es la de la pantalla. El mensaje dice cuántos intentos quedan («Quedan 4 intentos.», …, «Queda 1 intento.»). |
 | 429 | `DEMASIADOS_INTENTOS`, con `detalle.segundos` | Hubo 5 claves equivocadas seguidas: la placa corta la conexión y durante 60 s responde esto a todo, aunque la clave sea la correcta. `detalle.segundos` es un entero, de 1 a 60, con lo que falta para que vuelva a atender, y el mensaje dice lo mismo. |
+| 400 | `PARAMETRO_INVALIDO`, con `detalle.campo` = `op` | Falta `op`, o no es `info`, `configurar`, `estado` ni `cerrar`. |
+| 400 | `SOLICITUD_INVALIDA` | No es un objeto JSON, pasa de 1024 bytes o quedó a medias 3 s sin otro pedazo. Va sin `op` ni `id`. |
 
 Por ejemplo, la quinta clave equivocada:
 
@@ -220,8 +222,6 @@ Por ejemplo, la quinta clave equivocada:
 ```
 
 La app arma la cuenta atrás con `detalle.segundos`. Las primeras versiones del firmware con Bluetooth no lo mandaban (solo lo decían en el mensaje); con una de ellas, `canal-bluetooth.js` lee el número del mensaje. La ruta HTTP de la red propia no tiene este bloqueo: ahí la protege la clave WPA2 y el límite de un solo cliente.
-| 400 | `PARAMETRO_INVALIDO`, con `detalle.campo` = `op` | Falta `op`, o no es `info`, `configurar`, `estado` ni `cerrar`. |
-| 400 | `SOLICITUD_INVALIDA` | No es un objeto JSON, pasa de 1024 bytes o quedó a medias 3 s sin otro pedazo. Va sin `op` ni `id`. |
 
 ### Seguridad
 
@@ -237,7 +237,7 @@ La app arma la cuenta atrás con `detalle.segundos`. Las primeras versiones del 
 1. Abrir el modo de conexión de la placa (sin red guardada, BOOT 5 s, o la orden `conexion` por el monitor serie) y anotar la clave de la pantalla.
 2. En nRF Connect, **Scanner**: aparece `Matera-7518JP`. **Connect**.
 3. En el servicio `4d540001-...`, la característica `respuesta` (`4d540003-...`): tocar el ícono de las tres flechas para activar las notificaciones.
-4. En `pedido` (`4d540002-...`): tocar la flecha hacia arriba, elegir **TEXT**, escribir `{"op":"info","clave":"<la de la pantalla>"}` y **Send** (como *request*). nRF Connect lo manda en una sola escritura: sirve mientras el pedido quepa en el MTU que negoció (nRF Connect suele pedir el máximo, y la placa acepta 255, o sea 252 bytes). Un `configurar` más largo se puede mandar en dos o tres escrituras seguidas, cada una con un pedazo del texto.
+4. En `pedido` (`4d540002-...`): tocar la flecha hacia arriba, elegir **TEXT**, escribir `{"op":"info","clave":"<la de la pantalla>"}` y **Send** (como *request*). Hay que mandarlo antes de 20 s desde que se conectó: si no, la placa corta la conexión (conviene tener el texto escrito antes de tocar **Connect**). nRF Connect lo manda en una sola escritura: sirve mientras el pedido quepa en el MTU que negoció (nRF Connect suele pedir el máximo, y la placa acepta 255, o sea 252 bytes). Un `configurar` más largo se puede mandar en dos o tres escrituras seguidas, cada una con un pedazo del texto.
 5. En `respuesta` aparece el valor: los 3 primeros bytes son el encabezado (por ejemplo `01-00-07`: respuesta 1, trozo 0 de 7) y después el texto del JSON. nRF Connect muestra el último trozo; el registro (**Log**, deslizando a la derecha) muestra todos.
 6. Probar también sin clave (`{"op":"info"}` da 401), `estado`, y `configurar` con el WiFi real. En el monitor serie se ve cada pedido, por ejemplo `Bluetooth: «info» -> 200 (1234 bytes en 6 trozo(s), MTU 247).`
 
