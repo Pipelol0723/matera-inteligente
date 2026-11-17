@@ -1,7 +1,8 @@
 %% Modelo entidad-relacion del corte 2 y del corte 3 (implementado en backend/datos/esquema.sql): una sola base SQLite.
 %% Desde la fase 2 los tokens son JWT: SESION y SENSOR guardan el id del token (el reclamo jti), no el token ni su huella.
 %% Las lineas punteadas llegan a PARAMETRO, que sigue en el codigo y no es una tabla.
-%% Corte 3 (version 4 del esquema): el juego solo agrega las seis tablas marcadas "corte 3"; las de antes no cambian.
+%% Corte 3 (versiones 4 y 5 del esquema): el juego solo agrega las siete tablas marcadas "corte 3"; las de antes no cambian.
+%% RELOJ_JUEGO (version 5) es una sola fila (id = 1): el reloj que eligio un admin. Sin fila, vale MATERA_MINUTOS_POR_DIA_JUEGO.
 %% CUIDADO_POR_HORA y HORAS_POR_TRAMO tambien llevan usuario_id (FK a USUARIO, en cascada): esas dos lineas no se
 %% dibujan para que el diagrama se lea; las de PLANTA si.
 erDiagram
@@ -10,6 +11,7 @@ erDiagram
     USUARIO ||--o{ SESION : "abre"
     USUARIO ||--o{ PLANTA : "es dueño de"
     USUARIO ||--o{ MOVIMIENTO_PUNTAJE : "gana o pierde puntos"
+    USUARIO |o--o| RELOJ_JUEGO : "lo cambió"
     ESPECIE ||--o| RITMO_CRECIMIENTO : "crece a su ritmo"
     ESPECIE ||--o{ PLANTA : "es la especie de"
     ESPECIE ||--|{ RANGO_OPTIMO : "uno por parámetro"
@@ -110,6 +112,12 @@ erDiagram
         int usuario_id PK, FK "corte 3"
         string estado "SIN_DECIDIR, PARTICIPA o NO_PARTICIPA"
         string apodo UK "solo si participa; NOCASE"
+    }
+    RELOJ_JUEGO {
+        int id PK "siempre 1 · corte 3"
+        float minutos_por_dia "mayor que 0"
+        string cambiado_en
+        int cambiado_por FK "usuario; NULL si se borró (SET NULL)"
     }
     RITMO_CRECIMIENTO {
         string especie PK, FK "corte 3"

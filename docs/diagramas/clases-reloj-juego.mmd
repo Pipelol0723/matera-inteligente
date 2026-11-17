@@ -1,0 +1,135 @@
+%% El reloj del juego ajustable del corte 3: un admin cambia cuanto dura un dia de juego sin reiniciar el backend.
+%% Todo esta en archivos nuevos: dominio/reloj_juego.py y puertos_reloj.py; aplicacion/reloj_juego.py;
+%% presentacion/rutas_reloj.py y errores_reloj.py; infraestructura/sqlite/reloj_juego.py.
+%% RelojDeJuegoAjustable tiene la misma forma que RelojDeJuego (dia, hora, horas, dias, numero_de_hora), asi que
+%% MovimientosPuntajeSqlite y CuidadoDeMascota lo reciben donde antes recibian un RelojDeJuego, sin cambiar.
+%% Colores por capa (sin namespace, para que se lea): verde dominio, amarillo aplicacion, morado presentacion,
+%% azul infraestructura.
+%% Borde grueso: se agrego en el corte 3. Borde medio: corte 2 (ya existia). Borde fino: corte 1.
+%% Los puertos de entrada llevan el prefijo puertos_reloj. y el caso de uso que lo hereda va sin prefijo.
+classDiagram
+    direction TB
+
+    class rutas_reloj {
+        <<módulo>>
+        +crear_blueprint_reloj(consultar, cambiar, autenticacion) Blueprint
+        +reloj_a_json(reloj) dict
+        +minutos_desde_json(cuerpo) float
+        GET y PUT /api/v1/juego/reloj con Autenticacion.con_usuario
+    }
+    class errores_reloj {
+        <<módulo>>
+        +registrar_manejadores_reloj(bp)
+        RelojDeJuegoInvalido → 400 RELOJ_INVALIDO
+    }
+
+    class pr_ConsultarRelojDeJuego["puertos_reloj.ConsultarRelojDeJuego"] {
+        <<interface>>
+        +ejecutar(usuario) RelojDeJuego
+    }
+    class pr_CambiarRelojDeJuego["puertos_reloj.CambiarRelojDeJuego"] {
+        <<interface>>
+        +ejecutar(usuario, minutos_por_dia) RelojDeJuego
+    }
+    class RelojDeJuegoGuardado {
+        <<interface>>
+        +leer() RelojDeJuego o None
+        +guardar(reloj, usuario_id, momento)
+    }
+    class Reloj {
+        <<interface>>
+        +ahora() datetime
+    }
+
+    class ConsultarRelojDeJuego {
+        -ajustable: RelojDeJuegoAjustable
+        +ejecutar(usuario) RelojDeJuego
+    }
+    class CambiarRelojDeJuego {
+        -ajustable: RelojDeJuegoAjustable
+        -guardado: RelojDeJuegoGuardado
+        -reloj: Reloj
+        +ejecutar(usuario, minutos_por_dia) RelojDeJuego
+    }
+
+    class RelojDeJuegoAjustable {
+        -_vigente: RelojDeJuego
+        +vigente: RelojDeJuego
+        +validar(reloj)$ RelojDeJuego
+        +desde_minutos(minutos_por_dia)$ RelojDeJuego
+        +cambiar(nuevo: RelojDeJuego)
+        +minutos_por_dia · dia · hora
+        +horas(cantidad) · dias(cantidad)
+        +numero_de_hora(momento) int
+    }
+    class RelojDeJuego {
+        +minutos_por_dia: float
+        +dia · hora
+        +horas(cantidad) · dias(cantidad)
+        +numero_de_hora(momento) int
+    }
+    class RelojDeJuegoInvalido {
+        <<ErrorDominio>>
+    }
+    class ErrorDominio {
+        <<exception>>
+    }
+    class CuidadoDeMascota {
+        +CuidadoDeMascota(reloj, minutos_para_dormir)
+        la ventana de 6 horas de juego cabe en el calendario
+    }
+    class Usuario {
+        +exigir_admin()
+    }
+    class MovimientosPuntajeSqlite {
+        -_reloj: RelojDeJuego
+        pone cada lectura en su hora de juego al guardarla
+    }
+
+    class RelojDeJuegoGuardadoSqlite {
+        -_bd: BaseDatos
+        +leer() RelojDeJuego o None
+        +guardar(reloj, usuario_id, momento)
+        tabla reloj_juego: una sola fila, id = 1
+    }
+
+    rutas_reloj ..> pr_ConsultarRelojDeJuego : GET /juego/reloj
+    rutas_reloj ..> pr_CambiarRelojDeJuego : PUT /juego/reloj
+    rutas_reloj ..> errores_reloj : registra los manejadores
+    errores_reloj ..> RelojDeJuegoInvalido : 400 RELOJ_INVALIDO
+
+    pr_ConsultarRelojDeJuego <|.. ConsultarRelojDeJuego
+    pr_CambiarRelojDeJuego <|.. CambiarRelojDeJuego
+    ConsultarRelojDeJuego --> RelojDeJuegoAjustable : vigente
+    CambiarRelojDeJuego --> RelojDeJuegoAjustable : desde_minutos, cambiar
+    CambiarRelojDeJuego --> RelojDeJuegoGuardado : guardar
+    CambiarRelojDeJuego --> Reloj : ahora
+    CambiarRelojDeJuego ..> Usuario : exigir_admin()
+
+    RelojDeJuegoGuardado <|.. RelojDeJuegoGuardadoSqlite
+    RelojDeJuegoAjustable --> RelojDeJuego : _vigente
+    RelojDeJuegoAjustable ..> RelojDeJuegoInvalido : lanza
+    RelojDeJuegoAjustable ..> CuidadoDeMascota : validar lo prueba
+    ErrorDominio <|-- RelojDeJuegoInvalido
+    MovimientosPuntajeSqlite --> RelojDeJuegoAjustable : misma forma que RelojDeJuego
+    CuidadoDeMascota --> RelojDeJuegoAjustable : misma forma que RelojDeJuego
+
+    note for RelojDeJuegoAjustable "Reemplazar _vigente es cambiar una referencia:<br>quien lo lee ve el reloj de antes o el nuevo,<br>nunca uno a medias. main.py lo arma con lo<br>guardado o, si nadie lo cambió, con<br>MATERA_MINUTOS_POR_DIA_JUEGO."
+    note for CambiarRelojDeJuego "Primero guarda y después cambia: si no se pudo<br>guardar, nada cambia. Cambiarlo no reagrupa el pasado:<br>cada lectura ya quedó en su hora de juego al llegar.<br>Los 30 minutos para dormirse son reales y no cambian."
+
+    style rutas_reloj fill:#E1D5E7,stroke:#6a3d80,stroke-width:4px,color:#16231b
+    style errores_reloj fill:#E1D5E7,stroke:#6a3d80,stroke-width:4px,color:#16231b
+    style pr_ConsultarRelojDeJuego fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style pr_CambiarRelojDeJuego fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style RelojDeJuegoGuardado fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style Reloj fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style ConsultarRelojDeJuego fill:#FFF2CC,stroke:#8a6d12,stroke-width:4px,color:#16231b
+    style CambiarRelojDeJuego fill:#FFF2CC,stroke:#8a6d12,stroke-width:4px,color:#16231b
+    style RelojDeJuegoAjustable fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style RelojDeJuego fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style RelojDeJuegoInvalido fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style ErrorDominio fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style CuidadoDeMascota fill:#D5E8D4,stroke:#2e6a4e,stroke-width:4px,color:#16231b
+    style Usuario fill:#D5E8D4,stroke:#2e6a4e,stroke-width:2px,color:#16231b
+    style MovimientosPuntajeSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:4px,color:#16231b
+    style RelojDeJuegoGuardadoSqlite fill:#DAE8FC,stroke:#2f5f99,stroke-width:4px,color:#16231b

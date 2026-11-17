@@ -5,12 +5,13 @@ La fuente de cada diagrama es su archivo `.mmd` (Mermaid). El `.svg` y el `.png`
 Hay diagramas de dos momentos:
 
 - **Corte 1**: el sistema entregado, en el tag `corte-1` (commit `8c37f83`). Estos diagramas quedan como registro del antes y no se actualizan.
-- **Cortes 2 y 3**: el sistema actual, con usuarios, administración, sensores, historial, tiempo real, el juego y la conexión de la placa. Los que llevan `-corte2` en el nombre lo conservan, pero también muestran el corte 3. Se ajustaron al código cinco veces:
+- **Cortes 2 y 3**: el sistema actual, con usuarios, administración, sensores, historial, tiempo real, el juego y la conexión de la placa. Los que llevan `-corte2` en el nombre lo conservan, pero también muestran el corte 3. Se ajustaron al código seis veces:
   - El 12 de octubre de 2026, con las cuentas, las plantas y los sensores.
   - El 18 de octubre, cuando la matera pasó a nacer con su sensor, se quitó la medición a mano y se agregó el WebSocket.
   - El 26 de octubre, con la fase 2 hexagonal: los puertos de entrada, los puertos de salida pequeños, los JWT, el canje de la clave del dispositivo y la tabla de referencia en la base o en CSV.
   - El 12 de noviembre, con el corte 3: la matera Tamagotchi, el puntaje y la tabla de posiciones, y la placa que se conecta sola con la huella de su clave.
   - Al cierre del corte 3: el modo prueba de los administradores, la conexión por Bluetooth, el puerto `CanalPlaca` del cliente y la app Android.
+  - El 17 de noviembre: el reloj del juego ajustable por un administrador.
 
   Corresponden uno a uno con el repositorio.
 
@@ -27,6 +28,7 @@ Hay diagramas de dos momentos:
 | [Clases: cuentas y administración](#presentación-y-aplicación-cuentas-y-administración) | no existía | [`clases-cuentas`](clases-cuentas.png) |
 | [Clases: el juego](#clases-del-juego) | no existía | [`clases-juego`](clases-juego.png) |
 | [Clases: el modo prueba](#clases-del-modo-prueba) | no existía | [`clases-modo-prueba`](clases-modo-prueba.png) |
+| [Clases: el reloj del juego](#clases-del-reloj-del-juego) | no existía | [`clases-reloj-juego`](clases-reloj-juego.png) |
 | [Entidad-relación](#entidad-relación) | [`entidad-relacion-corte1`](entidad-relacion-corte1.png) | [`entidad-relacion-corte2`](entidad-relacion-corte2.png) |
 | [Secuencia: un diagnóstico](#secuencia-de-un-diagnóstico) | [`secuencia-diagnostico`](secuencia-diagnostico.png) | igual, con el repositorio de especies que elija la configuración |
 | [Secuencia: lectura de un dispositivo](#secuencia-de-una-lectura-del-dispositivo) | no existía | [`secuencia-medicion-sensor`](secuencia-medicion-sensor.png) |
@@ -40,7 +42,7 @@ Hay diagramas de dos momentos:
 
 Al final está además la [vista general](#vista-general-diagrama-de-clases-del-backend) de Roger: el backend completo en un solo diagrama de PlantUML.
 
-Los seis diagramas de clases actuales no llevan sufijo porque muestran los tres cortes a la vez: **borde fino = corte 1, borde medio (2 px) = se agregó en el corte 2, con la fase 2 incluida, y borde grueso (4 px) = se agregó en el corte 3**. Los `-corte1` muestran solo lo del corte 1.
+Los siete diagramas de clases actuales no llevan sufijo porque muestran los tres cortes a la vez: **borde fino = corte 1, borde medio (2 px) = se agregó en el corte 2, con la fase 2 incluida, y borde grueso (4 px) = se agregó en el corte 3**. Los `-corte1` muestran solo lo del corte 1.
 
 ## Convenciones
 
@@ -75,17 +77,18 @@ Es el backend dibujado como puertos y adaptadores, con los nombres reales de arc
 - **A la izquierda, los adaptadores de entrada.**
   - Las rutas del front, el WebSocket y las rutas de los dispositivos, que reciben a la ESP32 y al simulador.
   - Las rutas del modo prueba (`rutas_prueba.py`, solo para administradores).
+  - Las rutas del reloj del juego (`rutas_reloj.py`): `GET` para cualquier usuario con sesión y `PUT`, solo para administradores.
   - Los comandos de consola (`crear_admin.py` y `exportar_especies_csv.py`) y las pruebas unitarias. No están en `presentacion/`, pero cumplen el mismo papel: llaman a un puerto de entrada, igual que una ruta.
 - **Al centro, el núcleo.**
   - Los 21 puertos de entrada de `dominio/puertos_entrada.py`: uno por caso de uso, con su mismo nombre. En el corte 3, `RegistrarPlanta` y `ReemplazarSensor` reciben una huella opcional.
-  - Los 5 puertos de entrada del juego, en `dominio/puertos_juego.py`, y los 2 del modo prueba, en `dominio/puertos_prueba.py`: archivos nuevos.
-  - Los casos de uso de `aplicacion/`: cada uno hereda su puerto. Los del juego están en `aplicacion/juego.py`, y los del modo prueba en `aplicacion/modo_prueba.py`.
-  - Las reglas del dominio, las del juego en `dominio/juego.py` y `dominio/mascota.py`, y las del modo prueba en `dominio/modo_prueba.py`.
-  - Los 18 puertos de salida de `dominio/puertos.py` y `dominio/puertos_usuarios.py`, los 3 del juego en `dominio/puertos_juego.py` y `EstadosDePrueba`, en `dominio/puertos_prueba.py`.
+  - Los 5 puertos de entrada del juego, en `dominio/puertos_juego.py`, los 2 del modo prueba, en `dominio/puertos_prueba.py`, y los 2 del reloj del juego (`ConsultarRelojDeJuego` y `CambiarRelojDeJuego`), en `dominio/puertos_reloj.py`: archivos nuevos.
+  - Los casos de uso de `aplicacion/`: cada uno hereda su puerto. Los del juego están en `aplicacion/juego.py`, los del modo prueba en `aplicacion/modo_prueba.py` y los del reloj en `aplicacion/reloj_juego.py`.
+  - Las reglas del dominio, las del juego en `dominio/juego.py` y `dominio/mascota.py`, las del modo prueba en `dominio/modo_prueba.py` y el reloj ajustable en `dominio/reloj_juego.py` (`RelojDeJuegoAjustable` y `RelojDeJuegoInvalido`).
+  - Los 18 puertos de salida de `dominio/puertos.py` y `dominio/puertos_usuarios.py`, los 3 del juego en `dominio/puertos_juego.py`, `EstadosDePrueba`, en `dominio/puertos_prueba.py`, y `RelojDeJuegoGuardado`, en `dominio/puertos_reloj.py`.
 
   `DiagnosticarPlantaDeUsuario` no tiene puerto de entrada, porque solo lo usa `RegistrarLectura` desde adentro. `PuntuarLectura` y `AvisarATodos` tampoco: no los llama nadie de afuera, sino que implementan el puerto de salida `NotificadorDiagnosticos`. Por eso la flecha punteada va de los casos de uso del juego a los puertos de salida.
 - **El modo prueba entra con dos decoradores.** `MascotasConPrueba` implementa el puerto `ConsultarMascotas` y envuelve al caso de uso de siempre; `LecturaConPrueba` hace lo mismo con `RegistrarLectura`. `main.py` los pone en lugar de los originales, que no cambian. Por eso hay flechas «implementa» de los casos de uso del modo prueba a los puertos del juego y a los de siempre.
-- **A la derecha, los adaptadores de salida:** SQLite (también el del juego, `sqlite/repositorio_juego.py`), el CSV, los JWT, `EstadosDePruebaEnMemoria` (el estado de prueba, en la memoria del servidor) y el resto (`seguridad.py`, `reloj.py` y `tiempo_real.py`).
+- **A la derecha, los adaptadores de salida:** SQLite (también el del juego, `sqlite/repositorio_juego.py`, y el del reloj guardado, `sqlite/reloj_juego.py`), el CSV, los JWT, `EstadosDePruebaEnMemoria` (el estado de prueba, en la memoria del servidor) y el resto (`seguridad.py`, `reloj.py` y `tiempo_real.py`).
 - **`GET /red` no tiene flecha al núcleo.** No tiene ninguna regla de negocio: solo dice por qué direcciones alcanza una placa al servidor. `main.py` le pasa a `rutas_red.py` las funciones de `RedLocal` (`red_local.py`), que no implementa ningún puerto. Así presentación sigue sin importar infraestructura.
 - **Todas las flechas apuntan hacia el núcleo.** Las punteadas dicen «implementa»: la clase de afuera cumple una interfaz de adentro. El núcleo no conoce a ningún adaptador.
 - **Los adaptadores de entrada también usan un puerto de salida: `VerificadorTokens`.** El token se verifica en el borde. Así el caso de uso recibe la identidad y nunca el token. La flecha `verificar_usuario` sale de las rutas del front. Las del juego, las del modo prueba y el WebSocket hacen lo mismo, y lo dice su caja; `GET /red` también usa `Autenticacion.con_usuario`.
@@ -350,6 +353,19 @@ Fuente: [`clases-modo-prueba.mmd`](clases-modo-prueba.mmd). Solo existe desde el
 - **`EstadoDePrueba.aplicar(mascota)`** arma una `MascotaEnPrueba`: las capas de la prueba con los puntos, las horas bien cuidada y la última lectura reales, y `aviso` en `None`. Si duerme, no hay globo, como en `CuidadoDeMascota`. `ResultadoEnPrueba` es la respuesta a una lectura: el diagnóstico real, y `prueba` para la pantalla de la placa.
 - **`EstadosDePruebaEnMemoria`** guarda el estado en un diccionario con candado, en la memoria del servidor: no es un dato de la matera, y reiniciar el backend lo borra. No cambia la base.
 
+### Clases del reloj del juego
+
+![Clases del reloj del juego, corte 3](clases-reloj-juego.png)
+
+Fuente: [`clases-reloj-juego.mmd`](clases-reloj-juego.mmd). Solo existe desde el corte 3.
+
+- **Para qué sirve:** un administrador cambia cuánto dura un día de juego (por ejemplo, 1 minuto real = 1 hora de juego) sin reiniciar el backend. Vale para todos desde ese momento.
+- **Todo está en archivos nuevos:** `dominio/reloj_juego.py` y `puertos_reloj.py`, `aplicacion/reloj_juego.py`, `presentacion/rutas_reloj.py` y `errores_reloj.py`, e `infraestructura/sqlite/reloj_juego.py`. En `dominio/` y `aplicacion/` el commit `fb1bbbc` solo agrega archivos.
+- **`RelojDeJuegoAjustable`** es el reloj vigente. Tiene la misma forma que `RelojDeJuego` (`dia`, `hora`, `horas`, `dias`, `numero_de_hora`), así que `MovimientosPuntajeSqlite` y `CuidadoDeMascota` lo reciben donde antes recibían un `RelojDeJuego`, sin cambiar. Cambiarlo es reemplazar una referencia: quien lo lee ve el de antes o el nuevo, nunca uno a medias. `validar` y `desde_minutos` lanzan `RelojDeJuegoInvalido` si la duración no sirve (400 `RELOJ_INVALIDO`).
+- **Quién puede usarlo lo decide el dominio.** `ConsultarRelojDeJuego` lo puede usar cualquier usuario con sesión. `CambiarRelojDeJuego` llama a `Usuario.exigir_admin()` (403 `PERMISO_DENEGADO`), guarda en `RelojDeJuegoGuardado` y solo después cambia el ajustable: si no se pudo guardar, nada cambia.
+- **`RelojDeJuegoGuardadoSqlite`** guarda una sola fila (`id = 1`) en la tabla `reloj_juego`, para que el reloj siga después de reiniciar. `main.py` arma el ajustable con lo guardado o, si nadie lo cambió, con `MATERA_MINUTOS_POR_DIA_JUEGO`.
+- **Cambiarlo no reagrupa el pasado:** cada lectura ya quedó en su hora de juego al llegar. Los 30 minutos para dormirse son reales y no cambian.
+
 ## Entidad-relación
 
 ### Corte 1
@@ -367,7 +383,7 @@ Fuente: [`entidad-relacion-corte1.mmd`](entidad-relacion-corte1.mmd).
 
 Fuente: [`entidad-relacion-corte2.mmd`](entidad-relacion-corte2.mmd).
 
-- **Todo va en un solo archivo SQLite, con catorce tablas: ocho del corte 2 y seis del corte 3.** Cada planta tiene su `usuario_id`, y el dominio (`Planta.exigir_dueno`) rechaza la planta de otro usuario.
+- **Todo va en un solo archivo SQLite, con quince tablas: ocho del corte 2 y siete del corte 3.** Cada planta tiene su `usuario_id`, y el dominio (`Planta.exigir_dueno`) rechaza la planta de otro usuario.
 - **`ESPECIE` y `RANGO_OPTIMO` reemplazaron al CSV del corte 1.** `carga.sql` las llena con las mismas especies, rangos y fuentes. Desde la fase 2, `datos/especies.csv` es una copia de solo lectura de estas dos tablas.
 - **`PLANTA.especie` es una llave foránea real,** también cuando la tabla de referencia es el CSV. No se puede registrar una planta con una especie inexistente, ni borrar una especie que alguna planta use.
 - **`RANGO_OPTIMO` y `LECTURA` guardan una fila por parámetro**, así que agregar el pH no cambia el esquema.
@@ -377,11 +393,12 @@ Fuente: [`entidad-relacion-corte2.mmd`](entidad-relacion-corte2.mmd).
   - `SENSOR.hash_clave` es la huella SHA-256 de la clave.
   - `SESION.token_id` y `SENSOR.token_id` son el id (`jti`) del JWT, no el token. Si se cierra la sesión, o cambia el `token_id` del sensor, el token deja de servir aunque no haya vencido.
 - **`MEDICION.momento` es la hora en que el dispositivo tomó la lectura, guardada en UTC.** `MEDICION.origen` es el código del sensor que la envió. Las mediciones escritas a mano antes del 18 de octubre conservan `MANUAL`.
-- **El corte 3 (versión 4 del esquema) solo agrega tablas;** las de antes no cambian. Sus atributos dicen «corte 3»:
+- **El corte 3 (versiones 4 y 5 del esquema) solo agrega tablas;** las de antes no cambian. Sus atributos dicen «corte 3»:
   - `MOVIMIENTO_PUNTAJE`: un movimiento por lectura aceptada, con la hora del servidor y sus puntos. Al borrar la planta queda sin planta (`SET NULL`): sus puntos siguen siendo del dueño, pero no pasan a otra planta que reciba el mismo id.
   - `CUIDADO_POR_HORA` y `HORAS_POR_TRAMO`: lo que suma cada hora de juego, y cuántas horas terminaron con cada cantidad de lecturas y suma. Se llevan al día al guardar cada movimiento, así el juego no recorre todo el historial. También llevan `usuario_id`; esas líneas no se dibujan para que se lea.
   - `PUNTAJE_TOTAL`: el total de cada usuario, con los puntos de sus materas borradas.
   - `JUGADOR`: si respondió la pregunta de la tabla y, si participa, su apodo, único sin importar mayúsculas (`NOCASE`).
+  - `RELOJ_JUEGO` (versión 5): una sola fila (`id = 1`) con los minutos reales que dura un día de juego, cuándo se cambió y qué administrador lo cambió (`SET NULL` si se borra su cuenta). Sin fila, vale `MATERA_MINUTOS_POR_DIA_JUEGO`.
   - `RITMO_CRECIMIENTO`: los días de juego de cada etapa, aparte de la tabla de especies del corte 1. Una especie sin fila crece a 1/3/7.
 - **La conexión no cambia la base.** La huella de la clave que creó la placa va en la misma columna `SENSOR.hash_clave`.
 - **El modo prueba tampoco:** el estado de prueba vive en la memoria del servidor.

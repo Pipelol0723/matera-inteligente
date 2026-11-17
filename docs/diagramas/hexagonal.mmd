@@ -26,13 +26,14 @@ flowchart LR
 
     ESP["ESP32 · firmware/matera-sensor<br/>lecturas con su JWT; mientras se conecta,<br/>su API local por su red y por Bluetooth LE"]
     SIM["simulador/simulador_esp32.py<br/>(HTTP con su JWT)"]
-    MAIN["main.py<br/>único punto de composición:<br/>elige el adaptador de cada puerto<br/>(MATERA_TABLA_REFERENCIA: SQLite o CSV;<br/>AvisarATodos con PuntuarLectura y NotificadorWebSocket;<br/>MascotasConPrueba y LecturaConPrueba envuelven<br/>ConsultarMascotas y RegistrarLectura;<br/>MATERA_MINUTOS_POR_DIA_JUEGO: el reloj del juego)"]
+    MAIN["main.py<br/>único punto de composición:<br/>elige el adaptador de cada puerto<br/>(MATERA_TABLA_REFERENCIA: SQLite o CSV;<br/>AvisarATodos con PuntuarLectura y NotificadorWebSocket;<br/>MascotasConPrueba y LecturaConPrueba envuelven<br/>ConsultarMascotas y RegistrarLectura;<br/>RelojDeJuegoAjustable: el reloj guardado por un admin<br/>o, si no hay, MATERA_MINUTOS_POR_DIA_JUEGO)"]
 
     subgraph ENT["Entrada · presentacion/"]
         direction TB
         RED["GET /red · rutas_red.py<br/>sin puerto: main.py le pasa<br/>las funciones de RedLocal"]
         JUEGO["Rutas del juego<br/>rutas_juego.py · esquemas_juego.py<br/>errores_juego.py<br/>decorador Autenticacion.con_usuario,<br/>el mismo de las rutas del front"]
         PRUEBAR["Rutas del modo prueba (solo admins)<br/>rutas_prueba.py · esquemas_prueba.py<br/>PUT y DELETE /juego/materas/{id}/prueba<br/>decorador Autenticacion.con_usuario"]
+        RELOJR["Rutas del reloj del juego<br/>rutas_reloj.py · errores_reloj.py<br/>GET y PUT /juego/reloj (el PUT, solo admins)<br/>decorador Autenticacion.con_usuario"]
         PRUEBAS["Pruebas unitarias<br/>tests/dominio · tests/aplicacion<br/>(dobles de los puertos de salida,<br/>también los del juego)"]
         CONSOLA["Consola<br/>crear_admin.py<br/>exportar_especies_csv.py"]
         DISP["Rutas de dispositivos<br/>rutas_dispositivos.py<br/>decorador con_dispositivo"]
@@ -42,20 +43,22 @@ flowchart LR
 
     subgraph NUCLEO["Núcleo · dominio/ + aplicacion/"]
         PEJ["Puertos de entrada del juego<br/>dominio/puertos_juego.py<br/><br/>ConsultarMascotas · ConsultarPuntaje<br/>ConsultarParticipacion<br/>ElegirParticipacion<br/>ConsultarTablaPosiciones"]
+        PERL["Puertos de entrada del reloj<br/>dominio/puertos_reloj.py<br/><br/>ConsultarRelojDeJuego<br/>CambiarRelojDeJuego"]
         PEP["Puertos de entrada del modo prueba<br/>dominio/puertos_prueba.py<br/><br/>PonerEstadoDePrueba<br/>QuitarEstadoDePrueba"]
         PE["Puertos de entrada<br/>dominio/puertos_entrada.py<br/><br/>DiagnosticarPlanta · ListarEspecies<br/>ListarParametros · RegistrarUsuario<br/>IniciarSesion · CerrarSesion<br/>IdentificarUsuario · ConsultarCuenta<br/>RegistrarPlanta · ListarPlantas<br/>EliminarPlanta · ReemplazarSensor<br/>ConsultarHistorial<br/>CanjearClaveDispositivo · RegistrarLectura<br/>ListarUsuarios · CambiarEstadoUsuario<br/>CambiarRol · EliminarUsuario<br/>AgregarEspecie · ConvertirEnAdministrador<br/><br/>corte 3: RegistrarPlanta y ReemplazarSensor<br/>reciben una huella opcional"]
         CU["Casos de uso · aplicacion/<br/>cada uno hereda el puerto<br/>de su mismo nombre<br/>(más DiagnosticarPlantaDeUsuario)"]
         CUJ["Casos de uso del juego<br/>aplicacion/juego.py: los cinco del juego<br/>y PuntuarLectura<br/>aplicacion/avisos.py: AvisarATodos<br/>(los dos implementan NotificadorDiagnosticos)"]
         CUP["Casos de uso del modo prueba<br/>aplicacion/modo_prueba.py<br/><br/>PonerEstadoDePrueba · QuitarEstadoDePrueba<br/>MascotasConPrueba envuelve ConsultarMascotas<br/>LecturaConPrueba envuelve RegistrarLectura<br/>(implementan esos mismos puertos)"]
-        REGLASJ["Reglas del juego<br/>dominio/juego.py · mascota.py<br/><br/>ReglaDeCuidado · ApodoJugador<br/>Participacion.exigir_participacion<br/>CuidadoDeMascota · RitmoCrecimiento<br/>RelojDeJuego · necesidad_principal<br/>(leen EstadoGlobal y RegistroMedicion,<br/>sin cambiar las reglas de antes)<br/><br/>dominio/modo_prueba.py: EstadoDePrueba.aplicar<br/>MascotaEnPrueba · ResultadoEnPrueba"]
-        PSJ["Puertos de salida del juego<br/>dominio/puertos_juego.py<br/><br/>MovimientosPuntaje<br/>RegistroJugadores<br/>RitmosCrecimiento<br/><br/>dominio/puertos_prueba.py:<br/>EstadosDePrueba"]
+        CURL["Casos de uso del reloj<br/>aplicacion/reloj_juego.py<br/><br/>ConsultarRelojDeJuego · CambiarRelojDeJuego<br/>(cambiarlo exige Usuario.exigir_admin;<br/>guarda y después cambia el ajustable)"]
+        REGLASJ["Reglas del juego<br/>dominio/juego.py · mascota.py<br/><br/>ReglaDeCuidado · ApodoJugador<br/>Participacion.exigir_participacion<br/>CuidadoDeMascota · RitmoCrecimiento<br/>RelojDeJuego · necesidad_principal<br/>(leen EstadoGlobal y RegistroMedicion,<br/>sin cambiar las reglas de antes)<br/><br/>dominio/modo_prueba.py: EstadoDePrueba.aplicar<br/>MascotaEnPrueba · ResultadoEnPrueba<br/><br/>dominio/reloj_juego.py: RelojDeJuegoAjustable<br/>RelojDeJuegoInvalido"]
+        PSJ["Puertos de salida del juego<br/>dominio/puertos_juego.py<br/><br/>MovimientosPuntaje<br/>RegistroJugadores<br/>RitmosCrecimiento<br/><br/>dominio/puertos_prueba.py:<br/>EstadosDePrueba<br/><br/>dominio/puertos_reloj.py:<br/>RelojDeJuegoGuardado"]
         PS["Puertos de salida<br/>dominio/puertos.py · puertos_usuarios.py<br/><br/>ConsultaRangos · CatalogoEspecies<br/>RegistroEspecies · ConsultaCuentas<br/>RegistroCuentas · ListadoCuentas<br/>SesionesAbiertas · ConsultaPlantas<br/>RegistroPlantas · SensoresVinculados<br/>CredencialesSensor · HistorialMediciones<br/>NotificadorDiagnosticos · EmisorTokens<br/>VerificadorTokens · Cifrador<br/>GeneradorSecretos · Reloj"]
         REGLAS["Reglas del dominio<br/>sin Flask, SQLite, CSV, JWT, JSON ni HTTP<br/><br/>Lectura · Medicion · Especie · Rango<br/>ServicioDiagnostico · EvaluadorPlanta<br/>ReglaHibrida · Planta.exigir_dueno<br/>Usuario.exigir_admin<br/>ReporteDeDispositivo<br/>IdentidadUsuario · IdentidadDispositivo"]
     end
 
     subgraph SAL["Salida · infraestructura/"]
         direction TB
-        SQLJ["SQLite del juego<br/>sqlite/repositorio_juego.py<br/>MovimientosPuntajeSqlite<br/>RegistroJugadoresSqlite<br/>RitmosCrecimientoSqlite"]
+        SQLJ["SQLite del juego<br/>sqlite/repositorio_juego.py<br/>MovimientosPuntajeSqlite<br/>RegistroJugadoresSqlite<br/>RitmosCrecimientoSqlite<br/>sqlite/reloj_juego.py<br/>RelojDeJuegoGuardadoSqlite (tabla reloj_juego)"]
         MEM["En memoria · estados_prueba_memoria.py<br/>EstadosDePruebaEnMemoria<br/>(se borra al reiniciar el backend)"]
         CSV["CSV · repositorio_especies_csv.py<br/>RepositorioEspeciesCsv<br/>EspeciesDeSoloLectura<br/>RegistroEspeciesConCopiaCsv"]
         JWT["JWT · tokens_jwt.py<br/>TokensJwt (PyJWT)"]
@@ -82,6 +85,7 @@ flowchart LR
     PANT --> FRONT
     PANT --> JUEGO
     PANT --> PRUEBAR
+    PANT --> RELOJR
     PANT --> RED
     PANT --> WS
     ESP --> DISP
@@ -91,6 +95,7 @@ flowchart LR
     FRONT --> PE
     JUEGO --> PEJ
     PRUEBAR --> PEP
+    RELOJR --> PERL
     RED ~~~ PEJ
     WS --> PE
     DISP --> PE
@@ -102,9 +107,11 @@ flowchart LR
     PE ~~~ CU
     PEJ ~~~ CUJ
     PEP ~~~ CUP
+    PERL ~~~ CURL
     CU -. "implementa" .-> PE
     CUJ -. "implementa" .-> PEJ
     CUP -. "implementa" .-> PEP
+    CURL -. "implementa" .-> PERL
     CUP -. "MascotasConPrueba implementa<br/>ConsultarMascotas" .-> PEJ
     CUP -. "LecturaConPrueba implementa<br/>RegistrarLectura" .-> PE
     CU --> REGLAS
@@ -113,6 +120,9 @@ flowchart LR
     CUJ --> PSJ
     CUJ -- "ConsultaPlantas, HistorialMediciones,<br/>ConsultaCuentas, Reloj" --> PS
     CUJ -. "PuntuarLectura y AvisarATodos<br/>implementan NotificadorDiagnosticos" .-> PS
+    CURL --> REGLASJ
+    CURL -- "RelojDeJuegoGuardado" --> PSJ
+    CURL -- "Reloj" --> PS
     CUP --> REGLASJ
     CUP -- "EstadosDePrueba" --> PSJ
     CUP -- "ConsultaPlantas, ConsultaCuentas" --> PS
@@ -143,11 +153,11 @@ flowchart LR
     classDef clienteNuevo fill:#EEF1EF,stroke:#56655b,stroke-width:4px,color:#16231b
     classDef externo fill:#ffffff,stroke:#8a9a8e,stroke-width:1.5px,color:#16231b
     class FRONT,DISP,WS,CONSOLA,PRUEBAS presentacion
-    class JUEGO,RED,PRUEBAR presentacionNuevo
+    class JUEGO,RED,PRUEBAR,RELOJR presentacionNuevo
     class CU aplicacion
-    class CUJ,CUP aplicacionNuevo
+    class CUJ,CUP,CURL aplicacionNuevo
     class PE,REGLAS,PS dominio
-    class PEJ,PEP,REGLASJ,PSJ dominioNuevo
+    class PEJ,PEP,PERL,REGLASJ,PSJ dominioNuevo
     class SQLITE,CSV,JWT,OTROS infraestructura
     class SQLJ,REDL,MEM infraestructuraNuevo
     class NAV,PANT cliente
