@@ -27,7 +27,7 @@ def cabe_en_sqlite(numero: int) -> bool:
 
 
 # Version del esquema, guardada en PRAGMA user_version. Una base sin numero es de antes de la fase 2.
-VERSION = 4
+VERSION = 5
 # Lo que hay que hacer en una base que ya tenia tablas para llegar a cada version. Despues,
 # esquema.sql crea lo que falte. Una base nueva no las necesita: esquema.sql ya trae lo ultimo.
 _MIGRACIONES = {
@@ -38,6 +38,8 @@ _MIGRACIONES = {
     # El juego (corte 3) solo agrega tablas, y las crea esquema.sql: antes no hay nada que cambiar.
     # Despues del esquema, la misma transaccion carga los ritmos de crecimiento (ritmos.sql).
     4: "",
+    # El reloj del juego ajustable por un admin (corte 3): solo agrega la tabla reloj_juego, que crea esquema.sql.
+    5: "",
 }
 # La version que trajo los ritmos de crecimiento: una base anterior los recibe al migrar.
 _VERSION_RITMOS = 4

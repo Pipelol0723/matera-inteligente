@@ -6,6 +6,7 @@
 // sesión y en cualquier pantalla, porque el puntaje de la cabecera y los avisos se ven en todas; y con cada
 // mensaje del WebSocket (tiempo-real.js). El backend guarda los puntos antes de avisar por el WebSocket.
 import { elegirParticipacion, obtenerMascotas, obtenerParticipacion, obtenerPuntaje, obtenerTabla } from "./api.js";
+import { pintarRelojEnJuego } from "./reloj-juego.js";
 import { crearAvisos, estadoPermiso, textoDelPermisoEnLaApp } from "./avisos.js";
 import { consultarCadaRato, textoConsulta } from "./consulta-periodica.js";
 import { dibujoDeMatera, macetaVacia } from "./dibujo-planta.js";
@@ -290,6 +291,7 @@ export function crearJuego(contexto) {
     // La pantalla Juego: también vuelve a preguntar si participa (pudo cambiar en otra pestaña).
     async mostrar() {
       pintarPantalla();
+      pintarRelojEnJuego($("juego-reloj"));
       try {
         await cargarParticipacion();
       } catch (fallo) {

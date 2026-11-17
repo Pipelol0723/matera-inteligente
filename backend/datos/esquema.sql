@@ -150,3 +150,13 @@ CREATE TABLE IF NOT EXISTS ritmo_crecimiento (
     dias_florecida INTEGER NOT NULL,
     CHECK (0 < dias_brote AND dias_brote < dias_planta AND dias_planta < dias_florecida)
 );
+
+-- El reloj del juego que eligio un admin desde la app: cuantos minutos reales dura un dia de juego.
+-- Una sola fila (id = 1). Sin fila, vale MATERA_MINUTOS_POR_DIA_JUEGO. Cambiarlo no reagrupa el pasado:
+-- cada lectura ya quedo en su hora de juego al llegar (cuidado_por_hora).
+CREATE TABLE IF NOT EXISTS reloj_juego (
+    id              INTEGER PRIMARY KEY CHECK (id = 1),
+    minutos_por_dia REAL NOT NULL CHECK (minutos_por_dia > 0),
+    cambiado_en     TEXT NOT NULL,
+    cambiado_por    INTEGER REFERENCES usuario (id) ON DELETE SET NULL
+);

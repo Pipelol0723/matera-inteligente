@@ -108,7 +108,7 @@ def test_una_base_v3_pasa_a_la_v4_con_las_tablas_del_juego_sin_perder_datos(tmp_
     BaseDatos(ruta).preparar()
 
     with sqlite3.connect(ruta) as conexion:
-        assert conexion.execute("PRAGMA user_version").fetchone()[0] == VERSION == 4
+        assert conexion.execute("PRAGMA user_version").fetchone()[0] == VERSION == 5
         nuevas = {"movimiento_puntaje", "cuidado_por_hora", "horas_por_tramo", "puntaje_total", "jugador", "ritmo_crecimiento"}
         assert nuevas <= _tablas(conexion)
         # Las sesiones abiertas, los sensores con su token y el historial siguen igual.

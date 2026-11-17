@@ -499,6 +499,16 @@ $env:MATERA_MINUTOS_POR_DIA_JUEGO = "6"
 python main.py
 ```
 
+**Cambiar el reloj sin reiniciar (solo administradores).** En Administración, la tarjeta «Reloj del juego» dice cuánto dura hoy una hora de juego y la cambia al instante.
+- **Opciones:** tres atajos (tiempo real; 1 hora = 1 minuto, con días de 24 minutos; y 1 hora = 15 segundos, la demo) o un valor a mano en segundos, minutos u horas. Si la hora de juego dura menos que los 15 s entre lecturas de la placa, la tarjeta avisa que quedarán horas sin lecturas.
+- **Quién lo ve:** la pantalla Juego muestra el reloj vigente a todos.
+- **Rutas:**
+  - `GET /api/v1/juego/reloj`, con cualquier sesión, responde `{"minutosPorDia", "segundosPorHora"}`;
+  - `PUT /api/v1/juego/reloj` con `{"minutosPorDia": 24}`. Quien no es admin recibe `403 PERMISO_DENEGADO` (`Usuario.exigir_admin`), y una duración que no sirve, `400 RELOJ_INVALIDO`.
+- **Se guarda en la base** (tabla `reloj_juego`, migración v5) y sigue después de reiniciar. `MATERA_MINUTOS_POR_DIA_JUEGO` queda como valor inicial, mientras ningún admin lo cambie.
+- **El pasado no cambia:** las lecturas que ya llegaron conservan su hora de juego, y las nuevas se agrupan con la escala nueva.
+- **Archivos:** entra como archivos nuevos (`dominio/reloj_juego.py`, `dominio/puertos_reloj.py` y `aplicacion/reloj_juego.py`). `RelojDeJuegoAjustable` tiene la misma forma que `RelojDeJuego`, y `main.py` se lo pasa al puntaje y a la matera Tamagotchi.
+
 **La tabla de posiciones.** Solo para quien decide participar:
 - La primera vez que entra alguien que todavía no decidió (`SIN_DECIDIR`), un diálogo de la página le pregunta si quiere aparecer en la tabla. Si dice que sí, pide un apodo de jugador. «Decidir después» no responde a la API: se vuelve a preguntar en la próxima sesión. En Mi cuenta se puede participar, cambiar el apodo o dejar de participar.
 - El apodo tiene de 3 a 20 caracteres (letras sin tildes, números, `_` y `-`) y no se repite, sin importar mayúsculas. Los errores los responde la API: `400 APODO_JUGADOR_INVALIDO` y `409 APODO_JUGADOR_REPETIDO`.

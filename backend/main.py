@@ -41,12 +41,14 @@ from aplicacion.modo_prueba import (
     QuitarEstadoDePrueba,
 )
 from aplicacion.listar_especies import ListarEspecies
+from aplicacion.reloj_juego import CambiarRelojDeJuego, ConsultarRelojDeJuego
 from aplicacion.listar_parametros import ListarParametros
 from aplicacion.plantas import EliminarPlanta, ListarPlantas, RegistrarPlanta
 from aplicacion.sensores import CanjearClaveDispositivo, ReemplazarSensor, RegistrarLectura
 from dominio import puertos_entrada as entrada
 from dominio.evaluador import EvaluadorPlanta
 from dominio.mascota import CuidadoDeMascota
+from dominio.reloj_juego import RelojDeJuegoAjustable
 from dominio.parametros import PARAMETROS
 from dominio.puertos import ConsultaRangos
 from dominio.puertos_usuarios import RegistroEspecies, Reloj
@@ -55,6 +57,7 @@ from dominio.reglas import ReglaHibrida
 from dominio.servicio_diagnostico import ServicioDiagnostico
 from infraestructura.configuracion import Configuracion
 from infraestructura.estados_prueba_memoria import EstadosDePruebaEnMemoria
+from infraestructura.sqlite.reloj_juego import RelojDeJuegoGuardadoSqlite
 from infraestructura.red_local import RedLocal
 from infraestructura.reloj import RelojSistema
 from infraestructura.repositorio_especies_csv import (
@@ -89,6 +92,7 @@ from presentacion.rutas_dispositivos import crear_blueprint_dispositivos
 from presentacion.rutas_juego import crear_blueprint_juego
 from presentacion.rutas_plantas import crear_blueprint_plantas
 from presentacion.rutas_prueba import crear_blueprint_prueba
+from presentacion.rutas_reloj import crear_blueprint_reloj
 from presentacion.rutas_red import crear_blueprint_red
 from presentacion.rutas_usuarios import crear_blueprint_usuarios
 from presentacion.tiempo_real import crear_blueprint_tiempo_real
@@ -157,10 +161,12 @@ def construir_app(config: Configuracion, reloj: Reloj | None = None) -> Flask:
         autenticacion=autenticacion,
     )
 
-    # Corte 3: el juego, en la misma base. El reloj del juego (MATERA_MINUTOS_POR_DIA_JUEGO) solo cambia
-    # la escala del tamano y de la condicion; los minutos para dormirse son reales. El mismo reloj pone
-    # cada lectura en su hora de juego al guardarla: cambiarlo despues no reagrupa el pasado.
-    reloj_de_juego = config.reloj_de_juego
+    # Corte 3: el juego, en la misma base. El reloj del juego solo cambia la escala del tamano y de la
+    # condicion; los minutos para dormirse son reales. El mismo reloj pone cada lectura en su hora de juego
+    # al guardarla: cambiarlo despues no reagrupa el pasado. Un admin lo puede cambiar desde la app
+    # (PUT /juego/reloj): vale el que guardo, y si nadie lo cambio, MATERA_MINUTOS_POR_DIA_JUEGO.
+    reloj_guardado = RelojDeJuegoGuardadoSqlite(bd)
+    reloj_de_juego = RelojDeJuegoAjustable(reloj_guardado.leer() or config.reloj_de_juego)
     movimientos = MovimientosPuntajeSqlite(bd, reloj_de_juego)
     jugadores = RegistroJugadoresSqlite(bd)
     cuidado = CuidadoDeMascota(reloj_de_juego, config.minutos_sin_lecturas)
@@ -215,12 +221,19 @@ def construir_app(config: Configuracion, reloj: Reloj | None = None) -> Flask:
         autenticacion=autenticacion,
     )
 
+    reloj_del_juego = crear_blueprint_reloj(
+        ConsultarRelojDeJuego(reloj_de_juego),
+        CambiarRelojDeJuego(reloj_de_juego, reloj_guardado, reloj),
+        autenticacion,
+    )
+
     modo_prueba = crear_blueprint_prueba(
         PonerEstadoDePrueba(plantas, estados_prueba), QuitarEstadoDePrueba(plantas, estados_prueba), autenticacion
     )
 
     return crear_app(
-        [api, cuentas, administracion, mis_plantas, dispositivos, en_vivo, red, juego, modo_prueba], config
+        [api, cuentas, administracion, mis_plantas, dispositivos, en_vivo, red, juego, modo_prueba, reloj_del_juego],
+        config,
     )
 
 

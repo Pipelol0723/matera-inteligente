@@ -4,6 +4,7 @@
 import { cambiarUsuario, eliminarUsuario, obtenerUsuarios } from "./api.js";
 import { crear, inicialDe } from "./formato.js";
 import { mostrarError, ocupado } from "./formularios.js";
+import { crearTarjetaReloj } from "./reloj-juego.js";
 import { sesion } from "./sesion.js";
 
 // En una pastilla, en mayúsculas como los estados.
@@ -14,11 +15,14 @@ export function crearPantallaAdmin() {
   const dialogo = $("dialogo-eliminar");
   const formularioEliminar = $("form-eliminar");
   let aEliminar = null; // la cuenta del diálogo «¿Eliminar la cuenta?»
+  // El reloj del juego: cuánto dura una hora de juego en tiempo real (reloj-juego.js).
+  const reloj = crearTarjetaReloj({ raiz: $("admin-reloj") });
   // Cambia al cerrar la sesión: una respuesta que llega después ya no se pinta.
   let generacion = 0;
 
   async function mostrar() {
     const mia = generacion;
+    reloj.mostrar();
     mostrarError($("error-admin"), null);
     let usuarios;
     try {
@@ -146,6 +150,7 @@ export function crearPantallaAdmin() {
     // Al cerrar la sesión no quedan en la página los nombres ni los correos de las cuentas.
     reiniciar() {
       generacion += 1;
+      reloj.reiniciar();
       if (dialogo.open) dialogo.close();
       aEliminar = null;
       $("filas-usuarios").replaceChildren();

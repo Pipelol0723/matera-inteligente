@@ -143,6 +143,9 @@ export const obtenerTabla = (opciones) => privada("/juego/tabla", opciones);
 // Modo prueba, solo para admins (la API responde 403 a los demás): un estado de mentira para ver el dibujo.
 export const ponerEstadoDePrueba = (id, estado) => privada(`/juego/materas/${id}/prueba`, conJson("PUT", estado));
 export const quitarEstadoDePrueba = (id) => privada(`/juego/materas/${id}/prueba`, { method: "DELETE" });
+// El reloj del juego: cualquiera lo ve; solo un admin lo cambia (minutos reales por día de juego).
+export const obtenerRelojDeJuego = (opciones) => privada("/juego/reloj", opciones);
+export const cambiarRelojDeJuego = (minutosPorDia) => privada("/juego/reloj", conJson("PUT", { minutosPorDia }));
 // El apodo solo viaja al participar; si sirve (largo, caracteres, que no se repita) lo decide la API.
 export const elegirParticipacion = (participa, apodo) =>
   privada("/juego/participacion", conJson("PUT", participa ? { participa: true, apodo } : { participa: false }));
