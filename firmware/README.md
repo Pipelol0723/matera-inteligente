@@ -312,6 +312,11 @@ ESP32 clásica de doble núcleo (DevKit WROOM-32, ESP32-D0WD-V3, 4 MB, puente US
 - **Los pines `V` solo tienen corriente si el jumper «JUMP» une el pin del medio (V) con 3V.** Sin ese jumper, un sensor conectado a `V` queda apagado y el monitor serie dice «El DHT11 no respondió». Pasó en la prueba del 12 de noviembre: se resolvió llevando el VCC del DHT11 a un pin de 3V3. No usar la posición 5V: la ESP32 no aguanta 5 V en sus pines de datos.
 - El conector de 4 pines (D22 · D21 · VCC · GND) de la pantalla tiene su propio VCC, por eso la pantalla funciona aunque falte el jumper.
 
+**Ajustar el sensor de luz.** El módulo LDR no mide lux: compara la luz con el umbral que fija su perilla azul y dice «con luz» o «sin luz» (la placa manda 1500 o 50 lux). Si la placa manda siempre lo mismo, el umbral está corrido, como pasó el 17 de noviembre, cuando el sensor marcaba luz aunque estuviera tapado.
+- Con el sensor tapado, girar la perilla despacio hasta que se apague el LED de señal del módulo (el de DO).
+- Al destaparlo, con la luz del cuarto, ese LED tiene que volver a prenderse.
+- Si el LED responde pero la placa no cambia, revisar que el cable de DO vaya a S de la fila D18, y no a AO.
+
 ## Compilar y subir
 
 - **Placa:** el soporte de Espressif para ESP32, versión **2.0.14**, con *ESP32 Dev Module* (`esp32:esp32:esp32`) y el esquema de particiones **Huge APP** (ver abajo).
