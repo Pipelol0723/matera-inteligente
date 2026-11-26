@@ -94,9 +94,10 @@ firmware/
 docs/
   diagramas/         la vista hexagonal, casos de uso, paquetes, clases, entidad-relación y secuencias
                      (fuente .mmd, SVG y PNG)
-  entrega/           documentos de arquitectura y bitácoras de uso de IA, en PDF
-                     (los vigentes: documento-arquitectura-fase2.pdf y bitacora-ia-fase2.pdf;
-                     documento-arquitectura.pdf es el anterior a la fase 2)
+  entrega/           documentos de arquitectura, bitácoras de uso de IA y el guion de la sustentación, en PDF
+                     (corte 3: bitacora-ia-corte3.pdf y guion-sustentacion-corte3.pdf, con lo que cambió
+                     respecto al corte 2 y qué pasó con el núcleo; fase 2: documento-arquitectura-fase2.pdf
+                     y bitacora-ia-fase2.pdf; documento-arquitectura.pdf es el anterior a la fase 2)
 ```
 
 ## Arquitectura: puertos y adaptadores
