@@ -1,5 +1,5 @@
-// Matera inteligente: firmware de la placa, para la ESP32 con DHT11, modulo LDR y pantalla OLED
-// (DevKit con CH340), en el Arduino IDE 2 o con arduino-cli.
+// Matera inteligente: firmware de la placa, para la ESP32 con sensor de humedad del suelo, DHT11, modulo LDR
+// y pantalla OLED (DevKit con CH340), en el Arduino IDE 2 o con arduino-cli.
 //
 // La placa tiene identidad propia. Su codigo (MT-0000-XX) sale de su MAC, y su clave la crea ella misma la
 // primera vez y la guarda en su memoria (NVS). La app solo conoce la huella SHA-256 de esa clave: crea la
@@ -328,8 +328,42 @@ void ordenPrueba(String argumentos) {
                 resumenPrueba(prueba).c_str());
 }
 
-// Ordenes por el monitor serie, para probar el modo de conexion sin apretar BOOT ni olvidar la red, y la
-// pantalla del estado de prueba sin la API.
+// «suelo», y «calibrar seco», «calibrar agua» o «calibrar borrar».
+void imprimirSuelo() {
+  const CalibracionSuelo cal = sensoresCalibracion();
+  const int crudo = sensoresSueloCrudo();
+  Serial.printf("Suelo: crudo %d -> %.1f %% (seco %d, agua %d, %s).\n", crudo, sueloPorcentaje(crudo, cal.seco, cal.agua),
+                cal.seco, cal.agua, cal.guardada ? "calibrado" : "sin calibrar");
+}
+
+void ordenCalibrar(String que) {
+  que.trim();
+  que.toLowerCase();
+  if (que == "borrar") {
+    sensoresOlvidarCalibracion();
+    return;
+  }
+  if (que != "seco" && que != "agua") {
+    Serial.println("Consola: «calibrar seco» con la sonda seca al aire, «calibrar agua» con la sonda metida en agua "
+                   "(hasta la raya, sin mojar el circuito) y «calibrar borrar» para volver a los de ajustes.h.");
+    return;
+  }
+  const bool seco = que == "seco";
+  int crudo = 0;
+  if (!sensoresCalibrarSuelo(seco, crudo)) {
+    const CalibracionSuelo cal = sensoresCalibracion();
+    Serial.printf("Consola: no se guardó. Midió %d, y %s es %d: tienen que separarse al menos %d. ¿La sonda está %s?\n",
+                  crudo, seco ? "agua" : "seco", seco ? cal.agua : cal.seco, SUELO_DIFERENCIA_MINIMA,
+                  seco ? "seca, al aire" : "metida en agua");
+    return;
+  }
+  const CalibracionSuelo cal = sensoresCalibracion();
+  Serial.printf("Consola: «%s» quedó en %d y se guardó en la memoria. Ahora: seco %d, agua %d.\n", que.c_str(), crudo,
+                cal.seco, cal.agua);
+}
+
+// Ordenes por el monitor serie, para probar el modo de conexion sin apretar BOOT ni olvidar la red, la
+// pantalla del estado de prueba sin la API, y para ver y calibrar el sensor del suelo.
 void revisarConsola() {
   static String linea;
   while (Serial.available() > 0) {
@@ -359,8 +393,12 @@ void revisarConsola() {
       }
     } else if (linea == "memoria") {
       redPropiaImprimirRecursos("ahora");
+    } else if (linea == "suelo") {
+      imprimirSuelo();
+    } else if (linea == "calibrar" || linea.startsWith("calibrar ")) {
+      ordenCalibrar(linea.substring(8));
     } else if (linea.length() > 0) {
-      Serial.println("Consola: las órdenes son «conexion», «cerrar», «memoria» y «prueba».");
+      Serial.println("Consola: las órdenes son «conexion», «cerrar», «memoria», «prueba», «suelo» y «calibrar».");
     }
     linea = "";
   }
@@ -605,7 +643,7 @@ void pasoConectada() {
       ultimaLectura = lectura;
       hayEstado = true;
       problema = "";
-      Serial.printf("Lectura %.1f %% · %d lux · %.1f °C -> 201: «%s» está %s%s%s%s\n", lectura.humedad, lectura.luz,
+      Serial.printf("Lectura: suelo %.1f %% · %d lux · %.1f °C -> 201: «%s» está %s%s%s%s\n", lectura.humedad, lectura.luz,
                     lectura.temperatura, nuevo.apodo.c_str(), nuevo.estado.c_str(),
                     nuevo.necesidad.length() > 0 ? ", necesita " : "", nuevo.necesidad.c_str(),
                     nuevo.prueba.activa ? " (la pantalla muestra la prueba)" : "");
@@ -853,6 +891,7 @@ void setup() {
   autopruebaIdentidad();
   autopruebaJson();
   autopruebaApi();
+  autopruebaSuelo();
 
   pantallaIniciar();
   pantallaBienvenida(codigo);

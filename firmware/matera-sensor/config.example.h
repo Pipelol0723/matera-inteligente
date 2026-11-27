@@ -24,8 +24,16 @@
 // #define LUX_CON_LUZ 1500
 // #define LUX_SIN_LUZ 50
 
-// Los pines, si se cablea distinto: DHT11, salida DO del LDR, pantalla (I2C), LED y botón BOOT.
+// La calibración de partida del sensor de humedad del suelo (valor crudo de 0 a 4095): con la sonda seca
+// al aire (0 %) y metida en agua (100 %). Lo normal es no tocarlos y calibrar por el monitor serie con
+// «calibrar seco» y «calibrar agua»: lo que se calibra así queda en la memoria y tiene prioridad.
+// #define SUELO_SECO 4095
+// #define SUELO_AGUA 2550
+
+// Los pines, si se cablea distinto: DHT11, salida AO del sensor del suelo (solo GPIO32 a 39: los del ADC2
+// no leen con el WiFi encendido), salida DO del LDR, pantalla (I2C), LED y botón BOOT.
 // #define PIN_DHT 26
+// #define PIN_SUELO 34
 // #define PIN_LUZ 18
 // #define PIN_SDA 21
 // #define PIN_SCL 22

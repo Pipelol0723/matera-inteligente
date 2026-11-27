@@ -17,6 +17,8 @@ const char *const NVS_CLAVE_RED = "claveRed";
 const char *const NVS_SERVIDORES = "servidores";  // separados por saltos de linea
 const char *const NVS_ELEGIDO = "servidor";
 const char *const NVS_CLAVE_SENSOR = "claveSensor";
+const char *const NVS_SUELO_SECO = "sueloSeco";
+const char *const NVS_SUELO_AGUA = "sueloAgua";
 
 const size_t LARGO_CLAVE = 43;
 
@@ -111,4 +113,23 @@ String memoriaClaveSensor() {
 
 String memoriaNuevaClaveSensor() {
   return crearClave();
+}
+
+bool memoriaCalibracionSuelo(int &seco, int &agua) {
+  if (!abierta || !preferencias.isKey(NVS_SUELO_SECO) || !preferencias.isKey(NVS_SUELO_AGUA)) return false;
+  seco = preferencias.getInt(NVS_SUELO_SECO, 0);
+  agua = preferencias.getInt(NVS_SUELO_AGUA, 0);
+  return true;
+}
+
+void memoriaGuardarCalibracionSuelo(int seco, int agua) {
+  if (!abierta) return;
+  const bool bien = preferencias.putInt(NVS_SUELO_SECO, seco) > 0 && preferencias.putInt(NVS_SUELO_AGUA, agua) > 0;
+  if (!bien) Serial.println("Memoria: no se pudo guardar la calibración del suelo.");
+}
+
+void memoriaOlvidarCalibracionSuelo() {
+  if (!abierta) return;
+  preferencias.remove(NVS_SUELO_SECO);
+  preferencias.remove(NVS_SUELO_AGUA);
 }

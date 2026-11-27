@@ -357,7 +357,7 @@ python main.py
 
 - El front en otra terminal (ver [Ejecutar el front](#ejecutar-el-front)), el puerto 5000 abierto en el firewall y el 5500 si el front se abre desde otro equipo.
 - El PC, el Honor y la placa en el mismo WiFi de 2,4 GHz (el hotspot del celular sirve).
-- Una cuenta admin para el modo prueba (`python crear_admin.py <correo>`) y una matera de **potos** con la placa: con la luz encendida, los rangos del DHT11 le alcanzan para estar SALUDABLE.
+- Una cuenta admin para el modo prueba (`python crear_admin.py <correo>`) y una matera de **potos** con la placa y el sensor del suelo calibrado (`firmware/README.md`): con la luz encendida y la sonda en tierra húmeda (el potos pide de 40 a 70 %) queda SALUDABLE; con la sonda al aire pide agua, y metida en un vaso de agua marca exceso de agua.
 - La app instalada en el Honor (ver [Compilar e instalar](#compilar-e-instalar)) y apuntada al PC con el QR de Mi cuenta.
 
 **Corte 3.** Lo nuevo se muestra así:

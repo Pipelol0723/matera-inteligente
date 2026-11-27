@@ -1,6 +1,6 @@
 # Firmware de la placa (ESP32)
 
-`matera-sensor/` es el programa de la placa. Lee la temperatura y la humedad del aire (DHT11) y si hay luz (módulo LDR), se las manda a la API y muestra en su pantalla OLED lo que la API responde: una carita, el estado y lo que necesita la planta.
+`matera-sensor/` es el programa de la placa. Lee la humedad del suelo (sonda HW-103), la temperatura (DHT11) y si hay luz (módulo LDR), se las manda a la API y muestra en su pantalla OLED lo que la API responde: una carita, el estado y lo que necesita la planta.
 
 Desde el corte 3 la placa **se conecta sola**: no hay que tocar `config.h` ni volver a subir el programa. En su **modo de conexión** la placa abre su propia red WiFi, muestra un QR y se anuncia por Bluetooth LE. La app le entrega el WiFi y la dirección del servidor por cualquiera de los dos caminos (uniéndose a su red, o por Bluetooth sin dejar la suya), y después crea la matera con el código y la huella de la placa.
 
@@ -253,7 +253,7 @@ Mientras se mantiene, la pantalla muestra los segundos y una barra con la marca 
 
 ## Órdenes por el monitor serie
 
-Para probar el modo de conexión sin apretar BOOT ni olvidar la red, y la pantalla del estado de prueba sin la API, se escribe en el monitor serie (115 200 baudios, con salto de línea al final):
+Para probar el modo de conexión sin apretar BOOT ni olvidar la red, la pantalla del estado de prueba sin la API, y para ver y calibrar el sensor del suelo, se escribe en el monitor serie (115 200 baudios, con salto de línea al final):
 
 | Orden | Qué hace |
 |---|---|
@@ -262,6 +262,9 @@ Para probar el modo de conexión sin apretar BOOT ni olvidar la red, y la pantal
 | `memoria` | Imprime el flash que usa el programa y la RAM libre. |
 | `prueba <cara> <condicion> <etapa> <dormida> [necesidad]` | Solo para probar: dibuja ese estado de prueba sin la API, en cualquier etapa (tapa también el QR), con su parpadeo. `cara` es `SALUDABLE`, `EN_RIESGO` o `CRITICO`; `condicion`, `SANA`, `DECAIDA` o `MARCHITA`; `etapa`, `SEMILLA`, `BROTE`, `PLANTA` o `FLORECIDA`; `dormida`, `si` o `no`; `necesidad`, una de la tabla del globo, o nada (o `-`). Acepta minúsculas. Por ejemplo `prueba CRITICO MARCHITA FLORECIDA no EXCESO_AGUA` o `prueba saludable sana semilla si`. Si algo no existe, imprime el uso. |
 | `prueba fin` | Quita la prueba de la consola: la pantalla vuelve a la etapa. Reiniciar la placa también la quita. |
+| `suelo` | Imprime el valor crudo del sensor del suelo (0 a 4095), el % que daría y la calibración que usa. Funciona sin red. |
+| `calibrar seco` · `calibrar agua` | Guardan el valor crudo de ahora como el de la sonda seca (0 %) o metida en agua (100 %). Ver «Calibrar el sensor del suelo». |
+| `calibrar borrar` | Vuelve a la calibración de partida (`SUELO_SECO` y `SUELO_AGUA` de `ajustes.h`). |
 
 ## Lo que manda a la API
 
@@ -293,7 +296,7 @@ Las mismas dos rutas del simulador (`simulador/simulador_esp32.py`):
     "necesidad": null, "prueba": null}
    ```
 
-**Humedad:** el DHT11 mide la del aire, y para la demo se manda esa, y se avisa en la presentación. **Luz:** el módulo LDR solo dice si hay luz o no, así que se mandan 1500 lux con luz y 50 sin luz.
+**Humedad:** la del suelo, en %, de la sonda HW-103 (desde el 26 de noviembre; antes se mandaba la del aire del DHT11, que ya no se usa). **Luz:** el módulo LDR solo dice si hay luz o no, así que se mandan 1500 lux con luz y 50 sin luz.
 
 ## Placa y conexiones
 
@@ -301,7 +304,8 @@ ESP32 clásica de doble núcleo (DevKit WROOM-32, ESP32-D0WD-V3, 4 MB, puente US
 
 | Pieza | Pin de la pieza | Pin de la ESP32 | Nota |
 |---|---|---|---|
-| DHT11 (temperatura y humedad del aire) | DATA · VCC · GND | GPIO26 · 3V3 · GND | La primera lectura después de encenderlo sale mal: el programa la descarta. No se lee más de una vez cada 2 segundos. |
+| Sensor de humedad del suelo HW-103 (sonda de dos puntas y módulo LM393) | VCC · GND · DO · AO | 3V3 · GND · — · GPIO34 | Se usa la salida analógica (AO); DO queda sin conectar. Tiene que ir a un pin del ADC1 (GPIO32 a 39): los del ADC2 no leen con el WiFi encendido. La sonda va a los 2 pines del otro lado del módulo, en cualquier orden. VCC a 3V3, no a 5V: con 5V, AO pasaría de lo que aguanta GPIO34. |
+| DHT11 (temperatura) | DATA · VCC · GND | GPIO26 · 3V3 · GND | La primera lectura después de encenderlo sale mal: el programa la descarta. No se lee más de una vez cada 2 segundos. También mide la humedad del aire, pero esa no se manda. |
 | Módulo LDR con LM393 (luz) | DO · VCC · GND | GPIO18 · 3V3 · GND | Solo tiene salida digital. La perilla azul fija desde cuánta luz cuenta como «con luz». |
 | Pantalla OLED de 0,96" (NFP1315-157B, SSD1315, I2C) | GND · VCC · SCL · SDA | GND · 3V3 · GPIO22 · GPIO21 | Dirección 0x3C. VCC va a 3V3, no a 5V. Si la pantalla no responde, la placa sigue sin ella y todo queda en el monitor serie. |
 | Botón BOOT | — | GPIO0 | El de la placa. |
@@ -311,6 +315,14 @@ ESP32 clásica de doble núcleo (DevKit WROOM-32, ESP32-D0WD-V3, 4 MB, puente US
 - Cada pieza va a su fila: `S` es la señal (el GPIO), `V` la alimentación y `G` la tierra. El orden de los pines del sensor (por ejemplo GND · DATA · VCC) no siempre coincide con G · V · S: se conecta cable por cable, mirando las letras.
 - **Los pines `V` solo tienen corriente si el jumper «JUMP» une el pin del medio (V) con 3V.** Sin ese jumper, un sensor conectado a `V` queda apagado y el monitor serie dice «El DHT11 no respondió». Pasó en la prueba del 12 de noviembre: se resolvió llevando el VCC del DHT11 a un pin de 3V3. No usar la posición 5V: la ESP32 no aguanta 5 V en sus pines de datos.
 - El conector de 4 pines (D22 · D21 · VCC · GND) de la pantalla tiene su propio VCC, por eso la pantalla funciona aunque falte el jumper.
+- Con el jumper en 3V, el sensor del suelo va entero en la fila D34: VCC a `V`, GND a `G` y AO a `S`. Así se armó el 26 de noviembre, cuando ya no quedaban pines de 3V3 libres.
+
+**Calibrar el sensor del suelo.** El sensor da un número de 0 a 4095 que depende de la sonda y del agua, así que la placa necesita saber cuánto da seca y cuánto en agua. Se hace una vez por sensor, por el monitor serie, y queda en la memoria de la placa: no se borra al reiniciar, ni al olvidar la red con BOOT, ni al subir otra versión del programa.
+1. Con la sonda seca y al aire, escribir `calibrar seco`.
+2. Con la sonda metida en un vaso de agua hasta la raya (sin mojar el módulo ni los cables), escribir `calibrar agua`.
+3. `suelo` muestra el valor crudo y el % de ahora: seca tiene que dar 0 % y en agua, 100 %.
+
+Si el seco y el agua quedan a menos de 300 uno del otro, la placa no guarda la calibración y avisa: casi siempre es que la sonda no estaba donde decía la orden. Mientras no se calibre, usa los valores de `ajustes.h` y lo dice al arrancar: seco 4095 y agua 2550, los que dio la sonda HW-103 del proyecto el 26 de noviembre, a 3,3 V y en agua de la llave (seca satura en 4095; en agua baja a unos 2500 en un par de segundos). La sonda resistiva se corroe si pasa días enterrada con corriente; para una matera de verdad conviene una capacitiva, que se conecta y se calibra igual.
 
 **Ajustar el sensor de luz.** El módulo LDR no mide lux: compara la luz con el umbral que fija su perilla azul y dice «con luz» o «sin luz» (la placa manda 1500 o 50 lux). Si la placa manda siempre lo mismo, el umbral está corrido, como pasó el 17 de noviembre, cuando el sensor marcaba luz aunque estuviera tapado.
 - Con el sensor tapado, girar la perilla despacio hasta que se apague el LED de señal del módulo (el de DO).
@@ -370,15 +382,15 @@ Los archivos del programa:
 |---|---|
 | `matera-sensor.ino` | `setup()`, `loop()` y las etapas. |
 | `identidad.*` | El código desde la MAC, la clave al azar, la huella y la autoprueba. |
-| `memoria.*` | La red, los servidores y la clave en la NVS, y el respaldo de `config.h`. |
+| `memoria.*` | La red, los servidores, la clave y la calibración del suelo en la NVS, y el respaldo de `config.h`. |
 | `api_local.*` | El contrato de la API local: `info`, `configurar`, `estado` y `cerrar`, sus validaciones y las redes que ve la placa. Lo usan los dos adaptadores. |
 | `red_propia.*` | El modo de conexión: la red propia, su DNS y el adaptador HTTP de la API local. Enciende y apaga el Bluetooth. |
 | `bluetooth.*` | El adaptador Bluetooth LE de la API local (NimBLE): la clave, los intentos, los pedidos y las respuestas en trozos. |
 | `api_matera.*` | El canje, las lecturas y lo que se lee de la respuesta 201, con el estado de prueba. |
-| `sensores.*` | El DHT11 y el LDR. |
+| `sensores.*` | El sensor del suelo (con su calibración, su paso a % y la autoprueba), el DHT11 y el LDR. |
 | `pantalla.*` | Las pantallas, la carita, el globo, el QR y el parpadeo. |
 | `lector_json.*` | El lector de JSON mínimo. |
-| `ajustes.h` | Los pines y los valores del LDR, que `config.h` puede cambiar. |
+| `ajustes.h` | Los pines, los valores del LDR y la calibración de partida del suelo, que `config.h` puede cambiar. |
 
 ## `config.h`, opcional
 

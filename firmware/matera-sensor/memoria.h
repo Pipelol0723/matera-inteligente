@@ -1,4 +1,5 @@
-// Memoria de la placa (NVS, con Preferences): la red, la clave del WiFi, los servidores y la clave del sensor.
+// Memoria de la placa (NVS, con Preferences): la red, la clave del WiFi, los servidores, la clave del sensor
+// y la calibracion del sensor de humedad del suelo.
 //
 // La clave del sensor se crea la primera vez y se conserva aunque se olvide la red. Si la memoria no tiene
 // red y config.h define WIFI_SSID, WIFI_CLAVE y API_BASE, se usan esos como respaldo de desarrollo
@@ -41,3 +42,9 @@ String memoriaClaveSensor();
 
 // Reemplaza la clave del sensor por una nueva.
 String memoriaNuevaClaveSensor();
+
+// La calibracion del sensor del suelo: los valores crudos con la sonda seca y en agua. false si nunca se
+// calibro. Olvidar la red (BOOT 5 s o 15 s) no la borra: el sensor sigue siendo el mismo.
+bool memoriaCalibracionSuelo(int &seco, int &agua);
+void memoriaGuardarCalibracionSuelo(int seco, int agua);
+void memoriaOlvidarCalibracionSuelo();
