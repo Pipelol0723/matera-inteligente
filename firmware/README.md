@@ -32,7 +32,7 @@ También revisa el lector de JSON con una respuesta 201 de ejemplo, y cómo lee 
 | `conectando` | «Conectando a «red»...» y el motivo, si la red lo rechaza. | Se une al WiFi. Si no entra en 60 s, o la red rechaza la clave dos veces, abre su red otra vez. |
 | `buscando-servidor` | «Conectada a «red»», «buscando el servidor...» y la dirección que prueba. | Prueba cada dirección, empezando por la que respondió la última vez, primero **sin la clave**: el canje con el cuerpo `{}` tiene que dar el 400 en JSON de la API, con su campo `error`. Solo entonces canjea allí con la clave, y cualquier respuesta JSON de ese canje, incluido un 401, dice que ese es el servidor. Así la clave nunca va a una dirección equivocada (la lista de la app puede traer IPs de adaptadores virtuales). |
 | `esperando-matera` | «Agrégame en la app» y el código grande. | Reintenta el canje cada 5 s mientras la API responda 401: la matera todavía no existe. Con 403 `CUENTA_DESACTIVADA` dice «cuenta en pausa». |
-| `conectada` | La carita a la izquierda; a la derecha el apodo, el estado y la temperatura y la humedad, o el globo de lo que necesita. Si un admin le puso un estado de prueba, la prueba en vez de lo real (ver abajo). | Manda una lectura cada `INTERVALO_MS` (15 s). Si el token deja de servir, vuelve a canjear; si la clave ya no sirve (le cambiaron el sensor a la matera, o la borraron), vuelve a `esperando-matera`. |
+| `conectada` | La carita a la izquierda; a la derecha el apodo, el estado y la temperatura y la humedad del suelo, o el globo de lo que necesita. Si un admin le puso un estado de prueba, la prueba en vez de lo real (ver abajo). | Manda una lectura cada `INTERVALO_MS` (15 s). Si el token deja de servir, vuelve a canjear; si la clave ya no sirve (le cambiaron el sensor a la matera, o la borraron), vuelve a `esperando-matera`. |
 
 En `conectada` todo sale de la respuesta 201 de la lectura: el apodo de `planta.apodo`, el estado de `diagnostico.estado` y el globo del campo `necesidad`. La placa no decide ninguna regla.
 
@@ -50,7 +50,7 @@ En `conectada` todo sale de la respuesta 201 de la lectura: el apodo de `planta.
 | `CALOR` | ¡tengo calor! |
 | `POCA_LUZ` | ¡poca luz! |
 | `MUCHA_LUZ` | ¡mucha luz! |
-| `null`, o no viene | sin globo: la temperatura y la humedad, por ejemplo `24,5°C 53%` |
+| `null`, o no viene | sin globo: la temperatura y la humedad del suelo, por ejemplo `24,5°C 53%` |
 
 Si algo falla mientras está conectada (la API no responde, el DHT11 no contesta, falta la hora), esa línea lo dice. Después de 3 envíos seguidos sin respuesta, vuelve a buscar el servidor.
 

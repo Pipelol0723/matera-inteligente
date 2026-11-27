@@ -593,7 +593,7 @@ Por la red local el front va en http, así que el celular no muestra notificacio
 - Al unirse al WiFi, la placa cambia el canal de su red y el equipo se desconecta un momento: la app vuelve a preguntar sola.
 - La ESP32 no ve las redes de 5 GHz. En el hotspot de un iPhone hay que encender «Maximizar compatibilidad».
 
-**El respaldo: «Conectar a mano».** Es el enlace del formulario de Mis materas y de los primeros pasos del asistente. Se escribe el código del sensor y la API crea la clave y la muestra una sola vez, como en la fase 2. Sirve para el simulador (`--clave=`) y para las placas con el programa de la fase 2, que llevan el código y la clave en `config.h`. El programa actual ya no usa `CODIGO_SENSOR` ni `CLAVE_SENSOR`: su `config.h` es opcional y solo ajusta pines, los valores del LDR y una red de respaldo para desarrollo.
+**El respaldo: «Conectar a mano».** Es el enlace del formulario de Mis materas y de los primeros pasos del asistente. Se escribe el código del sensor y la API crea la clave y la muestra una sola vez, como en la fase 2. Sirve para el simulador (`--clave=`) y para las placas con el programa de la fase 2, que llevan el código y la clave en `config.h`. El programa actual ya no usa `CODIGO_SENSOR` ni `CLAVE_SENSOR`: su `config.h` es opcional y solo ajusta pines, los valores del LDR, la calibración de partida del sensor del suelo y una red de respaldo para desarrollo.
 
 ### Conectar por Bluetooth
 

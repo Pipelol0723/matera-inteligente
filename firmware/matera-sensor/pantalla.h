@@ -28,8 +28,8 @@ void pantallaEsperandoMatera(const String &codigo, const String &detalle);
 // Conectada, antes de la primera respuesta 201.
 void pantallaConectada(const String &codigo, const String &detalle);
 
-// La carita a la izquierda; a la derecha el apodo, el estado y una linea: la temperatura y la humedad, un
-// aviso, o el globo con lo que necesita (`globo` = true).
+// La carita a la izquierda; a la derecha el apodo, el estado y una linea: la temperatura y la humedad del
+// suelo, un aviso, o el globo con lo que necesita (`globo` = true).
 void pantallaMatera(Cara cara, const String &apodo, const String &estado, const String &linea, bool globo);
 
 // El estado de prueba que puso un admin: como pantallaMatera, pero arriba dice «prueba» en letra chica y
